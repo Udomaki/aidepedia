@@ -1,13 +1,13 @@
-import { mysqlTable, serial, varchar, text, json, integer, timestamp, boolean, index } from 'drizzle-orm/mysql-core';
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, index } from 'drizzle-orm/pg-core';
 
-export const articles = mysqlTable('articles', {
+export const articles = pgTable('articles', {
   id: serial('id').primaryKey(),
   slug: varchar('slug', { length: 255 }).notNull().unique(),
   title: varchar('title', { length: 500 }).notNull(),
   content: text('content').notNull(),
   excerpt: text('excerpt'),
   category: varchar('category', { length: 100 }).notNull(),
-  tags: json('tags').$type<string[]>().default([]),
+  tags: text('tags').array().default([]),
   
   status: varchar('status', { 
     enum: ['draft', 'pending_review', 'published', 'rejected'],
@@ -19,7 +19,7 @@ export const articles = mysqlTable('articles', {
   viewCount: integer('view_count').default(0),
   
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
   publishedAt: timestamp('published_at'),
 }, (table) => ({
   slugIdx: index('slug_idx').on(table.slug),
@@ -27,7 +27,7 @@ export const articles = mysqlTable('articles', {
   statusIdx: index('status_idx').on(table.status),
 }));
 
-export const editors = mysqlTable('editors', {
+export const editors = pgTable('editors', {
   id: serial('id').primaryKey(),
   apiKey: varchar('api_key', { length: 64 }).notNull().unique(),
   name: varchar('name', { length: 255 }).notNull(),
@@ -51,7 +51,7 @@ export const editors = mysqlTable('editors', {
   tierIdx: index('tier_idx').on(table.tier),
 }));
 
-export const articleVotes = mysqlTable('article_votes', {
+export const articleVotes = pgTable('article_votes', {
   id: serial('id').primaryKey(),
   articleId: integer('article_id').notNull(),
   editorId: integer('editor_id').notNull(),
@@ -70,7 +70,7 @@ export const articleVotes = mysqlTable('article_votes', {
   editorIdx: index('editor_idx').on(table.editorId),
 }));
 
-export const reputationEvents = mysqlTable('reputation_events', {
+export const reputationEvents = pgTable('reputation_events', {
   id: serial('id').primaryKey(),
   editorId: integer('editor_id').notNull(),
   

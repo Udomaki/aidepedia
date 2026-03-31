@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.39.0",
-    "@planetscale/database": "^1.19.0"
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.0",
