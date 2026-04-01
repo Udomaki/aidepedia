@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
 // Auth tables for @auth/core
 export const users = pgTable('users', {
@@ -444,9 +444,7 @@ export const system_settings = pgTable('system_settings', {
   value: jsonb('value').notNull().$type<Record<string, unknown>>(),
   updatedAt: timestamp('updated_at').defaultNow(),
   updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
-}, (table) => ({
-  keyIdx: index('system_settings_key_idx').on(table.key),
-}));
+});
 
 // Audit logs for admin actions
 export const audit_logs = pgTable('audit_logs', {
