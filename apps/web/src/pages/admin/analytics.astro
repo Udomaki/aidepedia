@@ -1,0 +1,344 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Analytics Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Analytics Dashboard</h1>
+      <p class="text-gray-600">
+        Privacy-focused page analytics • No cookies • No PII collected
+      </p>
+    </div>
+
+    <!-- Period Selector -->
+    <div class="mb-6 flex gap-2">
+      <button
+        id="btn-7"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium period-btn"
+        data-days="7"
+      >
+        7 Days
+      </button>
+      <button
+        id="btn-30"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium period-btn"
+        data-days="30"
+      >
+        30 Days
+      </button>
+      <button
+        id="btn-90"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium period-btn"
+        data-days="90"
+      >
+        90 Days
+      </button>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Views</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </div>
+        <p id="total-views" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">page views</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Unique Visitors</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <p id="unique-visitors" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">unique visitors</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Avg Read Time</h3>
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p id="avg-read-time" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">seconds</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Avg Scroll Depth</h3>
+          <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+        <p id="avg-scroll-depth" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">percent</p>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Traffic Over Time -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Traffic Over Time</h2>
+        <div id="traffic-chart" class="h-64 flex items-end gap-1">
+          <!-- Chart will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Geographic Distribution -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Geographic Distribution</h2>
+        <div id="geo-list" class="space-y-2">
+          <!-- List will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Tables -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Top Articles -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Top Articles</h2>
+        <div id="top-articles" class="space-y-3">
+          <!-- Table will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Traffic Sources -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Traffic Sources</h2>
+        <div id="traffic-sources" class="space-y-2">
+          <!-- List will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Privacy Notice -->
+    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <div>
+          <h3 class="font-semibold text-blue-900 mb-1">Privacy-First Analytics</h3>
+          <p class="text-sm text-blue-800">
+            This dashboard respects user privacy. We don't use cookies or collect personally identifiable information (PII). 
+            IP addresses are hashed for uniqueness tracking. All data collection is GDPR compliant.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let currentDays = 7;
+
+  async function loadAnalytics(days: number) {
+    try {
+      const response = await fetch(`/api/v1/admin/analytics?days=${days}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        console.error('Failed to load analytics:', data.error);
+        return;
+      }
+
+      const { summary, traffic, topArticles, sources, geo } = data.data;
+
+      // Update summary stats
+      document.getElementById('total-views')!.textContent = summary.totalViews.toLocaleString();
+      document.getElementById('unique-visitors')!.textContent = summary.uniqueVisitors.toLocaleString();
+      document.getElementById('avg-read-time')!.textContent = summary.avgReadTime?.toFixed(1) || '-';
+      document.getElementById('avg-scroll-depth')!.textContent = summary.avgScrollDepth?.toFixed(0) || '-';
+
+      // Render traffic chart
+      renderTrafficChart(traffic.reverse());
+
+      // Render top articles
+      renderTopArticles(topArticles);
+
+      // Render traffic sources
+      renderTrafficSources(sources);
+
+      // Render geographic distribution
+      renderGeographicDistribution(geo);
+    } catch (error) {
+      console.error('Error loading analytics:', error);
+    }
+  }
+
+  function renderTrafficChart(traffic: any[]) {
+    const container = document.getElementById('traffic-chart')!;
+    container.innerHTML = '';
+
+    const maxViews = Math.max(...traffic.map(t => t.views));
+
+    traffic.forEach(day => {
+      const height = (day.views / maxViews) * 100;
+      const bar = document.createElement('div');
+      bar.className = 'flex-1 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors cursor-pointer relative group';
+      bar.style.height = `${height}%`;
+      bar.title = `${day.date}: ${day.views} views`;
+      
+      // Tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap';
+      tooltip.textContent = `${day.date}: ${day.views} views`;
+      bar.appendChild(tooltip);
+
+      container.appendChild(bar);
+    });
+  }
+
+  function renderTopArticles(articles: any[]) {
+    const container = document.getElementById('top-articles')!;
+    container.innerHTML = '';
+
+    if (articles.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No data available</p>';
+      return;
+    }
+
+    articles.forEach((article, index) => {
+      const item = document.createElement('div');
+      item.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors';
+      item.innerHTML = `
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-lg font-bold text-gray-400 w-6">${index + 1}</span>
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-gray-900 truncate">${article.title || article.path}</p>
+            <p class="text-xs text-gray-500">
+              ${article.uniqueVisitors} unique • 
+              ${article.avgReadTime ? `${article.avgReadTime.toFixed(0)}s avg` : 'no read time'}
+            </p>
+          </div>
+        </div>
+        <div class="text-right ml-4">
+          <p class="font-bold text-gray-900">${article.views.toLocaleString()}</p>
+          <p class="text-xs text-gray-500">views</p>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  function renderTrafficSources(sources: any[]) {
+    const container = document.getElementById('traffic-sources')!;
+    container.innerHTML = '';
+
+    if (sources.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No data available</p>';
+      return;
+    }
+
+    const total = sources.reduce((sum, s) => sum + s.count, 0);
+
+    sources.forEach(source => {
+      const percentage = ((source.count / total) * 100).toFixed(1);
+      const item = document.createElement('div');
+      item.className = 'flex items-center gap-3';
+      
+      // Clean up referrer display
+      let displayReferrer = source.referrer;
+      if (source.referrer !== 'Direct') {
+        try {
+          const url = new URL(source.referrer);
+          displayReferrer = url.hostname;
+        } catch {
+          // Keep original if not a valid URL
+        }
+      }
+
+      item.innerHTML = `
+        <div class="flex-1">
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-medium text-gray-700">${displayReferrer}</span>
+            <span class="text-sm text-gray-500">${percentage}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-blue-500 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  function renderGeographicDistribution(geo: any[]) {
+    const container = document.getElementById('geo-list')!;
+    container.innerHTML = '';
+
+    if (geo.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No data available</p>';
+      return;
+    }
+
+    const total = geo.reduce((sum, g) => sum + g.count, 0);
+    const countryNames: Record<string, string> = {
+      'US': 'United States',
+      'GB': 'United Kingdom',
+      'DE': 'Germany',
+      'FR': 'France',
+      'CA': 'Canada',
+      'AU': 'Australia',
+      'JP': 'Japan',
+      'Unknown': 'Unknown',
+    };
+
+    geo.forEach(location => {
+      const percentage = ((location.count / total) * 100).toFixed(1);
+      const item = document.createElement('div');
+      item.className = 'flex items-center gap-3';
+      item.innerHTML = `
+        <div class="flex-1">
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-medium text-gray-700">
+              ${countryNames[location.countryCode] || location.countryCode}
+            </span>
+            <span class="text-sm text-gray-500">${percentage}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-green-500 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  // Period selector handlers
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const days = parseInt(target.dataset.days || '7');
+
+      // Update button styles
+      document.querySelectorAll('.period-btn').forEach(b => {
+        b.classList.remove('bg-blue-600', 'text-white');
+        b.classList.add('bg-gray-200', 'text-gray-700');
+      });
+      target.classList.remove('bg-gray-200', 'text-gray-700');
+      target.classList.add('bg-blue-600', 'text-white');
+
+      // Load new data
+      currentDays = days;
+      loadAnalytics(days);
+    });
+  });
+
+  // Initial load
+  loadAnalytics(7);
+</script>

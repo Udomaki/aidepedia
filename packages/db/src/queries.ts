@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -3348,4 +3348,202 @@ export async function getDigestContent(
   } catch (error) {
     throw new DatabaseError(`Failed to get digest content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+// ============================================
+// Analytics Queries
+// ============================================
+
+/**
+ * Get traffic overview for the last N days
+ */
+export async function getTrafficStats(days: number = 7): Promise<{
+  date: string;
+  views: number;
+  visitors: number;
+}[]> {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - days);
+
+  const result = await db.execute(sql`
+    SELECT 
+      DATE(created_at) as date,
+      COUNT(*) as views,
+      COUNT(DISTINCT visitor_hash) as visitors
+    FROM page_views
+    WHERE created_at >= ${threshold}
+    GROUP BY DATE(created_at)
+    ORDER BY date DESC
+  `);
+
+  return result.rows.map(row => ({
+    date: row.date as string,
+    views: Number(row.views),
+    visitors: Number(row.visitors),
+  }));
+}
+
+/**
+ * Get top articles by views
+ */
+export async function getTopArticlesByViews(
+  days: number = 7,
+  limit: number = 10
+): Promise<{
+  articleId: number | null;
+  path: string;
+  title: string | null;
+  views: number;
+  uniqueVisitors: number;
+  avgReadTime: number | null;
+  avgScrollDepth: number | null;
+}[]> {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - days);
+
+  const result = await db.execute(sql`
+    SELECT 
+      pv.article_id as "articleId",
+      pv.path,
+      a.title,
+      COUNT(*) as views,
+      COUNT(DISTINCT pv.visitor_hash) as "uniqueVisitors",
+      AVG(pv.read_time_seconds) as "avgReadTime",
+      AVG(pv.scroll_depth) as "avgScrollDepth"
+    FROM page_views pv
+    LEFT JOIN articles a ON pv.article_id = a.id
+    WHERE pv.created_at >= ${threshold}
+    GROUP BY pv.article_id, pv.path, a.title
+    ORDER BY views DESC
+    LIMIT ${limit}
+  `);
+
+  return result.rows.map(row => ({
+    articleId: row.articleId as number | null,
+    path: row.path as string,
+    title: row.title as string | null,
+    views: Number(row.views),
+    uniqueVisitors: Number(row.uniqueVisitors),
+    avgReadTime: row.avgReadTime ? Number(row.avgReadTime) : null,
+    avgScrollDepth: row.avgScrollDepth ? Number(row.avgScrollDepth) : null,
+  }));
+}
+
+/**
+ * Get traffic sources (referrers)
+ */
+export async function getTrafficSources(
+  days: number = 7,
+  limit: number = 10
+): Promise<{
+  referrer: string;
+  count: number;
+}[]> {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - days);
+
+  const result = await db.execute(sql`
+    SELECT 
+      COALESCE(referrer, 'Direct') as referrer,
+      COUNT(*) as count
+    FROM page_views
+    WHERE created_at >= ${threshold}
+    GROUP BY referrer
+    ORDER BY count DESC
+    LIMIT ${limit}
+  `);
+
+  return result.rows.map(row => ({
+    referrer: row.referrer as string,
+    count: Number(row.count),
+  }));
+}
+
+/**
+ * Get geographic distribution
+ */
+export async function getGeographicDistribution(
+  days: number = 7,
+  limit: number = 10
+): Promise<{
+  countryCode: string;
+  count: number;
+}[]> {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - days);
+
+  const result = await db.execute(sql`
+    SELECT 
+      COALESCE(country_code, 'Unknown') as "countryCode",
+      COUNT(*) as count
+    FROM page_views
+    WHERE created_at >= ${threshold}
+    GROUP BY country_code
+    ORDER BY count DESC
+    LIMIT ${limit}
+  `);
+
+  return result.rows.map(row => ({
+    countryCode: row.countryCode as string,
+    count: Number(row.count),
+  }));
+}
+
+/**
+ * Get overall stats summary
+ */
+export async function getAnalyticsSummary(days: number = 7): Promise<{
+  totalViews: number;
+  uniqueVisitors: number;
+  avgReadTime: number | null;
+  avgScrollDepth: number | null;
+  topPages: number;
+}> {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - days);
+
+  const result = await db.execute(sql`
+    SELECT 
+      COUNT(*) as "totalViews",
+      COUNT(DISTINCT visitor_hash) as "uniqueVisitors",
+      AVG(read_time_seconds) as "avgReadTime",
+      AVG(scroll_depth) as "avgScrollDepth",
+      COUNT(DISTINCT path) as "topPages"
+    FROM page_views
+    WHERE created_at >= ${threshold}
+  `);
+
+  const row = result.rows[0];
+  return {
+    totalViews: Number(row.totalViews),
+    uniqueVisitors: Number(row.uniqueVisitors),
+    avgReadTime: row.avgReadTime ? Number(row.avgReadTime) : null,
+    avgScrollDepth: row.avgScrollDepth ? Number(row.avgScrollDepth) : null,
+    topPages: Number(row.topPages),
+  };
+}
+
+/**
+ * Insert a page view (for analytics tracking)
+ */
+export async function insertPageView(data: {
+  visitorHash: string;
+  path: string;
+  articleId?: number | null;
+  referrer?: string | null;
+  userAgent?: string | null;
+  countryCode?: string | null;
+  readTimeSeconds?: number | null;
+  scrollDepth?: number | null;
+}): Promise<void> {
+  await db.insert(page_views).values({
+    visitorHash: data.visitorHash,
+    path: data.path,
+    articleId: data.articleId ?? null,
+    referrer: data.referrer ?? null,
+    userAgent: data.userAgent ?? null,
+    countryCode: data.countryCode ?? null,
+    readTimeSeconds: data.readTimeSeconds ?? null,
+    scrollDepth: data.scrollDepth ?? null,
+  });
 }
