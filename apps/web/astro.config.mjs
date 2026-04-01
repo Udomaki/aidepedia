@@ -6,5 +6,5 @@ export default defineConfig({
   site: 'https://aidepedia.com',
   integrations: [tailwind()],
   output: 'server',
-  adapter: cloudflare()
+  adapter: cloudflare(),
 });
