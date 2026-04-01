@@ -4546,6 +4546,208 @@ export async function getBlockedByUserIds(userId: number): Promise<number[]> {
 }
 
 // ============================================
+// Article Reaction Queries
+// ============================================
+
+import { article_reactions } from './schema/index';
+
+/**
+ * Available reaction emojis
+ */
+export const AVAILABLE_REACTIONS = ['👍', '❤️', '😲', '🤔', '🎉'] as const;
+export type ReactionEmoji = typeof AVAILABLE_REACTIONS[number];
+
+/**
+ * Add a reaction to an article
+ */
+export async function addArticleReaction(
+  articleId: number,
+  userId: number,
+  emoji: string
+): Promise<void> {
+  try {
+    // Validate emoji
+    if (!AVAILABLE_REACTIONS.includes(emoji as ReactionEmoji)) {
+      throw new ValidationError('Invalid reaction emoji');
+    }
+
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if reaction already exists
+    const [existing] = await db
+      .select()
+      .from(article_reactions)
+      .where(
+        and(
+          eq(article_reactions.articleId, articleId),
+          eq(article_reactions.userId, userId),
+          eq(article_reactions.emoji, emoji)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new ValidationError('Reaction already exists');
+    }
+
+    // Add reaction
+    await db.insert(article_reactions).values({
+      articleId,
+      userId,
+      emoji,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to add reaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Remove a reaction from an article
+ */
+export async function removeArticleReaction(
+  articleId: number,
+  userId: number,
+  emoji: string
+): Promise<void> {
+  try {
+    const [deleted] = await db
+      .delete(article_reactions)
+      .where(
+        and(
+          eq(article_reactions.articleId, articleId),
+          eq(article_reactions.userId, userId),
+          eq(article_reactions.emoji, emoji)
+        )
+      )
+      .returning();
+
+    if (!deleted) {
+      throw new ValidationError('Reaction not found');
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to remove reaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get reaction counts for an article
+ */
+export async function getArticleReactionCounts(articleId: number): Promise<Record<string, number>> {
+  try {
+    const result = await db
+      .select({
+        emoji: article_reactions.emoji,
+        count: count(),
+      })
+      .from(article_reactions)
+      .where(eq(article_reactions.articleId, articleId))
+      .groupBy(article_reactions.emoji);
+
+    const counts: Record<string, number> = {};
+    for (const row of result) {
+      counts[row.emoji] = Number(row.count);
+    }
+
+    // Ensure all available reactions are present in the result
+    for (const emoji of AVAILABLE_REACTIONS) {
+      if (!(emoji in counts)) {
+        counts[emoji] = 0;
+      }
+    }
+
+    return counts;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get reaction counts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get user's reactions for an article
+ */
+export async function getUserArticleReactions(
+  articleId: number,
+  userId: number
+): Promise<string[]> {
+  try {
+    const result = await db
+      .select({ emoji: article_reactions.emoji })
+      .from(article_reactions)
+      .where(
+        and(
+          eq(article_reactions.articleId, articleId),
+          eq(article_reactions.userId, userId)
+        )
+      );
+
+    return result.map(r => r.emoji);
+  } catch (error) {
+    throw new DatabaseError(`Failed to get user reactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Toggle a reaction (add if not exists, remove if exists)
+ */
+export async function toggleArticleReaction(
+  articleId: number,
+  userId: number,
+  emoji: string
+): Promise<{ reacted: boolean }> {
+  try {
+    // Validate emoji
+    if (!AVAILABLE_REACTIONS.includes(emoji as ReactionEmoji)) {
+      throw new ValidationError('Invalid reaction emoji');
+    }
+
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if reaction exists
+    const [existing] = await db
+      .select()
+      .from(article_reactions)
+      .where(
+        and(
+          eq(article_reactions.articleId, articleId),
+          eq(article_reactions.userId, userId),
+          eq(article_reactions.emoji, emoji)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      // Remove reaction
+      await db
+        .delete(article_reactions)
+        .where(eq(article_reactions.id, existing.id));
+      
+      return { reacted: false };
+    } else {
+      // Add reaction
+      await db.insert(article_reactions).values({
+        articleId,
+        userId,
+        emoji,
+      });
+      
+      return { reacted: true };
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to toggle reaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============================================
 // Article Draft Queries
 // ============================================
 

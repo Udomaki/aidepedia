@@ -277,6 +277,16 @@ export const bookmarks = pgTable('bookmarks', {
   userArticleIdx: index('bookmark_user_article_idx').on(table.userId, table.articleId),
 }));
 
+export const article_reactions = pgTable('article_reactions', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emoji: varchar('emoji', { length: 10 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  articleUserEmojiIdx: index('article_reaction_user_emoji_idx').on(table.articleId, table.userId, table.emoji),
+}));
+
 export const tags = pgTable('tags', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull().unique(),

@@ -1,0 +1,177 @@
+---
+interface Props {
+  articleId: number;
+  articleSlug: string;
+  isLoggedIn: boolean;
+}
+
+const { articleId, articleSlug, isLoggedIn } = Astro.props;
+---
+
+<div class="reaction-picker mt-8 mb-8" data-article-id={articleId} data-article-slug={articleSlug}>
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">React to this article</h3>
+    
+    <div class="flex flex-wrap gap-3" id="reactions-container">
+      <!-- Reactions will be loaded here by client-side script -->
+      <div class="text-gray-500 text-sm">Loading reactions...</div>
+    </div>
+    
+    {!isLoggedIn && (
+      <p class="text-sm text-gray-500 mt-4">
+        <a href="/login" class="text-blue-600 hover:text-blue-700">Sign in</a> to react to this article
+      </p>
+    )}
+  </div>
+</div>
+
+<style>
+  .reaction-btn {
+    @apply flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-200;
+    @apply hover:scale-105 active:scale-95;
+  }
+  
+  .reaction-btn:not(.reacted) {
+    @apply border-gray-200 bg-white hover:border-gray-300;
+  }
+  
+  .reaction-btn.reacted {
+    @apply border-blue-500 bg-blue-50;
+  }
+  
+  .reaction-emoji {
+    @apply text-2xl;
+  }
+  
+  .reaction-count {
+    @apply text-sm font-medium text-gray-700;
+  }
+  
+  .reaction-btn.reacted .reaction-count {
+    @apply text-blue-700;
+  }
+  
+  @keyframes bounce-in {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  .reaction-btn.just-reacted {
+    animation: bounce-in 0.3s ease-out;
+  }
+</style>
+
+<script define:vars={{ articleSlug, isLoggedIn }}>
+  const AVAILABLE_REACTIONS = ['👍', '❤️', '😲', '🤔', '🎉'];
+  
+  const reactionLabels = {
+    '👍': 'Helpful',
+    '❤️': 'Love',
+    '😲': 'Surprised',
+    '🤔': 'Thoughtful',
+    '🎉': 'Celebrate'
+  };
+
+  async function loadReactions() {
+    try {
+      const response = await fetch(`/api/v1/articles/${articleSlug}/reactions`);
+      const data = await response.json();
+      
+      if (data.success) {
+        renderReactions(data.data.counts, data.data.userReactions || []);
+      }
+    } catch (error) {
+      console.error('Error loading reactions:', error);
+      const container = document.getElementById('reactions-container');
+      if (container) {
+        container.innerHTML = '<p class="text-red-500 text-sm">Failed to load reactions</p>';
+      }
+    }
+  }
+
+  function renderReactions(counts, userReactions) {
+    const container = document.getElementById('reactions-container');
+    if (!container) return;
+    
+    container.innerHTML = AVAILABLE_REACTIONS.map(emoji => {
+      const count = counts[emoji] || 0;
+      const hasReacted = userReactions.includes(emoji);
+      const label = reactionLabels[emoji];
+      
+      return `
+        <button
+          class="reaction-btn ${hasReacted ? 'reacted' : ''}"
+          data-emoji="${emoji}"
+          ${!isLoggedIn ? 'disabled' : ''}
+          title="${label}"
+        >
+          <span class="reaction-emoji">${emoji}</span>
+          <span class="reaction-count">${count}</span>
+        </button>
+      `;
+    }).join('');
+    
+    // Attach click handlers
+    container.querySelectorAll('.reaction-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleReactionClick(btn));
+    });
+  }
+
+  async function handleReactionClick(button) {
+    if (!isLoggedIn) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    const emoji = button.dataset.emoji;
+    
+    // Optimistic update
+    const countEl = button.querySelector('.reaction-count');
+    const currentCount = parseInt(countEl.textContent);
+    const wasReacted = button.classList.contains('reacted');
+    
+    if (wasReacted) {
+      button.classList.remove('reacted');
+      countEl.textContent = currentCount - 1;
+    } else {
+      button.classList.add('reacted', 'just-reacted');
+      countEl.textContent = currentCount + 1;
+      
+      // Remove animation class after animation completes
+      setTimeout(() => {
+        button.classList.remove('just-reacted');
+      }, 300);
+    }
+    
+    try {
+      const response = await fetch(`/api/v1/articles/${articleSlug}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update all reaction counts with server response
+        renderReactions(data.data.counts, 
+          Array.from(document.querySelectorAll('.reaction-btn.reacted'))
+            .map(btn => btn.dataset.emoji)
+        );
+      } else {
+        // Revert optimistic update on error
+        loadReactions();
+        alert(data.error?.message || 'Failed to update reaction');
+      }
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+      // Revert optimistic update on error
+      loadReactions();
+      alert('Failed to update reaction');
+    }
+  }
+
+  // Initialize
+  loadReactions();
+</script>
