@@ -1,0 +1,333 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Performance Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Performance Dashboard</h1>
+      <p class="text-gray-600">
+        Monitor API response times and slow database queries
+      </p>
+    </div>
+
+    <!-- Period Selector -->
+    <div class="mb-6 flex gap-2">
+      <button
+        id="btn-1"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium period-btn"
+        data-hours="1"
+      >
+        1 Hour
+      </button>
+      <button
+        id="btn-24"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium period-btn"
+        data-hours="24"
+      >
+        24 Hours
+      </button>
+      <button
+        id="btn-168"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium period-btn"
+        data-hours="168"
+      >
+        7 Days
+      </button>
+      <button
+        id="btn-720"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium period-btn"
+        data-hours="720"
+      >
+        30 Days
+      </button>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Slow Queries</h3>
+          <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p id="slow-query-count" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">queries >100ms</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Avg Response Time</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p id="avg-response-time" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">milliseconds</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Requests</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+        </div>
+        <p id="total-requests" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">API requests</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Error Rate</h3>
+          <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p id="error-rate" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">percent</p>
+      </div>
+    </div>
+
+    <!-- Charts and Tables -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Slow Queries Table -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-900">Slow Queries</h2>
+          <button
+            id="refresh-slow-queries"
+            class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+          >
+            Refresh
+          </button>
+        </div>
+        <div id="slow-queries-table" class="overflow-x-auto">
+          <!-- Table will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Endpoint Performance -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-900">Endpoint Performance</h2>
+          <button
+            id="refresh-api-metrics"
+            class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+          >
+            Refresh
+          </button>
+        </div>
+        <div id="api-metrics-table" class="overflow-x-auto">
+          <!-- Table will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Tips -->
+    <div class="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h3 class="font-semibold text-yellow-900 mb-1">Performance Tips</h3>
+          <ul class="text-sm text-yellow-800 space-y-1">
+            <li>• Queries exceeding 100ms are logged as slow queries</li>
+            <li>• API responses exceeding 1s trigger warnings in logs</li>
+            <li>• Use the X-Response-Time header to track individual request performance</li>
+            <li>• Consider adding database indexes for frequently slow queries</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let currentHours = 24;
+
+  async function loadPerformanceData(hours: number) {
+    try {
+      // Load summary
+      const summaryResponse = await fetch(`/api/v1/admin/performance?type=summary&hours=${hours}`);
+      const summaryData = await summaryResponse.json();
+
+      if (summaryData.success) {
+        const { slowQueryCount, avgResponseTime, totalRequests, errorRate } = summaryData.data;
+        
+        document.getElementById('slow-query-count')!.textContent = slowQueryCount.toLocaleString();
+        document.getElementById('avg-response-time')!.textContent = avgResponseTime.toFixed(1);
+        document.getElementById('total-requests')!.textContent = totalRequests.toLocaleString();
+        document.getElementById('error-rate')!.textContent = errorRate.toFixed(2);
+      }
+
+      // Load slow queries
+      await loadSlowQueries(hours);
+
+      // Load API metrics
+      await loadApiMetrics(hours);
+    } catch (error) {
+      console.error('Error loading performance data:', error);
+    }
+  }
+
+  async function loadSlowQueries(hours: number) {
+    try {
+      const response = await fetch(`/api/v1/admin/performance?type=slow-queries&hours=${hours}&limit=20`);
+      const data = await response.json();
+
+      const container = document.getElementById('slow-queries-table')!;
+      
+      if (!data.success || data.data.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">No slow queries recorded</p>';
+        return;
+      }
+
+      const table = document.createElement('table');
+      table.className = 'min-w-full divide-y divide-gray-200';
+      table.innerHTML = `
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Query</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${data.data.map((query: any) => `
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 whitespace-nowrap">
+                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                  query.duration > 1000 ? 'bg-red-100 text-red-800' : 
+                  query.duration > 500 ? 'bg-orange-100 text-orange-800' : 
+                  'bg-yellow-100 text-yellow-800'
+                }">
+                  ${query.duration}ms
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title="${query.query}">
+                ${query.query.substring(0, 100)}${query.query.length > 100 ? '...' : ''}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-500">
+                ${query.endpoint || '-'}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                ${new Date(query.createdAt).toLocaleString()}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+
+      container.innerHTML = '';
+      container.appendChild(table);
+    } catch (error) {
+      console.error('Error loading slow queries:', error);
+    }
+  }
+
+  async function loadApiMetrics(hours: number) {
+    try {
+      const response = await fetch(`/api/v1/admin/performance?type=api-metrics&hours=${hours}`);
+      const data = await response.json();
+
+      const container = document.getElementById('api-metrics-table')!;
+      
+      if (!data.success || data.data.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">No API metrics available</p>';
+        return;
+      }
+
+      const table = document.createElement('table');
+      table.className = 'min-w-full divide-y divide-gray-200';
+      table.innerHTML = `
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Time</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">P95</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Rate</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${data.data.map((metric: any) => `
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title="${metric.method} ${metric.endpoint}">
+                <span class="font-mono text-xs bg-gray-100 px-1 rounded">${metric.method}</span>
+                ${metric.endpoint}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                ${metric.totalRequests.toLocaleString()}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="${
+                  metric.avgResponseTime > 1000 ? 'text-red-600 font-semibold' : 
+                  metric.avgResponseTime > 500 ? 'text-orange-600' : 
+                  'text-gray-900'
+                }">
+                  ${metric.avgResponseTime.toFixed(0)}ms
+                </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                ${metric.p95ResponseTime.toFixed(0)}ms
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="${
+                  metric.errorRate > 10 ? 'text-red-600 font-semibold' : 
+                  metric.errorRate > 5 ? 'text-orange-600' : 
+                  'text-gray-900'
+                }">
+                  ${metric.errorRate.toFixed(1)}%
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+
+      container.innerHTML = '';
+      container.appendChild(table);
+    } catch (error) {
+      console.error('Error loading API metrics:', error);
+    }
+  }
+
+  // Period selector handlers
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const hours = parseInt(target.dataset.hours || '24');
+
+      // Update button styles
+      document.querySelectorAll('.period-btn').forEach(b => {
+        b.classList.remove('bg-blue-600', 'text-white');
+        b.classList.add('bg-gray-200', 'text-gray-700');
+      });
+      target.classList.remove('bg-gray-200', 'text-gray-700');
+      target.classList.add('bg-blue-600', 'text-white');
+
+      // Load new data
+      currentHours = hours;
+      loadPerformanceData(hours);
+    });
+  });
+
+  // Refresh button handlers
+  document.getElementById('refresh-slow-queries')?.addEventListener('click', () => {
+    loadSlowQueries(currentHours);
+  });
+
+  document.getElementById('refresh-api-metrics')?.addEventListener('click', () => {
+    loadApiMetrics(currentHours);
+  });
+
+  // Initial load
+  loadPerformanceData(24);
+</script>

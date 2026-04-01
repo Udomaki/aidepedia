@@ -534,3 +534,36 @@ export const feature_flags = pgTable('feature_flags', {
   nameIdx: index('feature_flag_name_idx').on(table.name),
   enabledIdx: index('feature_flag_enabled_idx').on(table.enabled),
 }));
+
+// Slow query logs for performance monitoring
+export const slow_query_logs = pgTable('slow_query_logs', {
+  id: serial('id').primaryKey(),
+  query: text('query').notNull(),
+  duration: integer('duration').notNull(), // in milliseconds
+  endpoint: varchar('endpoint', { length: 500 }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  durationIdx: index('slow_query_duration_idx').on(table.duration),
+  endpointIdx: index('slow_query_endpoint_idx').on(table.endpoint),
+  createdAtIdx: index('slow_query_created_at_idx').on(table.createdAt),
+}));
+
+// API performance tracking
+export const api_performance = pgTable('api_performance', {
+  id: serial('id').primaryKey(),
+  endpoint: varchar('endpoint', { length: 500 }).notNull(),
+  method: varchar('method', { length: 10 }).notNull(),
+  responseTime: integer('response_time').notNull(), // in milliseconds
+  statusCode: integer('status_code').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  endpointIdx: index('api_performance_endpoint_idx').on(table.endpoint),
+  responseTimeIdx: index('api_performance_response_time_idx').on(table.responseTime),
+  createdAtIdx: index('api_performance_created_at_idx').on(table.createdAt),
+}));
