@@ -1,0 +1,58 @@
+---
+title: Article Listing Page
+description: Grid view of all articles with search, sorting, pagination
+priority P1
+---
+
+## Components
+
+### ArticleGrid
+- Grid layout (1-3 columns on mobile,4 columns on desktop)
+- Card-based design with hover effects
+- Click to view article
+- Visual feedback on hover/active states
+
+### ArticleCard
+- Article thumbnail/preview image
+- Title, excerpt (1-2 lines)
+- Meta info (views count, status)
+- Tags ( array of)
+- Actions (view article, read more)
+
+### ArticleFilters
+- Search input
+- Category filter
+- Energy level filter
+- Status filter
+
+### ArticleSorting
+- Sort by title, date created, priority
+
+### ArticleDetailLink
+- Link to article detail page
+
+---
+
+## API Endpoints
+
+### GET /api/articles
+- GET all articles
+- Get by ID
+- Search articles
+- Get by category
+
+### Get/energy
+
+### Get/articles?category
+- Get by energy
+
+### Post/linear/articles/create
+- Create new article
+- Update article
+- Delete article
+
+---
+
+## Storage
+
+- Store user preferences (view mode, sort by, filters)

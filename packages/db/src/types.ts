@@ -60,6 +60,8 @@ export interface ArticleQueryParams extends PaginationParams {
   status?: ArticleStatus;
   tags?: string[];
   search?: string;
+  sortBy?: 'date' | 'title' | 'views';
+  sortOrder?: 'asc' | 'desc';
 }
 
 // Error types
