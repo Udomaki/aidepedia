@@ -2,6 +2,8 @@
 import { getSession } from '../lib/auth';
 import '../styles/global.css';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import PWAInstall from '../components/PWAInstall.astro';
+import OfflineStatus from '../components/OfflineStatus.astro';
 
 interface Props {
   title: string;
@@ -38,7 +40,10 @@ const siteName = 'AIdepedia';
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#3B82F6" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     
     <!-- Canonical URL -->
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
@@ -215,6 +220,48 @@ const siteName = 'AIdepedia';
 
     <!-- Privacy-focused analytics (no cookies, no PII) -->
     <script src="/js/analytics.js" defer></script>
+
+    <!-- PWA Components -->
+    <PWAInstall />
+    <OfflineStatus />
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered:', registration.scope);
+              
+              // Check for updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New content available, notify user
+                      const refreshBanner = document.createElement('div');
+                      refreshBanner.className = 'fixed top-16 left-0 right-0 bg-blue-600 text-white text-center py-2 px-4 z-40';
+                      refreshBanner.innerHTML = `
+                        <div class="flex items-center justify-center gap-2">
+                          <span>New version available!</span>
+                          <button onclick="window.location.reload()" class="ml-2 px-3 py-1 bg-white text-blue-600 rounded font-medium hover:bg-blue-50 transition-colors">
+                            Refresh
+                          </button>
+                        </div>
+                      `;
+                      document.body.appendChild(refreshBanner);
+                    }
+                  });
+                }
+              });
+            })
+            .catch((error) => {
+              console.error('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
 
     <!-- GDPR Privacy Notice -->
     <div id="privacy-notice" class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 z-50 hidden">

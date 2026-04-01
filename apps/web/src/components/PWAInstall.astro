@@ -1,0 +1,127 @@
+---
+// PWA Install Prompt Component
+---
+
+<div id="pwa-install-prompt" class="fixed bottom-4 right-4 bg-white dark:bg-slate-800 rounded-lg shadow-2xl p-6 max-w-sm hidden z-50 border border-gray-200 dark:border-slate-700">
+  <button 
+    onclick="document.getElementById('pwa-install-prompt').classList.add('hidden')"
+    class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+    aria-label="Close install prompt"
+  >
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+    </svg>
+  </button>
+  
+  <div class="flex items-start gap-4">
+    <div class="flex-shrink-0">
+      <img src="/favicon.svg" alt="AIdepedia" class="w-16 h-16" />
+    </div>
+    <div class="flex-1">
+      <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Install AIdepedia</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+        Install AIdepedia on your device for quick access and offline reading!
+      </p>
+      <button 
+        id="pwa-install-btn"
+        class="w-full bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium"
+      >
+        Install App
+      </button>
+    </div>
+  </div>
+  
+  <!-- iOS Install Instructions (shown on iOS) -->
+  <div id="ios-install-instructions" class="hidden mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+      <strong>iOS Instructions:</strong>
+    </p>
+    <ol class="text-sm text-gray-600 dark:text-gray-300 list-decimal list-inside space-y-1">
+      <li>Tap the Share button <span class="inline-block">⎙</span></li>
+      <li>Scroll down and tap "Add to Home Screen"</li>
+      <li>Tap "Add" in the top right corner</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+  let deferredPrompt: any;
+
+  // Listen for the beforeinstallprompt event
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+    
+    // Show the install prompt
+    const installPrompt = document.getElementById('pwa-install-prompt');
+    if (installPrompt) {
+      installPrompt.classList.remove('hidden');
+    }
+  });
+
+  // Handle install button click
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        // Show the install prompt
+        deferredPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to install prompt: ${outcome}`);
+        
+        // Clear the deferred prompt
+        deferredPrompt = null;
+        
+        // Hide the install prompt
+        const installPrompt = document.getElementById('pwa-install-prompt');
+        if (installPrompt) {
+          installPrompt.classList.add('hidden');
+        }
+      }
+    });
+  }
+
+  // Detect iOS and show special instructions
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  if (isIOS) {
+    const iosInstructions = document.getElementById('ios-install-instructions');
+    const installBtn = document.getElementById('pwa-install-btn');
+    
+    if (iosInstructions) {
+      iosInstructions.classList.remove('hidden');
+    }
+    if (installBtn) {
+      installBtn.classList.add('hidden');
+    }
+    
+    // Show the prompt on iOS (it won't have deferredPrompt)
+    const installPrompt = document.getElementById('pwa-install-prompt');
+    if (installPrompt && !deferredPrompt) {
+      // Only show if not already installed
+      if (!window.matchMedia('(display-mode: standalone)').matches) {
+        setTimeout(() => {
+          installPrompt.classList.remove('hidden');
+        }, 3000); // Show after 3 seconds
+      }
+    }
+  }
+
+  // Hide prompt if already installed
+  window.addEventListener('appinstalled', () => {
+    const installPrompt = document.getElementById('pwa-install-prompt');
+    if (installPrompt) {
+      installPrompt.classList.add('hidden');
+    }
+    deferredPrompt = null;
+    console.log('AIdepedia was installed successfully');
+  });
+
+  // Check if running as installed PWA
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    console.log('Running as installed PWA');
+  }
+</script>
