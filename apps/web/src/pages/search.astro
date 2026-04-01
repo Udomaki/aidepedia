@@ -20,14 +20,23 @@ const categories = await getCategories();
 
     <!-- Search Input with Suggestions -->
     <div class="mb-6">
-      <div class="relative">
+      <label for="search-input" class="block text-sm font-medium text-gray-700 mb-2">
+        Search articles
+      </label>
+      <div class="relative" role="search">
         <input
-          type="text"
+          type="search"
           id="search-input"
           placeholder="Search articles..."
           class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
           autocomplete="off"
+          aria-describedby="search-help"
+          aria-owns="suggestions"
+          aria-autocomplete="list"
         />
+        <span id="search-help" class="sr-only">
+          Enter keywords to search for articles. Use filters to narrow results.
+        </span>
         <!-- Loading indicator -->
         <div id="search-loading" class="absolute right-4 top-1/2 transform -translate-y-1/2 hidden">
           <svg class="animate-spin h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
@@ -36,18 +45,24 @@ const categories = await getCategories();
           </svg>
         </div>
         <!-- Suggestions dropdown -->
-        <div id="suggestions" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-96 overflow-y-auto"></div>
+        <div
+          id="suggestions"
+          role="listbox"
+          aria-label="Search suggestions"
+          class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-96 overflow-y-auto"
+        ></div>
       </div>
     </div>
 
     <!-- Filters and Sort Row -->
-    <div class="flex flex-wrap gap-4 mb-8">
+    <div class="flex flex-wrap gap-4 mb-8" role="group" aria-label="Search filters">
       <!-- Category Filter -->
       <div class="flex-1 min-w-[200px]">
         <label for="category-filter" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
         <select
           id="category-filter"
           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          aria-describedby="category-help"
         >
           <option value="">All Categories</option>
           {categories.map(cat => (
@@ -88,7 +103,9 @@ const categories = await getCategories();
       <div class="flex items-end">
         <button
           id="clear-filters"
+          type="button"
           class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+          aria-label="Clear all search filters"
         >
           Clear Filters
         </button>
@@ -102,14 +119,25 @@ const categories = await getCategories();
     </div>
 
     <!-- Results Container -->
-    <div id="results-container">
+    <div
+      id="results-container"
+      role="region"
+      aria-label="Search results"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <!-- Results will be injected here -->
     </div>
 
     <!-- Pagination -->
-    <div id="pagination-container" class="mt-8 hidden">
-      <div id="pagination" class="flex justify-center gap-2"></div>
-    </div>
+    <nav
+      id="pagination-container"
+      class="mt-8 hidden"
+      role="navigation"
+      aria-label="Search results pagination"
+    >
+      <div id="pagination" class="flex justify-center gap-2" role="list"></div>
+    </nav>
 
     <!-- No Results -->
     <div id="no-results" class="hidden text-center py-16">
@@ -304,17 +332,17 @@ const categories = await getCategories();
     });
 
     return `
-      <article class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow mb-6">
+      <article class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow mb-6" role="article">
         <div class="flex items-start justify-between gap-6">
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-2">
               ${article.category ? `
-                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full" aria-label="Category: ${article.category}">
                   ${article.category}
                 </span>
               ` : ''}
               ${article.tags && article.tags.length > 0 ? `
-                <div class="flex gap-1">
+                <div class="flex gap-1" aria-label="Tags">
                   ${article.tags.slice(0, 3).map((tag: string) => `
                     <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
                       #${tag}
@@ -324,7 +352,7 @@ const categories = await getCategories();
               ` : ''}
             </div>
 
-            <a href="/articles/${article.slug}" class="group">
+            <a href="/articles/${article.slug}" class="group" aria-label="Read article: ${article.title}">
               <h2 class="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-2">
                 ${highlightText(article.title, query)}
               </h2>
@@ -336,34 +364,34 @@ const categories = await getCategories();
               </p>
             ` : ''}
 
-            <div class="flex items-center gap-4 text-sm text-gray-500">
+            <div class="flex items-center gap-4 text-sm text-gray-500" aria-label="Article statistics">
               <span>
                 Quality Score: <strong class="text-gray-700">${article.qualityScore || 0}</strong>
               </span>
-              <span>•</span>
+              <span aria-hidden="true">•</span>
               <span>
                 ${article.upvotes - article.downvotes} votes
               </span>
-              <span>•</span>
+              <span aria-hidden="true">•</span>
               <span>
                 ${article.viewCount || 0} views
               </span>
-              <span>•</span>
+              <span aria-hidden="true">•</span>
               <time datetime="${dateToShow}">
                 ${formattedDate}
               </time>
             </div>
           </div>
 
-          <div class="flex flex-col items-center gap-1">
-            <button class="p-2 hover:bg-gray-100 rounded transition-colors" title="Upvote">
-              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex flex-col items-center gap-1" role="group" aria-label="Voting">
+            <button class="p-2 hover:bg-gray-100 rounded transition-colors" title="Upvote" aria-label="Upvote article">
+              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
               </svg>
             </button>
-            <span class="font-semibold text-gray-700">${article.upvotes - article.downvotes}</span>
-            <button class="p-2 hover:bg-gray-100 rounded transition-colors" title="Downvote">
-              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span class="font-semibold text-gray-700" aria-label="Vote score">${article.upvotes - article.downvotes}</span>
+            <button class="p-2 hover:bg-gray-100 rounded transition-colors" title="Downvote" aria-label="Downvote article">
+              <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
               </svg>
             </button>
@@ -389,16 +417,16 @@ const categories = await getCategories();
   // Display pagination
   function displayPagination(currentPage: number, totalPages: number) {
     const pages: (number | string)[] = [];
-    
+
     // Always show first page
     pages.push(1);
-    
+
     // Show pages around current
     for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
       if (pages[pages.length - 1] !== i - 1) pages.push('...');
       pages.push(i);
     }
-    
+
     // Always show last page
     if (totalPages > 1) {
       if (pages[pages.length - 1] !== totalPages - 1) pages.push('...');
@@ -407,14 +435,17 @@ const categories = await getCategories();
 
     paginationDiv!.innerHTML = pages.map(p => {
       if (p === '...') {
-        return '<span class="px-4 py-2 text-gray-500">...</span>';
+        return '<span class="px-4 py-2 text-gray-500" aria-hidden="true">...</span>';
       }
       return `
         <button
-          class="px-4 py-2 rounded-lg ${p === currentPage 
-            ? 'bg-blue-600 text-white' 
+          role="listitem"
+          class="px-4 py-2 rounded-lg ${p === currentPage
+            ? 'bg-blue-600 text-white'
             : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'}"
           onclick="goToPage(${p})"
+          aria-label="Go to page ${p}"
+          aria-current="${p === currentPage ? 'page' : 'false'}"
         >
           ${p}
         </button>
@@ -496,10 +527,16 @@ const categories = await getCategories();
 
       if (data.success && data.data.results.length > 0) {
         suggestionsDiv!.innerHTML = `
-          <ul class="divide-y divide-gray-200">
-            ${data.data.results.map((article: any) => `
-              <li>
-                <a href="/articles/${article.slug}" class="block px-4 py-3 hover:bg-gray-50 transition-colors">
+          <ul class="divide-y divide-gray-200" role="listbox">
+            ${data.data.results.map((article: any, index: number) => `
+              <li role="option" aria-selected="false">
+                <a
+                  href="/articles/${article.slug}"
+                  class="block px-4 py-3 hover:bg-gray-50 transition-colors"
+                  role="option"
+                  tabindex="0"
+                  aria-label="${article.title}"
+                >
                   <div class="font-medium text-gray-900">${highlightText(article.title, query)}</div>
                   ${article.excerpt ? `
                     <div class="text-sm text-gray-500 truncate">${highlightText(article.excerpt, query)}</div>
