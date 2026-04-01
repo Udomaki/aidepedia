@@ -219,3 +219,17 @@ export const revisionUserVotes = pgTable('revision_user_votes', {
 }, (table) => ({
   revisionEditorIdx: index('revision_editor_idx').on(table.revisionId, table.editorId),
 }));
+
+export const comments = pgTable('comments', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  parentId: integer('parent_id').references((): any => comments.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('comment_article_idx').on(table.articleId),
+  userIdx: index('comment_user_idx').on(table.userId),
+  parentIdx: index('comment_parent_idx').on(table.parentId),
+}));
