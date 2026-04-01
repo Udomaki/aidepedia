@@ -80,6 +80,7 @@ export const articles = pgTable('articles', {
   viewCount: integer('view_count').default(0),
   upvotes: integer('upvotes').default(0),
   downvotes: integer('downvotes').default(0),
+  readingTime: integer('reading_time').default(1), // Reading time in minutes
 
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
