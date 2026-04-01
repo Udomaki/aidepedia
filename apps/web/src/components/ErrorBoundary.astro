@@ -1,0 +1,187 @@
+---
+/**
+ * ErrorBoundary - Client-side error handling wrapper
+ * Catches and displays errors with recovery options
+ */
+
+interface Props {
+  fallbackTitle?: string;
+  fallbackMessage?: string;
+  showReset?: boolean;
+  showHome?: boolean;
+  class?: string;
+}
+
+const { 
+  fallbackTitle = 'Something went wrong',
+  fallbackMessage = 'An error occurred while loading this content.',
+  showReset = true,
+  showHome = true,
+  class: className = ''
+} = Astro.props;
+---
+
+<div 
+  class={`error-boundary ${className}`}
+  data-error-boundary
+  data-fallback-title={fallbackTitle}
+  data-fallback-message={fallbackMessage}
+  data-show-reset={showReset}
+  data-show-home={showHome}
+>
+  <slot />
+</div>
+
+<!-- Error fallback template (hidden, shown when error occurs) -->
+<template id="error-boundary-fallback">
+  <div class="error-fallback-content p-8 text-center">
+    <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+      <svg class="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    </div>
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 error-title"></h3>
+    <p class="text-gray-600 dark:text-gray-400 mb-6 error-message"></p>
+    <div class="flex justify-center gap-3 error-actions"></div>
+    <details class="mt-6 text-left">
+      <summary class="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+        View error details
+      </summary>
+      <pre class="mt-2 p-4 bg-gray-100 dark:bg-slate-700 rounded-lg text-xs overflow-auto max-h-48 error-stack"></pre>
+    </details>
+  </div>
+</template>
+
+<script>
+  class ErrorBoundaryHandler {
+    private boundaries: NodeListOf<HTMLElement>;
+    
+    constructor() {
+      this.boundaries = document.querySelectorAll('[data-error-boundary]');
+      this.init();
+    }
+    
+    private init() {
+      this.boundaries.forEach(boundary => {
+        // Listen for errors within the boundary
+        boundary.addEventListener('error', (event) => {
+          this.handleError(boundary, event as ErrorEvent);
+        });
+        
+        // Listen for unhandled promise rejections
+        window.addEventListener('unhandledrejection', (event) => {
+          if (boundary.contains(event.target as Node)) {
+            this.handleError(boundary, event);
+          }
+        });
+      });
+    }
+    
+    private handleError(boundary: HTMLElement, event: ErrorEvent | PromiseRejectionEvent) {
+      event.preventDefault();
+      
+      const error = 'error' in event ? event.error : event.reason;
+      const title = boundary.dataset.fallbackTitle || 'Something went wrong';
+      const message = boundary.dataset.fallbackMessage || 'An error occurred while loading this content.';
+      const showReset = boundary.dataset.showReset !== 'false';
+      const showHome = boundary.dataset.showHome !== 'false';
+      
+      // Replace content with error fallback
+      const template = document.getElementById('error-boundary-fallback') as HTMLTemplateElement;
+      if (!template) return;
+      
+      const clone = template.content.cloneNode(true) as DocumentFragment;
+      const fallback = clone.querySelector('.error-fallback-content') as HTMLElement;
+      
+      // Set title and message
+      const titleEl = fallback.querySelector('.error-title');
+      const messageEl = fallback.querySelector('.error-message');
+      if (titleEl) titleEl.textContent = title;
+      if (messageEl) messageEl.textContent = message;
+      
+      // Set error stack
+      const stackEl = fallback.querySelector('.error-stack');
+      if (stackEl && error?.stack) {
+        stackEl.textContent = error.stack;
+      }
+      
+      // Add action buttons
+      const actionsEl = fallback.querySelector('.error-actions');
+      if (actionsEl) {
+        if (showReset) {
+          const resetBtn = document.createElement('button');
+          resetBtn.className = 'px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors';
+          resetBtn.textContent = 'Try Again';
+          resetBtn.onclick = () => this.resetBoundary(boundary);
+          actionsEl.appendChild(resetBtn);
+        }
+        
+        if (showHome) {
+          const homeBtn = document.createElement('a');
+          homeBtn.className = 'px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors';
+          homeBtn.href = '/';
+          homeBtn.textContent = 'Go Home';
+          actionsEl.appendChild(homeBtn);
+        }
+      }
+      
+      // Replace boundary content
+      boundary.innerHTML = '';
+      boundary.appendChild(fallback);
+      
+      // Log error for monitoring
+      console.error('ErrorBoundary caught:', error);
+    }
+    
+    private resetBoundary(boundary: HTMLElement) {
+      // Dispatch custom event for parent components to handle
+      boundary.dispatchEvent(new CustomEvent('errorboundary:reset', {
+        bubbles: true,
+        detail: { boundary }
+      }));
+      
+      // Reload the page as a fallback
+      window.location.reload();
+    }
+  }
+  
+  // Initialize on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => new ErrorBoundaryHandler());
+  } else {
+    new ErrorBoundaryHandler();
+  }
+</script>
+
+<style>
+  .error-fallback-content {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--border, #e5e7eb);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dark .error-fallback-content {
+    background: var(--card, #1e293b);
+  }
+  
+  .error-boundary {
+    transition: opacity 0.3s ease;
+  }
+  
+  .error-boundary.error {
+    opacity: 1;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

@@ -1,0 +1,131 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCategories } from '@aidepedia/db';
+
+export const prerender = false;
+
+// Get categories for search suggestions
+let categories = [];
+try {
+  categories = await getCategories();
+} catch (e) {
+  // Categories not available
+}
+---
+
+<Layout title="Page Not Found">
+  <div class="min-h-[60vh] flex items-center justify-center px-4 py-16">
+    <div class="max-w-lg w-full text-center">
+      <!-- 404 Illustration -->
+      <div class="mb-8">
+        <div class="relative inline-block">
+          <h1 class="text-[10rem] font-bold text-gray-200 dark:text-slate-700 leading-none select-none" aria-hidden="true">
+            404
+          </h1>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <svg class="w-32 h-32 text-blue-500 dark:text-blue-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        Page Not Found
+      </h2>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">
+        Oops! The page you're looking for doesn't exist or has been moved.
+      </p>
+
+      <!-- Search Box -->
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200 dark:border-slate-700 p-6 mb-8">
+        <label for="search-404" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          Search for what you're looking for:
+        </label>
+        <form action="/search" method="get" class="flex gap-3">
+          <div class="flex-1 relative">
+            <input
+              type="search"
+              id="search-404"
+              name="q"
+              placeholder="Search articles..."
+              class="w-full px-4 py-3 border-2 border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all"
+              aria-label="Search articles"
+            />
+            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <button
+            type="submit"
+            class="px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-700 dark:hover:bg-blue-600 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all transform hover:scale-105 active:scale-95"
+          >
+            Search
+          </button>
+        </form>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="mb-8">
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Popular destinations:</p>
+        <div class="flex flex-wrap justify-center gap-3">
+          <a
+            href="/"
+            class="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-all transform hover:scale-105"
+          >
+            🏠 Home
+          </a>
+          <a
+            href="/articles"
+            class="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-all transform hover:scale-105"
+          >
+            📚 Articles
+          </a>
+          <a
+            href="/dashboard"
+            class="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-all transform hover:scale-105"
+          >
+            📊 Dashboard
+          </a>
+          <a
+            href="/about"
+            class="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-all transform hover:scale-105"
+          >
+            ℹ️ About
+          </a>
+        </div>
+      </div>
+
+      <!-- Category Suggestions -->
+      {categories.length > 0 && (
+        <div>
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Browse by category:</p>
+          <div class="flex flex-wrap justify-center gap-2">
+            {categories.slice(0, 6).map(category => (
+              <a
+                href={`/categories/${category.slug}`}
+                class="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all"
+              >
+                {category.name}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- Go Back Button -->
+      <div class="mt-8">
+        <button
+          onclick="history.back()"
+          class="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Go back to previous page
+        </button>
+      </div>
+    </div>
+  </div>
+</Layout>

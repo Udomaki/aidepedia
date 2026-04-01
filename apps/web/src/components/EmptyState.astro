@@ -1,0 +1,174 @@
+---
+/**
+ * EmptyState - Display when there's no content to show
+ * Provides helpful guidance and actions for users
+ */
+
+interface Props {
+  type?: 'articles' | 'comments' | 'search' | 'bookmarks' | 'notifications' | 'generic';
+  title?: string;
+  message?: string;
+  icon?: string;
+  action?: {
+    label: string;
+    href: string;
+  };
+  class?: string;
+}
+
+const { 
+  type = 'generic',
+  title: customTitle,
+  message: customMessage,
+  icon: customIcon,
+  action,
+  class: className = ''
+} = Astro.props;
+
+// Default configurations for different types
+const defaults = {
+  articles: {
+    title: 'No Articles Yet',
+    message: 'Be the first to create an article and share knowledge with the community.',
+    icon: 'article',
+    action: { label: 'Create Article', href: '/articles/new' }
+  },
+  comments: {
+    title: 'No Comments',
+    message: 'Start the discussion! Share your thoughts and engage with the community.',
+    icon: 'comment',
+    action: undefined
+  },
+  search: {
+    title: 'No Results Found',
+    message: "We couldn't find any articles matching your search. Try different keywords or filters.",
+    icon: 'search',
+    action: { label: 'Clear Filters', href: '/search' }
+  },
+  bookmarks: {
+    title: 'No Bookmarks',
+    message: 'Save articles for later by clicking the bookmark button on any article.',
+    icon: 'bookmark',
+    action: { label: 'Browse Articles', href: '/articles' }
+  },
+  notifications: {
+    title: 'All Caught Up!',
+    message: "You have no new notifications. We'll let you know when something interesting happens.",
+    icon: 'bell',
+    action: undefined
+  },
+  generic: {
+    title: 'Nothing Here',
+    message: 'There\'s nothing to show right now. Check back later or try a different view.',
+    icon: 'empty',
+    action: undefined
+  }
+};
+
+const config = defaults[type];
+const title = customTitle || config.title;
+const message = customMessage || config.message;
+const iconType = customIcon || config.icon;
+const defaultAction = config.action;
+const finalAction = action || defaultAction;
+
+// Icon SVGs
+const icons = {
+  article: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+  comment: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  ),
+  search: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  ),
+  bookmark: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    </svg>
+  ),
+  bell: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+  ),
+  empty: (
+    <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+    </svg>
+  )
+};
+---
+
+<div class={`empty-state ${className}`}>
+  <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
+    {/* Icon */}
+    <div class="mb-6 text-gray-300 dark:text-slate-600 transition-colors duration-300">
+      {icons[iconType]}
+    </div>
+    
+    {/* Title */}
+    <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3 transition-colors duration-300">
+      {title}
+    </h3>
+    
+    {/* Message */}
+    <p class="text-gray-600 dark:text-gray-400 max-w-md mb-8 transition-colors duration-300">
+      {message}
+    </p>
+    
+    {/* Action Button */}
+    {finalAction && (
+      <a
+        href={finalAction.href}
+        class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-700 dark:hover:bg-blue-600 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+      >
+        {iconType === 'article' && (
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        )}
+        {iconType === 'search' && (
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )}
+        {iconType === 'bookmark' && (
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        )}
+        <span>{finalAction.label}</span>
+      </a>
+    )}
+    
+    {/* Decorative Elements */}
+    <div class="mt-12 flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
+      <div class="w-12 h-px bg-gray-300 dark:bg-slate-600"></div>
+      <span>or</span>
+      <div class="w-12 h-px bg-gray-300 dark:bg-slate-600"></div>
+    </div>
+    
+    {/* Secondary Links */}
+    <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
+      <a href="/" class="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+        Go Home
+      </a>
+      <span class="text-gray-300 dark:text-slate-600">•</span>
+      <a href="/articles" class="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+        Browse Articles
+      </a>
+      <span class="text-gray-300 dark:text-slate-600">•</span>
+      <a href="/search" class="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+        Search
+      </a>
+    </div>
+  </div>
+</div>
