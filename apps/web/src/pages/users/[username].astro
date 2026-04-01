@@ -78,6 +78,12 @@ function getActivityText(activity: any): string {
 
 // Calculate badges based on stats
 const badges: Array<{name: string, icon: string, color: string}> = [];
+
+// Onboarding completion badge
+if (user.onboardingCompletedAt) {
+  badges.push({ name: 'Getting Started', icon: '🎯', color: 'from-green-400 to-emerald-500' });
+}
+
 if (stats.articleCount >= 10) badges.push({ name: 'Prolific Writer', icon: '✍️', color: 'from-purple-400 to-purple-600' });
 if (stats.articleCount >= 50) badges.push({ name: 'Content Creator', icon: '📚', color: 'from-blue-400 to-blue-600' });
 if (stats.revisionCount >= 100) badges.push({ name: 'Diligent Editor', icon: '✏️', color: 'from-green-400 to-green-600' });
