@@ -14,4 +14,4 @@ export * from './types';
 export * from './webhooks';
 
 // Re-export drizzle-orm operators for convenience
-export { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
+export { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, avg } from 'drizzle-orm';
