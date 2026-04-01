@@ -141,6 +141,33 @@ const authMiddleware = defineMiddleware(async (context, next) => {
     return next();
   }
   
+  // Check if user needs onboarding
+  if (session?.user?.id && !pathname.startsWith('/onboarding') && !pathname.startsWith('/api/onboarding')) {
+    const { db, users, eq } = await import('@aidepedia/db');
+    
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, parseInt(session.user.id)))
+      .limit(1);
+    
+    // Redirect to onboarding if not completed
+    if (user && !user.onboardingCompletedAt) {
+      // For API routes, return a special response
+      if (pathname.startsWith('/api/')) {
+        return new Response(JSON.stringify({ 
+          error: 'Onboarding required',
+          redirect: '/onboarding' 
+        }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      // For page routes, redirect to onboarding
+      return context.redirect('/onboarding');
+    }
+  }
+  
   // Check admin routes first
   if (isAdminPath(pathname)) {
     if (!session) {
