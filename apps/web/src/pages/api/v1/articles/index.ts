@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { 
   listArticles, 
-  getCategories 
+  getCategories,
+  createArticle 
 } from '@aidepedia/db';
 import { 
   successResponse, 
@@ -10,6 +11,7 @@ import {
   getPaginationParams,
   transformArticleForApi
 } from '../../../../lib/api-utils';
+import { getSession } from '../../../../lib/auth';
 
 /**
  * GET /api/v1/articles
@@ -80,6 +82,67 @@ export const GET: APIRoute = async ({ url }) => {
     return errorResponse(
       'INTERNAL_ERROR',
       'Failed to fetch articles',
+      500
+    );
+  }
+};
+
+/**
+ * POST /api/v1/articles
+ * Create a new article
+ */
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    // Check authentication
+    const session = await getSession(request);
+    if (!session?.user?.id) {
+      return errorResponse('UNAUTHORIZED', 'Authentication required', 401);
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { title, content, excerpt, slug, categoryId, status, tags } = body;
+
+    // Validate required fields
+    if (!title || !content) {
+      return errorResponse('VALIDATION_ERROR', 'Title and content are required', 400);
+    }
+
+    if (!slug) {
+      return errorResponse('VALIDATION_ERROR', 'Slug is required', 400);
+    }
+
+    // Create article
+    // Note: For now, we'll use the user ID as the editor ID
+    // In a real system, you might need to map users to editors
+    const editorId = parseInt(session.user.id as string, 10);
+    
+    const article = await createArticle(
+      {
+        title,
+        content,
+        excerpt,
+        slug,
+        categoryId: categoryId || null,
+        status: status || 'draft',
+        tags: tags || [],
+      },
+      editorId,
+      'Created via web interface'
+    );
+
+    return successResponse(article, null, 201);
+  } catch (error) {
+    console.error('Error creating article:', error);
+    
+    // Check for validation errors
+    if (error instanceof Error && error.message.includes('already exists')) {
+      return errorResponse('VALIDATION_ERROR', error.message, 400);
+    }
+    
+    return errorResponse(
+      'INTERNAL_ERROR',
+      'Failed to create article',
       500
     );
   }

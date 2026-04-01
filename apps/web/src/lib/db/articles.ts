@@ -22,6 +22,11 @@ export {
   addReputationEvent,
   getEditorLeaderboard,
   updateEditorStats,
+  // Draft functions
+  getArticleDraft,
+  saveArticleDraft,
+  deleteArticleDraft,
+  getUserDrafts,
 } from '@aidepedia/db';
 
 export type { 
@@ -34,4 +39,8 @@ export type {
   NewReputationEvent,
   Tag,
   NewTag,
+  // Draft types
+  ArticleDraft,
+  NewArticleDraft,
+  ArticleDraftWithArticle,
 } from '@aidepedia/db';
