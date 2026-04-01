@@ -189,6 +189,181 @@ DELETE /api/v1/articles/{slug}/reactions/{emoji}
 
 Available reactions: 👍, ❤️, 😲, 🤔, 🎉
 
+#### Article Workflow Voting
+```http
+GET /api/v1/articles/{slug}/vote
+POST /api/v1/articles/{slug}/vote
+```
+
+**Overview:**
+The workflow voting system allows users to vote on articles during the review process. Each vote can be:
+- `approve` - Recommend the article for publication
+- `reject` - Recommend against publication
+- `neutral` - Abstain or remove previous vote
+
+Votes can optionally include:
+- A quality rating (1-5 stars)
+- A comment explaining the vote (max 1000 characters)
+
+**Get Vote Information:**
+```bash
+# Get vote stats and current user's vote
+curl "https://aidepedia.com/api/v1/articles/machine-learning/vote" \
+  -b "cookies.txt"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "stats": {
+      "approve": 15,
+      "reject": 2,
+      "neutral": 1,
+      "total": 18,
+      "averageQualityRating": 4.3
+    },
+    "userVote": {
+      "vote": "approve",
+      "qualityRating": 5,
+      "comment": "Excellent comprehensive guide",
+      "createdAt": "2024-01-15T10:30:00Z"
+    }
+  }
+}
+```
+
+**Submit Vote:**
+```bash
+# Approve with rating and comment
+curl -X POST "https://aidepedia.com/api/v1/articles/machine-learning/vote" \
+  -H "Content-Type: application/json" \
+  -b "cookies.txt" \
+  -d '{
+    "vote": "approve",
+    "qualityRating": 5,
+    "comment": "Excellent comprehensive guide with clear examples"
+  }'
+
+# Reject with comment
+curl -X POST "https://aidepedia.com/api/v1/articles/machine-learning/vote" \
+  -H "Content-Type: application/json" \
+  -b "cookies.txt" \
+  -d '{
+    "vote": "reject",
+    "comment": "Needs more technical depth and citations"
+  }'
+
+# Simple approve (no rating or comment)
+curl -X POST "https://aidepedia.com/api/v1/articles/machine-learning/vote" \
+  -H "Content-Type: application/json" \
+  -b "cookies.txt" \
+  -d '{"vote": "approve"}'
+
+# Change vote to neutral (remove previous vote)
+curl -X POST "https://aidepedia.com/api/v1/articles/machine-learning/vote" \
+  -H "Content-Type: application/json" \
+  -b "cookies.txt" \
+  -d '{"vote": "neutral"}'
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "vote": {
+      "vote": "approve",
+      "qualityRating": 5,
+      "comment": "Excellent comprehensive guide with clear examples",
+      "userId": 123,
+      "articleId": 456,
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    "stats": {
+      "approve": 16,
+      "reject": 2,
+      "neutral": 1,
+      "total": 19,
+      "averageQualityRating": 4.4
+    },
+    "message": "Vote submitted successfully"
+  }
+}
+```
+
+**Error Responses:**
+```json
+// 401 Unauthorized
+{
+  "success": false,
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "You must be logged in to vote"
+  }
+}
+
+// 404 Not Found
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Article not found"
+  }
+}
+
+// 400 Validation Error
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Vote must be \"approve\", \"reject\", or \"neutral\""
+  }
+}
+```
+
+**Voting Workflow Example:**
+```bash
+# 1. Review an article
+curl "https://aidepedia.com/api/v1/articles/neural-networks-basics" \
+  -b "cookies.txt"
+
+# 2. Check current vote status
+curl "https://aidepedia.com/api/v1/articles/neural-networks-basics/vote" \
+  -b "cookies.txt"
+
+# 3. Submit your vote
+curl -X POST "https://aidepedia.com/api/v1/articles/neural-networks-basics/vote" \
+  -H "Content-Type: application/json" \
+  -b "cookies.txt" \
+  -d '{
+    "vote": "approve",
+    "qualityRating": 4,
+    "comment": "Good introduction, but could use more visual diagrams"
+  }'
+
+# 4. Verify your vote was recorded
+curl "https://aidepedia.com/api/v1/articles/neural-networks-basics/vote" \
+  -b "cookies.txt"
+```
+
+**Using with the Helper Script:**
+```bash
+# Get vote information
+./aidepedia.sh vote get neural-networks-basics
+
+# Approve article
+./aidepedia.sh vote approve neural-networks-basics --rating 5 --comment "Great article!"
+
+# Reject article
+./aidepedia.sh vote reject neural-networks-basics --comment "Needs revision"
+
+# View vote stats
+./aidepedia.sh vote stats neural-networks-basics
+```
+
 #### Bookmark Article
 ```http
 POST /api/v1/articles/{slug}/bookmark
