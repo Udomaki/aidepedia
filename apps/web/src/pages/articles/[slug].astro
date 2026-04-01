@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
+import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
 
 export async function getStaticPaths() {
   // Try to fetch all published articles for static generation
@@ -74,6 +75,19 @@ const pageTitle = `${article.title} - AIdepedia`;
 const pageDescription = article.excerpt || `${article.title} - AIdepedia article`;
 const pageUrl = Astro.url.href;
 const pageImage = '/og-image.svg'; // Default OG image
+const canonicalUrl = `https://aidepedia.com/articles/${article.slug}`;
+
+// Generate structured data
+const articleSchema = generateArticleSchema(article, articleCategory || undefined);
+const breadcrumbSchema = generateBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Articles', url: '/articles' },
+  { name: article.title, url: `/articles/${article.slug}` }
+]);
+const organizationSchema = generateOrganizationSchema();
+const websiteSchema = generateWebsiteSchema();
+
+const structuredData = [organizationSchema, websiteSchema, breadcrumbSchema, articleSchema];
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -122,7 +136,17 @@ function countAllComments(commentList: any[]): number {
 const totalComments = countAllComments(comments);
 ---
 
-<Layout title={pageTitle} description={pageDescription} url={pageUrl} image={pageImage} type="article">
+<Layout 
+  title={pageTitle} 
+  description={pageDescription} 
+  url={pageUrl} 
+  image={pageImage} 
+  type="article"
+  canonicalUrl={canonicalUrl}
+  structuredData={structuredData}
+  publishedTime={article.publishedAt || article.createdAt}
+  modifiedTime={article.updatedAt}
+>
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="text-sm mb-6">

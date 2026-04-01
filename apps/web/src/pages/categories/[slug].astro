@@ -1,94 +1,132 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getCategoryBySlug, listArticles } from '@aidepedia/db';
+import { getCategoryBySlug, listArticles, getCategories } from '@aidepedia/db';
+import { generateOrganizationSchema, generateWebsiteSchema, generateBreadcrumbSchema } from '../../lib/structured-data';
 
-export function getStaticPaths() {
-  // Mock data for static build - in production this would fetch from database
-  return [
-    { params: { slug: 'technology' } },
-    { params: { slug: 'science' } },
-    { params: { slug: 'history' } },
-    { params: { slug: 'arts' } },
-  ];
+export async function getStaticPaths() {
+  try {
+    const categories = await getCategories();
+    return categories.map((category) => ({
+      params: { slug: category.slug },
+    }));
+  } catch (error) {
+    console.warn('Could not fetch categories for static generation:', error);
+    return [];
+  }
 }
 
 const { slug } = Astro.params;
 
-let category;
-let articles = [];
+let category = null;
+let articles = null;
 
-try {
-  category = await getCategoryBySlug(slug!);
-  const result = await listArticles({ 
-    categoryId: category.id, 
-    status: 'published',
-    limit: 50 
-  });
-  articles = result.data;
-} catch (error) {
+if (slug) {
+  try {
+    category = await getCategoryBySlug(slug);
+    const result = await listArticles({ 
+      categoryId: category.id, 
+      status: 'published',
+      limit: 100,
+      sortBy: 'date',
+      sortOrder: 'desc'
+    });
+    articles = result.data;
+  } catch (e) {
+    // Category not found
+  }
+}
+
+if (!category) {
   return Astro.redirect('/categories');
+}
+
+const pageTitle = `${category.name} - AIdepedia`;
+const pageDescription = category.description || `Browse ${category.name} articles on AIdepedia`;
+const canonicalUrl = `https://aidepedia.com/categories/${category.slug}`;
+
+// Generate structured data
+const organizationSchema = generateOrganizationSchema();
+const websiteSchema = generateWebsiteSchema();
+const breadcrumbSchema = generateBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Categories', url: '/categories' },
+  { name: category.name, url: `/categories/${category.slug}` }
+]);
+const structuredData = [organizationSchema, websiteSchema, breadcrumbSchema];
+
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(new Date(date));
 }
 ---
 
-<Layout title={`${category.name} - AIdepedia`}>
-  <div class="container mx-auto px-4 py-8">
-    <div class="mb-6">
-      <a href="/categories" class="text-blue-600 hover:text-blue-700">
-        ← Back to Categories
-      </a>
+<Layout 
+  title={pageTitle}
+  description={pageDescription}
+  canonicalUrl={canonicalUrl}
+  structuredData={structuredData}
+>
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/categories" class="text-blue-600 hover:text-blue-700">Categories</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">{category.name}</span>
+    </nav>
+
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        {category.name}
+      </h1>
+      {category.description && (
+        <p class="text-xl text-gray-600 dark:text-gray-400">
+          {category.description}
+        </p>
+      )}
     </div>
 
-    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-      <div class="flex items-start justify-between">
-        <div>
-          <h1 class="text-4xl font-bold mb-3">{category.name}</h1>
-          {category.description && (
-            <p class="text-gray-600 text-lg">{category.description}</p>
-          )}
-        </div>
-        <div class="flex gap-2">
+    {articles && articles.length > 0 ? (
+      <div class="space-y-4">
+        {articles.map((article) => (
           <a
-            href={`/categories/${category.slug}/edit`}
-            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded transition"
+            href={`/articles/${article.slug}`}
+            class="block bg-white dark:bg-slate-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500"
           >
-            Edit
+            <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {article.title}
+            </h2>
+            {article.excerpt && (
+              <p class="text-gray-600 dark:text-gray-400 mb-3">
+                {article.excerpt}
+              </p>
+            )}
+            <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+              {article.publishedAt && (
+                <span>📅 {formatDate(article.publishedAt)}</span>
+              )}
+              {article.viewCount !== null && article.viewCount !== undefined && article.viewCount > 0 && (
+                <span>👁 {article.viewCount} views</span>
+              )}
+              {article.qualityScore !== null && article.qualityScore !== undefined && (
+                <span>⭐ Quality: {article.qualityScore}</span>
+              )}
+            </div>
           </a>
-        </div>
-      </div>
-      
-      <div class="mt-4 pt-4 border-t border-gray-200">
-        <span class="text-sm text-gray-500">
-          {category.articleCount || 0} articles
-        </span>
-      </div>
-    </div>
-
-    {articles.length === 0 ? (
-      <div class="text-center py-12">
-        <p class="text-gray-500 text-lg">No articles in this category yet.</p>
+        ))}
       </div>
     ) : (
-      <div>
-        <h2 class="text-2xl font-bold mb-4">Articles</h2>
-        <div class="space-y-4">
-          {articles.map((article) => (
-            <a
-              href={`/articles/${article.slug}`}
-              class="block p-6 bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition"
-            >
-              <h3 class="text-xl font-semibold mb-2">{article.title}</h3>
-              {article.excerpt && (
-                <p class="text-gray-600 mb-3">{article.excerpt}</p>
-              )}
-              <div class="flex items-center gap-4 text-sm text-gray-500">
-                <span>Quality Score: {article.qualityScore}</span>
-                <span>•</span>
-                <span>{article.viewCount} views</span>
-              </div>
-            </a>
-          ))}
-        </div>
+      <div class="text-center py-12">
+        <p class="text-gray-500 dark:text-gray-400 text-lg">
+          No articles in this category yet.
+        </p>
+        <a href="/articles" class="mt-4 inline-block text-blue-600 hover:text-blue-700">
+          ← Browse all articles
+        </a>
       </div>
     )}
-  </div>
+  </main>
 </Layout>
