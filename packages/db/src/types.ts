@@ -9,6 +9,7 @@ import type {
   revisionUserVotes,
   comments,
   article_reactions,
+  feature_flags,
 } from './schema/index';
 
 // Category types
@@ -58,6 +59,10 @@ export type NewRevisionUserVote = typeof revisionUserVotes.$inferInsert;
 // Article reaction types
 export type ArticleReaction = typeof article_reactions.$inferSelect;
 export type NewArticleReaction = typeof article_reactions.$inferInsert;
+
+// Feature flag types
+export type FeatureFlag = typeof feature_flags.$inferSelect;
+export type NewFeatureFlag = typeof feature_flags.$inferInsert;
 
 // Comment types
 export type Comment = typeof comments.$inferSelect;

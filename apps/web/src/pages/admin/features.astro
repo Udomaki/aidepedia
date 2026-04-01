@@ -1,0 +1,459 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Feature Flags - Admin">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">Feature Flags</h1>
+          <p class="text-gray-600">
+            Manage feature flags for gradual rollouts and testing.
+          </p>
+        </div>
+        <button
+          id="createFlagBtn"
+          class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          Create Feature Flag
+        </button>
+      </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div class="flex items-start">
+        <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h3 class="text-sm font-medium text-blue-900">How Feature Flags Work</h3>
+          <p class="text-sm text-blue-700 mt-1">
+            Feature flags allow you to gradually roll out features to users. Set the rollout percentage to control what percentage of users see the feature. 
+            The same user will always get the same result for a given flag (consistent hashing).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p class="mt-4 text-gray-600">Loading feature flags...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+      <div class="flex items-center">
+        <svg class="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h3 class="text-lg font-medium text-red-900">Failed to load feature flags</h3>
+          <p id="errorMessage" class="text-sm text-red-700 mt-1"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-white rounded-xl shadow-md border border-gray-200 p-12 text-center">
+      <svg class="mx-auto w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+      </svg>
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">No feature flags yet</h3>
+      <p class="text-gray-600 mb-6">Create your first feature flag to start managing gradual rollouts.</p>
+      <button
+        id="createFirstFlagBtn"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Create First Feature Flag
+      </button>
+    </div>
+
+    <!-- Flags List -->
+    <div id="flagsList" class="hidden space-y-4"></div>
+
+    <!-- Create/Edit Modal -->
+    <div id="flagModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 id="modalTitle" class="text-2xl font-bold text-gray-900">Create Feature Flag</h2>
+            <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form id="flagForm" class="space-y-4">
+            <input type="hidden" id="flagId" />
+
+            <div>
+              <label for="flagName" class="block text-sm font-medium text-gray-700 mb-1">
+                Flag Name *
+              </label>
+              <input
+                type="text"
+                id="flagName"
+                name="name"
+                required
+                placeholder="e.g., new_ui_design"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p class="text-xs text-gray-500 mt-1">Use lowercase letters and underscores</p>
+            </div>
+
+            <div>
+              <label for="flagDescription" class="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                id="flagDescription"
+                name="description"
+                rows="3"
+                placeholder="Describe what this feature flag controls..."
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              ></textarea>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Rollout Percentage: <span id="percentageValue">0</span>%
+              </label>
+              <input
+                type="range"
+                id="flagPercentage"
+                name="rolloutPercentage"
+                min="0"
+                max="100"
+                value="0"
+                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0% (Off)</span>
+                <span>50%</span>
+                <span>100% (Everyone)</span>
+              </div>
+            </div>
+
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="flagEnabled"
+                name="enabled"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label for="flagEnabled" class="ml-2 text-sm text-gray-700">
+                Enable this feature flag
+              </label>
+            </div>
+
+            <div class="flex gap-3 pt-4">
+              <button
+                type="button"
+                id="cancelBtn"
+                class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Save Feature Flag
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <svg class="w-12 h-12 text-red-600 mr-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <h3 class="text-xl font-bold text-gray-900">Delete Feature Flag</h3>
+              <p class="text-sm text-gray-600 mt-1">This action cannot be undone</p>
+            </div>
+          </div>
+
+          <p class="text-gray-700 mb-6">
+            Are you sure you want to delete the feature flag "<span id="deleteFlagName" class="font-semibold"></span>"?
+          </p>
+
+          <div class="flex gap-3">
+            <button
+              id="cancelDeleteBtn"
+              class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              id="confirmDeleteBtn"
+              class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let flags: any[] = [];
+  let editingFlagId: number | null = null;
+  let deletingFlagId: number | null = null;
+
+  // DOM Elements
+  const loadingState = document.getElementById('loadingState');
+  const errorState = document.getElementById('errorState');
+  const errorMessage = document.getElementById('errorMessage');
+  const emptyState = document.getElementById('emptyState');
+  const flagsList = document.getElementById('flagsList');
+  const flagModal = document.getElementById('flagModal');
+  const deleteModal = document.getElementById('deleteModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const flagForm = document.getElementById('flagForm') as HTMLFormElement;
+  const percentageSlider = document.getElementById('flagPercentage') as HTMLInputElement;
+  const percentageValue = document.getElementById('percentageValue');
+
+  // Load feature flags
+  async function loadFlags() {
+    try {
+      const response = await fetch('/api/v1/admin/features');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to load feature flags');
+      }
+
+      flags = data.data || [];
+      renderFlags();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'Failed to load feature flags');
+    } finally {
+      loadingState?.classList.add('hidden');
+    }
+  }
+
+  // Show error
+  function showError(message: string) {
+    loadingState?.classList.add('hidden');
+    emptyState?.classList.add('hidden');
+    flagsList?.classList.add('hidden');
+    errorState?.classList.remove('hidden');
+    if (errorMessage) errorMessage.textContent = message;
+  }
+
+  // Render flags
+  function renderFlags() {
+    if (flags.length === 0) {
+      emptyState?.classList.remove('hidden');
+      flagsList?.classList.add('hidden');
+      return;
+    }
+
+    emptyState?.classList.add('hidden');
+    flagsList?.classList.remove('hidden');
+
+    if (flagsList) {
+      flagsList.innerHTML = flags.map(flag => `
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h3 class="text-xl font-bold text-gray-900">${escapeHtml(flag.name)}</h3>
+                <span class="px-3 py-1 text-sm font-medium rounded-full ${
+                  flag.enabled 
+                    ? 'bg-green-100 text-green-700' 
+                    : 'bg-gray-100 text-gray-700'
+                }">
+                  ${flag.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              ${flag.description ? `<p class="text-gray-600 mb-3">${escapeHtml(flag.description)}</p>` : ''}
+              <div class="flex items-center gap-4 text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="text-gray-600">Rollout:</span>
+                  <div class="w-32 bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" style="width: ${flag.rolloutPercentage}%"></div>
+                  </div>
+                  <span class="font-medium text-gray-900">${flag.rolloutPercentage}%</span>
+                </div>
+                <span class="text-gray-400">•</span>
+                <span class="text-gray-500">Created: ${new Date(flag.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div class="flex gap-2 ml-4">
+              <button
+                onclick="editFlag(${flag.id})"
+                class="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+              >
+                Edit
+              </button>
+              <button
+                onclick="confirmDelete(${flag.id}, '${escapeHtml(flag.name)}')"
+                class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Helper to escape HTML
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Open modal for creating new flag
+  function openCreateModal() {
+    editingFlagId = null;
+    modalTitle!.textContent = 'Create Feature Flag';
+    flagForm.reset();
+    (document.getElementById('flagId') as HTMLInputElement).value = '';
+    percentageValue!.textContent = '0';
+    flagModal?.classList.remove('hidden');
+  }
+
+  // Open modal for editing flag
+  function editFlag(id: number) {
+    const flag = flags.find(f => f.id === id);
+    if (!flag) return;
+
+    editingFlagId = id;
+    modalTitle!.textContent = 'Edit Feature Flag';
+    (document.getElementById('flagId') as HTMLInputElement).value = String(id);
+    (document.getElementById('flagName') as HTMLInputElement).value = flag.name;
+    (document.getElementById('flagDescription') as HTMLTextAreaElement).value = flag.description || '';
+    (document.getElementById('flagPercentage') as HTMLInputElement).value = String(flag.rolloutPercentage);
+    percentageValue!.textContent = String(flag.rolloutPercentage);
+    (document.getElementById('flagEnabled') as HTMLInputElement).checked = flag.enabled;
+    flagModal?.classList.remove('hidden');
+  }
+
+  // Close modal
+  function closeModal() {
+    flagModal?.classList.add('hidden');
+    editingFlagId = null;
+  }
+
+  // Confirm delete
+  function confirmDelete(id: number, name: string) {
+    deletingFlagId = id;
+    document.getElementById('deleteFlagName')!.textContent = name;
+    deleteModal?.classList.remove('hidden');
+  }
+
+  // Close delete modal
+  function closeDeleteModal() {
+    deleteModal?.classList.add('hidden');
+    deletingFlagId = null;
+  }
+
+  // Save flag (create or update)
+  async function saveFlag(event: Event) {
+    event.preventDefault();
+
+    const formData = new FormData(flagForm);
+    const name = formData.get('name') as string;
+    const description = formData.get('description') as string;
+    const rolloutPercentage = parseInt(formData.get('rolloutPercentage') as string);
+    const enabled = (document.getElementById('flagEnabled') as HTMLInputElement).checked;
+
+    const url = editingFlagId 
+      ? `/api/v1/admin/features/${editingFlagId}`
+      : '/api/v1/admin/features';
+    
+    const method = editingFlagId ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, rolloutPercentage, enabled }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to save feature flag');
+      }
+
+      closeModal();
+      await loadFlags();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to save feature flag');
+    }
+  }
+
+  // Delete flag
+  async function deleteFlag() {
+    if (!deletingFlagId) return;
+
+    try {
+      const response = await fetch(`/api/v1/admin/features/${deletingFlagId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to delete feature flag');
+      }
+
+      closeDeleteModal();
+      await loadFlags();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete feature flag');
+    }
+  }
+
+  // Event listeners
+  document.getElementById('createFlagBtn')?.addEventListener('click', openCreateModal);
+  document.getElementById('createFirstFlagBtn')?.addEventListener('click', openCreateModal);
+  document.getElementById('closeModalBtn')?.addEventListener('click', closeModal);
+  document.getElementById('cancelBtn')?.addEventListener('click', closeModal);
+  document.getElementById('cancelDeleteBtn')?.addEventListener('click', closeDeleteModal);
+  document.getElementById('confirmDeleteBtn')?.addEventListener('click', deleteFlag);
+  flagForm?.addEventListener('submit', saveFlag);
+
+  percentageSlider?.addEventListener('input', (e) => {
+    if (percentageValue) {
+      percentageValue.textContent = (e.target as HTMLInputElement).value;
+    }
+  });
+
+  // Close modals on background click
+  flagModal?.addEventListener('click', (e) => {
+    if (e.target === flagModal) closeModal();
+  });
+
+  deleteModal?.addEventListener('click', (e) => {
+    if (e.target === deleteModal) closeDeleteModal();
+  });
+
+  // Load flags on page load
+  loadFlags();
+
+  // Expose functions to global scope for onclick handlers
+  (window as any).editFlag = editFlag;
+  (window as any).confirmDelete = confirmDelete;
+</script>
