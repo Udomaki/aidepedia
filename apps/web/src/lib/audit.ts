@@ -80,6 +80,11 @@ export const AuditActions = {
   RATE_LIMIT_CHANGED: 'rate_limit.changed',
   RATE_LIMIT_BLOCKED: 'rate_limit.blocked',
   RATE_LIMIT_UNBLOCKED: 'rate_limit.unblocked',
+
+  // Feature flags
+  FEATURE_FLAG_CREATED: 'feature_flag.created',
+  FEATURE_FLAG_UPDATED: 'feature_flag.updated',
+  FEATURE_FLAG_DELETED: 'feature_flag.deleted',
 } as const;
 
 /**
@@ -91,4 +96,5 @@ export const ResourceTypes = {
   SETTINGS: 'settings',
   WEBHOOK: 'webhook',
   RATE_LIMIT: 'rate_limit',
+  FEATURE_FLAG: 'feature_flag',
 } as const;
