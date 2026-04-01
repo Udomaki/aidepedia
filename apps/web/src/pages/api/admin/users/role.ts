@@ -24,7 +24,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Update user tier
-    const updatedUser = await updateUserTier(userId, tier);
+    await updateUserTier(userId, tier);
 
     // Redirect back to the same page with success message
     return new Response(null, {
