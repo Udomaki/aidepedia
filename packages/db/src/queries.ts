@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -18,6 +18,9 @@ import type {
   Notification,
   Tag,
   NewTag,
+  EditSuggestion,
+  NewEditSuggestion,
+  EditSuggestionWithUser,
 } from './types';
 import {
   NotFoundError,
@@ -2751,5 +2754,284 @@ export async function getArticlesByTag(
       throw error;
     }
     throw new DatabaseError(`Failed to fetch articles by tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============ Edit Suggestion Queries ============
+
+/**
+ * Create an edit suggestion
+ */
+export async function createEditSuggestion(data: NewEditSuggestion): Promise<EditSuggestion> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    // Verify article exists
+    await getArticleById(data.articleId);
+    
+    // Verify user exists
+    const [user] = await db.select().from(users).where(eq(users.id, data.userId)).limit(1);
+    if (!user) {
+      throw new NotFoundError('User', `id:${data.userId}`);
+    }
+    
+    const [suggestion] = await db.insert(edit_suggestions).values(data).returning();
+    return suggestion;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to create edit suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get edit suggestions for an article
+ */
+export async function getEditSuggestionsByArticle(
+  articleId: number,
+  params: { page?: number; limit?: number; status?: 'pending' | 'approved' | 'rejected' } = {}
+): Promise<PaginatedResult<EditSuggestionWithUser>> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [eq(edit_suggestions.articleId, articleId)];
+    if (params.status) {
+      conditions.push(eq(edit_suggestions.status, params.status));
+    }
+    
+    const whereClause = and(...conditions);
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: edit_suggestions.id,
+          articleId: edit_suggestions.articleId,
+          userId: edit_suggestions.userId,
+          fieldName: edit_suggestions.fieldName,
+          oldValue: edit_suggestions.oldValue,
+          newValue: edit_suggestions.newValue,
+          reason: edit_suggestions.reason,
+          status: edit_suggestions.status,
+          createdAt: edit_suggestions.createdAt,
+          user: {
+            id: users.id,
+            name: users.name,
+            image: users.image,
+          },
+        })
+        .from(edit_suggestions)
+        .innerJoin(users, eq(edit_suggestions.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(edit_suggestions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(edit_suggestions)
+        .where(whereClause),
+    ]);
+
+    return {
+      data: data as EditSuggestionWithUser[],
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch edit suggestions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get all pending edit suggestions (for admin queue)
+ */
+export async function getAllEditSuggestions(
+  params: { page?: number; limit?: number; status?: 'pending' | 'approved' | 'rejected' } = {}
+): Promise<PaginatedResult<EditSuggestionWithUser & { article: { id: number; slug: string; title: string } }>> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    if (params.status) {
+      conditions.push(eq(edit_suggestions.status, params.status));
+    }
+    
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: edit_suggestions.id,
+          articleId: edit_suggestions.articleId,
+          userId: edit_suggestions.userId,
+          fieldName: edit_suggestions.fieldName,
+          oldValue: edit_suggestions.oldValue,
+          newValue: edit_suggestions.newValue,
+          reason: edit_suggestions.reason,
+          status: edit_suggestions.status,
+          createdAt: edit_suggestions.createdAt,
+          user: {
+            id: users.id,
+            name: users.name,
+            image: users.image,
+          },
+          article: {
+            id: articles.id,
+            slug: articles.slug,
+            title: articles.title,
+          },
+        })
+        .from(edit_suggestions)
+        .innerJoin(users, eq(edit_suggestions.userId, users.id))
+        .innerJoin(articles, eq(edit_suggestions.articleId, articles.id))
+        .where(whereClause)
+        .orderBy(desc(edit_suggestions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(edit_suggestions)
+        .where(whereClause),
+    ]);
+
+    return {
+      data: data as any,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch all edit suggestions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a single edit suggestion by ID
+ */
+export async function getEditSuggestionById(id: number): Promise<EditSuggestion> {
+  try {
+    const [suggestion] = await db
+      .select()
+      .from(edit_suggestions)
+      .where(eq(edit_suggestions.id, id))
+      .limit(1);
+
+    if (!suggestion) {
+      throw new NotFoundError('Edit suggestion', `id:${id}`);
+    }
+
+    return suggestion;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch edit suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Approve an edit suggestion and apply the edit
+ */
+export async function approveEditSuggestion(id: number, reviewerId: number): Promise<EditSuggestion> {
+  try {
+    const suggestion = await getEditSuggestionById(id);
+    
+    if (suggestion.status !== 'pending') {
+      throw new ValidationError('Edit suggestion is not pending');
+    }
+    
+    // Apply the edit to the article
+    const article = await getArticleById(suggestion.articleId);
+    
+    // Map field names to article properties
+    const fieldUpdates: Record<string, any> = {};
+    
+    if (suggestion.fieldName === 'title') {
+      fieldUpdates.title = suggestion.newValue;
+    } else if (suggestion.fieldName === 'content') {
+      fieldUpdates.content = suggestion.newValue;
+    } else if (suggestion.fieldName === 'excerpt') {
+      fieldUpdates.excerpt = suggestion.newValue;
+    } else {
+      throw new ValidationError(`Unknown field: ${suggestion.fieldName}`);
+    }
+    
+    // Update the article
+    await db
+      .update(articles)
+      .set({
+        ...fieldUpdates,
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, suggestion.articleId));
+    
+    // Create a revision for this change
+    const updatedArticle = await getArticleById(suggestion.articleId);
+    await db.insert(articleRevisions).values({
+      articleId: updatedArticle.id,
+      editorId: reviewerId,
+      title: updatedArticle.title,
+      content: updatedArticle.content!,
+      excerpt: updatedArticle.excerpt,
+      categoryId: updatedArticle.categoryId,
+      tags: updatedArticle.tags || [],
+      changeReason: `Edit suggestion #${id} approved: ${suggestion.reason || 'No reason provided'}`,
+      changeType: 'updated',
+    });
+    
+    // Mark suggestion as approved
+    const [approved] = await db
+      .update(edit_suggestions)
+      .set({ status: 'approved' })
+      .where(eq(edit_suggestions.id, id))
+      .returning();
+    
+    return approved;
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to approve edit suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Reject an edit suggestion
+ */
+export async function rejectEditSuggestion(id: number): Promise<EditSuggestion> {
+  try {
+    const suggestion = await getEditSuggestionById(id);
+    
+    if (suggestion.status !== 'pending') {
+      throw new ValidationError('Edit suggestion is not pending');
+    }
+    
+    const [rejected] = await db
+      .update(edit_suggestions)
+      .set({ status: 'rejected' })
+      .where(eq(edit_suggestions.id, id))
+      .returning();
+    
+    return rejected;
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to reject edit suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

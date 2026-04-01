@@ -290,3 +290,22 @@ export const article_tags = pgTable('article_tags', {
   articleIdx: index('article_tag_article_idx').on(table.articleId),
   tagIdx: index('article_tag_tag_idx').on(table.tagId),
 }));
+
+export const edit_suggestions = pgTable('edit_suggestions', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  fieldName: varchar('field_name', { length: 100 }).notNull(),
+  oldValue: text('old_value'),
+  newValue: text('new_value').notNull(),
+  reason: text('reason'),
+  status: varchar('status', {
+    enum: ['pending', 'approved', 'rejected'],
+    length: 20
+  }).notNull().default('pending'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('edit_suggestion_article_idx').on(table.articleId),
+  userIdx: index('edit_suggestion_user_idx').on(table.userId),
+  statusIdx: index('edit_suggestion_status_idx').on(table.status),
+}));

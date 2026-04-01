@@ -209,6 +209,12 @@ const totalComments = countAllComments(comments);
             {article.updatedAt && <p>Last updated: {formatDate(article.updatedAt)}</p>}
           </div>
           <div class="flex gap-2">
+            <button
+              id="suggest-edit-btn"
+              class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
+            >
+              ✏️ Suggest Edit
+            </button>
             <a
               href={`/articles/${article.slug}/revisions`}
               class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
@@ -225,6 +231,93 @@ const totalComments = countAllComments(comments);
         </div>
       </footer>
     </article>
+
+    <!-- Suggest Edit Modal -->
+    <div id="suggest-edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-2xl font-bold text-gray-900">Suggest an Edit</h2>
+            <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          </div>
+        </div>
+        
+        <form id="suggest-edit-form" class="p-6 space-y-6">
+          <div>
+            <label for="field-name" class="block text-sm font-medium text-gray-700 mb-2">
+              Field to Edit
+            </label>
+            <select
+              id="field-name"
+              name="fieldName"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              required
+            >
+              <option value="">Select a field...</option>
+              <option value="title">Title</option>
+              <option value="excerpt">Excerpt/Summary</option>
+              <option value="content">Content</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="old-value" class="block text-sm font-medium text-gray-700 mb-2">
+              Current Value
+            </label>
+            <textarea
+              id="old-value"
+              name="oldValue"
+              rows="3"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50"
+              readonly
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="new-value" class="block text-sm font-medium text-gray-700 mb-2">
+              Proposed New Value
+            </label>
+            <textarea
+              id="new-value"
+              name="newValue"
+              rows="5"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              placeholder="Enter the proposed new value..."
+              required
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="reason" class="block text-sm font-medium text-gray-700 mb-2">
+              Reason for Edit (optional)
+            </label>
+            <textarea
+              id="reason"
+              name="reason"
+              rows="3"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              placeholder="Explain why this edit is needed..."
+            ></textarea>
+          </div>
+
+          <div class="flex gap-3 justify-end">
+            <button
+              type="button"
+              id="cancel-edit-btn"
+              class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            >
+              Submit Suggestion
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Comments Section -->
     <section class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -546,6 +639,103 @@ const totalComments = countAllComments(comments);
     } catch (error) {
       console.error('Error toggling bookmark:', error);
       alert('Failed to update bookmark');
+    }
+  });
+
+  // Suggest Edit Modal functionality
+  const articleData = {
+    title: article.title,
+    excerpt: article.excerpt || '',
+    content: article.content
+  };
+
+  const suggestEditBtn = document.getElementById('suggest-edit-btn');
+  const suggestEditModal = document.getElementById('suggest-edit-modal');
+  const closeModalBtn = document.getElementById('close-modal-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  const suggestEditForm = document.getElementById('suggest-edit-form');
+  const fieldNameSelect = document.getElementById('field-name');
+  const oldValueTextarea = document.getElementById('old-value');
+
+  // Open modal
+  suggestEditBtn?.addEventListener('click', () => {
+    if (!currentUser) {
+      window.location.href = '/login';
+      return;
+    }
+    suggestEditModal?.classList.remove('hidden');
+  });
+
+  // Close modal
+  closeModalBtn?.addEventListener('click', () => {
+    suggestEditModal?.classList.add('hidden');
+  });
+
+  cancelEditBtn?.addEventListener('click', () => {
+    suggestEditModal?.classList.add('hidden');
+  });
+
+  // Close modal on background click
+  suggestEditModal?.addEventListener('click', (e) => {
+    if (e.target === suggestEditModal) {
+      suggestEditModal?.classList.add('hidden');
+    }
+  });
+
+  // Update old value when field changes
+  fieldNameSelect?.addEventListener('change', (e) => {
+    const field = e.target.value;
+    if (field && articleData[field] !== undefined) {
+      oldValueTextarea.value = articleData[field];
+    } else {
+      oldValueTextarea.value = '';
+    }
+  });
+
+  // Handle form submission
+  suggestEditForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const formData = new FormData(suggestEditForm);
+    const fieldName = formData.get('fieldName');
+    const oldValue = formData.get('oldValue');
+    const newValue = formData.get('newValue');
+    const reason = formData.get('reason');
+
+    if (!fieldName || !newValue) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/v1/articles/' + articleSlug + '/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fieldName,
+          oldValue,
+          newValue,
+          reason
+        })
+      });
+
+      if (response.ok) {
+        alert('Thank you! Your edit suggestion has been submitted for review.');
+        suggestEditModal?.classList.add('hidden');
+        suggestEditForm.reset();
+        oldValueTextarea.value = '';
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to submit suggestion');
+      }
+    } catch (error) {
+      console.error('Error submitting edit suggestion:', error);
+      alert('Failed to submit suggestion');
     }
   });
 
