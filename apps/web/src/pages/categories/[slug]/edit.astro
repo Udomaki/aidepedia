@@ -2,10 +2,24 @@
 import Layout from '../../../layouts/Layout.astro';
 import { getCategoryBySlug } from '@aidepedia/db';
 
+export function getStaticPaths() {
+  // Mock data for static build - in production this would fetch from database
+  return [
+    { params: { slug: 'technology' } },
+    { params: { slug: 'science' } },
+    { params: { slug: 'history' } },
+    { params: { slug: 'arts' } },
+  ];
+}
+
 const { slug } = Astro.params;
 
+let category;
 try {
-  const category = await getCategoryBySlug(slug);
+  category = await getCategoryBySlug(slug!);
+} catch (error) {
+  return Astro.redirect('/categories');
+}
 ---
 
 <Layout title={`Edit ${category.name} - AIdepedia`}>
@@ -45,8 +59,8 @@ try {
             id="slug"
             name="slug"
             required
-            pattern="[a-z0-9-]+"
             value={category.slug}
+            pattern="[a-z0-9-]+"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <p class="text-sm text-gray-500 mt-1">
@@ -97,12 +111,6 @@ try {
           >
             Delete Category
           </button>
-          <a
-            href={`/categories/${category.slug}`}
-            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2 rounded-lg transition"
-          >
-            Cancel
-          </a>
         </div>
       </form>
     </div>
@@ -145,8 +153,3 @@ try {
     }
   });
 </script>
-
-<?} catch (error) {
-  return Astro.redirect('/categories');
-}
-?>

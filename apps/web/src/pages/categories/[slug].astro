@@ -2,17 +2,32 @@
 import Layout from '../../layouts/Layout.astro';
 import { getCategoryBySlug, listArticles } from '@aidepedia/db';
 
+export function getStaticPaths() {
+  // Mock data for static build - in production this would fetch from database
+  return [
+    { params: { slug: 'technology' } },
+    { params: { slug: 'science' } },
+    { params: { slug: 'history' } },
+    { params: { slug: 'arts' } },
+  ];
+}
+
 const { slug } = Astro.params;
 
+let category;
+let articles = [];
+
 try {
-  const category = await getCategoryBySlug(slug);
+  category = await getCategoryBySlug(slug!);
   const result = await listArticles({ 
     categoryId: category.id, 
     status: 'published',
     limit: 50 
   });
-
-  const articles = result.data;
+  articles = result.data;
+} catch (error) {
+  return Astro.redirect('/categories');
+}
 ---
 
 <Layout title={`${category.name} - AIdepedia`}>
@@ -77,8 +92,3 @@ try {
     )}
   </div>
 </Layout>
-
-<?} catch (error) {
-  return Astro.redirect('/categories');
-}
-?>
