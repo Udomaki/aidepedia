@@ -1,6 +1,27 @@
 ---
 // OAuth callback handler - auth-astro handles this automatically
-// This file exists to provide a custom loading state if needed
+// This file checks for 2FA requirement
+import { getSession } from '../../lib/auth';
+import { db, users, eq } from '@aidepedia/db';
+
+const session = await getSession(Astro.request);
+
+if (session?.user?.id) {
+  // Check if user has 2FA enabled
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, parseInt(session.user.id)))
+    .limit(1);
+
+  if (user?.twoFactorEnabled) {
+    // Redirect to 2FA verification page
+    return Astro.redirect('/login/2fa');
+  }
+  
+  // No 2FA, redirect to dashboard
+  return Astro.redirect('/dashboard');
+}
 ---
 
 <!doctype html>
