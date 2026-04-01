@@ -13,6 +13,8 @@ import type {
   Editor,
   ReputationEvent,
   NewReputationEvent,
+  ThreadedComment,
+  Comment,
 } from './types';
 import {
   NotFoundError,
@@ -1496,5 +1498,185 @@ export async function getAdminStats(): Promise<{
     };
   } catch (error) {
     throw new DatabaseError(`Failed to fetch admin stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ========== COMMENT QUERIES ==========
+
+/**
+ * Get comments for an article, organized as threaded tree
+ */
+export async function getCommentsByArticle(articleId: number): Promise<ThreadedComment[]> {
+  try {
+    const { comments, users } = await import('./schema/index');
+    
+    // Get all comments for the article
+    const allComments = await db
+      .select({
+        id: comments.id,
+        articleId: comments.articleId,
+        userId: comments.userId,
+        parentId: comments.parentId,
+        content: comments.content,
+        createdAt: comments.createdAt,
+        updatedAt: comments.updatedAt,
+        authorId: users.id,
+        authorName: users.name,
+        authorImage: users.image,
+      })
+      .from(comments)
+      .leftJoin(users, eq(comments.userId, users.id))
+      .where(eq(comments.articleId, articleId))
+      .orderBy(desc(comments.createdAt));
+
+    // Build threaded structure
+    const commentMap = new Map<number, ThreadedComment>();
+    const rootComments: ThreadedComment[] = [];
+
+    // First pass: create all comment objects
+    for (const row of allComments) {
+      const comment: ThreadedComment = {
+        id: row.id,
+        articleId: row.articleId,
+        userId: row.userId,
+        parentId: row.parentId,
+        content: row.content,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        author: row.authorId ? {
+          id: row.authorId,
+          name: row.authorName,
+          image: row.authorImage,
+        } : undefined,
+        replies: [],
+      };
+      commentMap.set(comment.id, comment);
+    }
+
+    // Second pass: build tree structure
+    for (const comment of commentMap.values()) {
+      if (comment.parentId) {
+        const parent = commentMap.get(comment.parentId);
+        if (parent) {
+          if (!parent.replies) {
+            parent.replies = [];
+          }
+          parent.replies.push(comment);
+        }
+      } else {
+        rootComments.push(comment);
+      }
+    }
+
+    return rootComments;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch comments: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create a new comment
+ */
+export async function createComment(data: {
+  articleId: number;
+  userId: number;
+  parentId?: number | null;
+  content: string;
+}): Promise<Comment> {
+  try {
+    const { comments } = await import('./schema/index');
+    
+    const [comment] = await db
+      .insert(comments)
+      .values({
+        articleId: data.articleId,
+        userId: data.userId,
+        parentId: data.parentId || null,
+        content: data.content,
+      })
+      .returning();
+
+    return comment;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update a comment
+ * @throws {NotFoundError} If comment is not found
+ * @throws {ValidationError} If user is not the author
+ */
+export async function updateComment(
+  id: number,
+  content: string,
+  userId: number
+): Promise<Comment> {
+  try {
+    const { comments } = await import('./schema/index');
+    
+    // Check if comment exists and belongs to user
+    const [existing] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundError('Comment', `id:${id}`);
+    }
+
+    if (existing.userId !== userId) {
+      throw new ValidationError('You can only edit your own comments');
+    }
+
+    const [comment] = await db
+      .update(comments)
+      .set({
+        content,
+        updatedAt: new Date(),
+      })
+      .where(eq(comments.id, id))
+      .returning();
+
+    return comment!;
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a comment
+ * @throws {NotFoundError} If comment is not found
+ * @throws {ValidationError} If user is not the author
+ */
+export async function deleteComment(id: number, userId: number): Promise<void> {
+  try {
+    const { comments } = await import('./schema/index');
+    
+    // Check if comment exists and belongs to user
+    const [existing] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundError('Comment', `id:${id}`);
+    }
+
+    if (existing.userId !== userId) {
+      throw new ValidationError('You can only delete your own comments');
+    }
+
+    await db.delete(comments).where(eq(comments.id, id));
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to delete comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

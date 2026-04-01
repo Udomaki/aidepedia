@@ -7,6 +7,7 @@ import type {
   categories,
   articleUserVotes,
   revisionUserVotes,
+  comments,
 } from './schema/index';
 
 // Category types
@@ -52,6 +53,20 @@ export type UserVoteType = 'upvote' | 'downvote';
 
 export type RevisionUserVote = typeof revisionUserVotes.$inferSelect;
 export type NewRevisionUserVote = typeof revisionUserVotes.$inferInsert;
+
+// Comment types
+export type Comment = typeof comments.$inferSelect;
+export type NewComment = typeof comments.$inferInsert;
+
+// Threaded comment with replies
+export interface ThreadedComment extends Comment {
+  author?: {
+    id: number;
+    name: string | null;
+    image: string | null;
+  };
+  replies?: ThreadedComment[];
+}
 
 // Pagination types
 export interface PaginationParams {
