@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getArticleBySlug, listArticles } from '@aidepedia/db';
+import { getArticleBySlug, listArticles, getCategories } from '@aidepedia/db';
 
 export async function getStaticPaths() {
   // Try to fetch all published articles for static generation
@@ -34,6 +34,11 @@ if (!article) {
   return Astro.redirect('/articles');
 }
 
+// Fetch categories for lookup
+const categories = await getCategories();
+const categoryMap = new Map(categories.map(c => [c.id, c]));
+const articleCategory = article.categoryId ? categoryMap.get(article.categoryId) : null;
+
 const pageTitle = `${article.title} - AIdepedia`;
 
 function formatDate(date: Date): string {
@@ -44,17 +49,17 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
-function getCategoryColor(category: string): string {
+function getCategoryColor(categoryName: string | undefined): string {
   const colors: Record<string, string> = {
     'technology': 'bg-blue-600',
     'wellness': 'bg-green-600',
     'philosophy': 'bg-purple-600',
   };
-  return colors[category.toLowerCase()] || 'bg-gray-600';
+  return colors[(categoryName || '').toLowerCase()] || 'bg-gray-600';
 }
 ---
 
-<Layout title={pageTitle} description={article.excerpt || article.content.substring(0, 160)}>
+<Layout title={pageTitle}>
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="text-sm mb-6">
@@ -69,9 +74,11 @@ function getCategoryColor(category: string): string {
       <!-- Header -->
       <header class="p-8 border-b border-gray-200">
         <div class="flex items-center gap-3 mb-4">
-          <span class={`px-3 py-1 text-white text-sm font-medium rounded-full ${getCategoryColor(article.category)}`}>
-            {article.category}
-          </span>
+          {articleCategory && (
+            <span class={`px-3 py-1 text-white text-sm font-medium rounded-full ${getCategoryColor(articleCategory.name)}`}>
+              {articleCategory.name}
+            </span>
+          )}
           {article.status === 'published' && (
             <span class="text-green-600 text-sm">✓ Published</span>
           )}
