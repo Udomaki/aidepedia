@@ -1,0 +1,304 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getAllEditSuggestions } from '@aidepedia/db';
+import { getSession } from '../../lib/auth';
+
+export const prerender = false;
+
+// Check authentication and admin status
+const session = await getSession(Astro.request);
+const isAdmin = (session?.user as any)?.role === 'admin' || (session?.user as any)?.tier === 'admin';
+
+if (!isAdmin) {
+  return Astro.redirect('/?error=admin_required');
+}
+
+// Get filter from query params
+const url = Astro.url;
+const statusFilter = url.searchParams.get('status') as 'pending' | 'approved' | 'rejected' | null;
+const page = parseInt(url.searchParams.get('page') || '1', 10);
+
+// Fetch suggestions
+let suggestions = [];
+let meta = { total: 0, page: 1, limit: 20, totalPages: 0 };
+
+try {
+  const result = await getAllEditSuggestions({ 
+    page, 
+    limit: 20, 
+    status: statusFilter || undefined 
+  });
+  suggestions = result.data;
+  meta = result.meta;
+} catch (error) {
+  console.error('Error fetching suggestions:', error);
+}
+
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(date));
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'pending': return 'bg-yellow-100 text-yellow-800';
+    case 'approved': return 'bg-green-100 text-green-800';
+    case 'rejected': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+}
+
+function truncate(text: string, maxLength: number = 100): string {
+  if (!text) return '';
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+---
+
+<Layout title="Edit Suggestions - Admin">
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-3xl font-bold text-gray-900">Edit Suggestions</h1>
+        <a
+          href="/admin"
+          class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+        >
+          ← Back to Admin
+        </a>
+      </div>
+      <p class="text-gray-600">Review and manage user-submitted edit suggestions</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-6 flex gap-4">
+      <a
+        href="/admin/suggestions"
+        class={`px-4 py-2 rounded-lg font-medium transition-colors ${!statusFilter ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+      >
+        All
+      </a>
+      <a
+        href="/admin/suggestions?status=pending"
+        class={`px-4 py-2 rounded-lg font-medium transition-colors ${statusFilter === 'pending' ? 'bg-yellow-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+      >
+        Pending
+      </a>
+      <a
+        href="/admin/suggestions?status=approved"
+        class={`px-4 py-2 rounded-lg font-medium transition-colors ${statusFilter === 'approved' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+      >
+        Approved
+      </a>
+      <a
+        href="/admin/suggestions?status=rejected"
+        class={`px-4 py-2 rounded-lg font-medium transition-colors ${statusFilter === 'rejected' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+      >
+        Rejected
+      </a>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-600 mb-1">Total Suggestions</div>
+        <div class="text-3xl font-bold text-gray-900">{meta.total}</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-600 mb-1">Page</div>
+        <div class="text-3xl font-bold text-gray-900">{meta.page} of {meta.totalPages || 1}</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-600 mb-1">Showing</div>
+        <div class="text-3xl font-bold text-gray-900">{suggestions.length}</div>
+      </div>
+    </div>
+
+    <!-- Suggestions List -->
+    {suggestions.length === 0 ? (
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+        <div class="text-gray-400 text-6xl mb-4">📝</div>
+        <h3 class="text-xl font-medium text-gray-900 mb-2">No suggestions found</h3>
+        <p class="text-gray-600">
+          {statusFilter 
+            ? `No ${statusFilter} suggestions at this time.`
+            : 'No edit suggestions have been submitted yet.'
+          }
+        </p>
+      </div>
+    ) : (
+      <div class="space-y-4">
+        {suggestions.map((suggestion: any) => (
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <span class={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(suggestion.status)}`}>
+                    {suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
+                  </span>
+                  <span class="text-sm text-gray-500">
+                    {formatDate(suggestion.createdAt)}
+                  </span>
+                </div>
+                <a
+                  href={`/articles/${suggestion.article.slug}`}
+                  class="text-blue-600 hover:text-blue-700 font-medium"
+                  target="_blank"
+                >
+                  View Article →
+                </a>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <div class="text-sm font-medium text-gray-700 mb-1">Article</div>
+                  <div class="text-gray-900">{suggestion.article.title}</div>
+                </div>
+                <div>
+                  <div class="text-sm font-medium text-gray-700 mb-1">Field</div>
+                  <div class="text-gray-900 capitalize">{suggestion.fieldName}</div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <div class="text-sm font-medium text-gray-700 mb-1">Old Value</div>
+                  <div class="bg-gray-50 p-3 rounded border border-gray-200 text-sm text-gray-600">
+                    {truncate(suggestion.oldValue, 200) || <em class="text-gray-400">Empty</em>}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-sm font-medium text-gray-700 mb-1">New Value</div>
+                  <div class="bg-green-50 p-3 rounded border border-green-200 text-sm text-gray-900">
+                    {truncate(suggestion.newValue, 200)}
+                  </div>
+                </div>
+              </div>
+
+              {suggestion.reason && (
+                <div class="mb-4">
+                  <div class="text-sm font-medium text-gray-700 mb-1">Reason</div>
+                  <div class="text-gray-600">{suggestion.reason}</div>
+                </div>
+              )}
+
+              <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                  {suggestion.user.image ? (
+                    <img src={suggestion.user.image} alt={suggestion.user.name || 'User'} class="w-6 h-6 rounded-full" />
+                  ) : (
+                    <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-medium text-gray-600">
+                      {(suggestion.user.name || 'A')[0].toUpperCase()}
+                    </div>
+                  )}
+                  <span>Suggested by {suggestion.user.name || 'Anonymous'}</span>
+                </div>
+
+                {suggestion.status === 'pending' && (
+                  <div class="flex gap-2">
+                    <button
+                      class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium reject-btn"
+                      data-suggestion-id={suggestion.id}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium approve-btn"
+                      data-suggestion-id={suggestion.id}
+                    >
+                      Approve
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <!-- Pagination -->
+        {meta.totalPages > 1 && (
+          <div class="flex justify-center gap-2 mt-8">
+            {meta.page > 1 && (
+              <a
+                href={`/admin/suggestions?page=${meta.page - 1}${statusFilter ? `&status=${statusFilter}` : ''}`}
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                ← Previous
+              </a>
+            )}
+            {meta.page < meta.totalPages && (
+              <a
+                href={`/admin/suggestions?page=${meta.page + 1}${statusFilter ? `&status=${statusFilter}` : ''}`}
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Next →
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    )}
+  </main>
+</Layout>
+
+<script>
+  // Handle approve/reject buttons
+  document.querySelectorAll('.approve-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const suggestionId = btn.getAttribute('data-suggestion-id');
+      
+      if (!confirm('Are you sure you want to approve this edit suggestion? This will apply the changes to the article.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/v1/suggestions/' + suggestionId + '/approve', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Failed to approve suggestion');
+        }
+      } catch (error) {
+        console.error('Error approving suggestion:', error);
+        alert('Failed to approve suggestion');
+      }
+    });
+  });
+
+  document.querySelectorAll('.reject-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const suggestionId = btn.getAttribute('data-suggestion-id');
+      
+      if (!confirm('Are you sure you want to reject this edit suggestion?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/v1/suggestions/' + suggestionId + '/reject', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Failed to reject suggestion');
+        }
+      } catch (error) {
+        console.error('Error rejecting suggestion:', error);
+        alert('Failed to reject suggestion');
+      }
+    });
+  });
+</script>
