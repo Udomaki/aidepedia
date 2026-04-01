@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -16,6 +16,8 @@ import type {
   ThreadedComment,
   Comment,
   Notification,
+  Tag,
+  NewTag,
 } from './types';
 import {
   NotFoundError,
@@ -568,9 +570,9 @@ export async function deleteCategory(id: number): Promise<void> {
 }
 
 /**
- * Get distinct tags from articles
+ * Get distinct tags from articles (legacy - kept for backwards compatibility)
  */
-export async function getTags(): Promise<string[]> {
+export async function getArticleTagStrings(): Promise<string[]> {
   try {
     const result = await db
       .select({ tags: articles.tags })
@@ -2517,5 +2519,237 @@ export async function markAllNotificationsRead(userId: number): Promise<number> 
     return result.length;
   } catch (error) {
     throw new DatabaseError(`Failed to mark all read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============ Tag Queries ============
+
+/**
+ * Get all tags
+ */
+export async function getTags(): Promise<Tag[]> {
+  try {
+    return await db
+      .select()
+      .from(tags)
+      .orderBy(tags.name);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch tags: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get tag by slug
+ */
+export async function getTagBySlug(slug: string): Promise<Tag> {
+  try {
+    const [tag] = await db
+      .select()
+      .from(tags)
+      .where(eq(tags.slug, slug))
+      .limit(1);
+
+    if (!tag) {
+      throw new NotFoundError('Tag', slug);
+    }
+
+    return tag;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get tag by ID
+ */
+export async function getTagById(id: number): Promise<Tag> {
+  try {
+    const [tag] = await db
+      .select()
+      .from(tags)
+      .where(eq(tags.id, id))
+      .limit(1);
+
+    if (!tag) {
+      throw new NotFoundError('Tag', `id:${id}`);
+    }
+
+    return tag;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create a new tag
+ */
+export async function createTag(data: NewTag): Promise<Tag> {
+  try {
+    const [tag] = await db
+      .insert(tags)
+      .values(data)
+      .returning();
+
+    return tag;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get tags for an article
+ */
+export async function getArticleTags(articleId: number): Promise<Tag[]> {
+  try {
+    const result = await db
+      .select({
+        id: tags.id,
+        name: tags.name,
+        slug: tags.slug,
+        createdAt: tags.createdAt,
+      })
+      .from(article_tags)
+      .innerJoin(tags, eq(article_tags.tagId, tags.id))
+      .where(eq(article_tags.articleId, articleId))
+      .orderBy(tags.name);
+
+    return result;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch article tags: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Add a tag to an article
+ */
+export async function addTagToArticle(articleId: number, tagId: number): Promise<void> {
+  try {
+    // Verify article exists
+    await getArticleById(articleId);
+    
+    // Verify tag exists
+    await getTagById(tagId);
+
+    // Check if already tagged
+    const [existing] = await db
+      .select()
+      .from(article_tags)
+      .where(
+        and(
+          eq(article_tags.articleId, articleId),
+          eq(article_tags.tagId, tagId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new ValidationError('Article already has this tag');
+    }
+
+    // Add tag
+    await db.insert(article_tags).values({
+      articleId,
+      tagId,
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to add tag to article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Remove a tag from an article
+ */
+export async function removeTagFromArticle(articleId: number, tagId: number): Promise<void> {
+  try {
+    const [deleted] = await db
+      .delete(article_tags)
+      .where(
+        and(
+          eq(article_tags.articleId, articleId),
+          eq(article_tags.tagId, tagId)
+        )
+      )
+      .returning();
+
+    if (!deleted) {
+      throw new ValidationError('Article does not have this tag');
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to remove tag from article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get articles by tag slug with pagination
+ */
+export async function getArticlesByTag(
+  tagSlug: string,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<Article>> {
+  try {
+    const tag = await getTagBySlug(tagSlug);
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: articles.id,
+          slug: articles.slug,
+          title: articles.title,
+          content: articles.content,
+          excerpt: articles.excerpt,
+          categoryId: articles.categoryId,
+          tags: articles.tags,
+          status: articles.status,
+          authorId: articles.authorId,
+          qualityScore: articles.qualityScore,
+          viewCount: articles.viewCount,
+          upvotes: articles.upvotes,
+          downvotes: articles.downvotes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          publishedAt: articles.publishedAt,
+        })
+        .from(article_tags)
+        .innerJoin(articles, eq(article_tags.articleId, articles.id))
+        .where(eq(article_tags.tagId, tag.id))
+        .orderBy(desc(articles.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(article_tags)
+        .where(eq(article_tags.tagId, tag.id)),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch articles by tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
