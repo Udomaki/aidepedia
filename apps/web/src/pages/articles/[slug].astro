@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import ReportButton from '../../components/ReportButton.astro';
 import ReactionPicker from '../../components/ReactionPicker.astro';
+import ArticleStatsCard from '../../components/ArticleStatsCard.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
@@ -63,11 +64,13 @@ try {
 // Check if user is logged in and has bookmarked this article
 let isUserLoggedIn = false;
 let isArticleBookmarked = false;
+let isAuthor = false;
 try {
   const session = await getSession(Astro.request);
   if (session?.user?.id) {
     isUserLoggedIn = true;
     isArticleBookmarked = await isBookmarked(parseInt(session.user.id as string), article.id);
+    isAuthor = article.authorId === parseInt(session.user.id as string);
   }
 } catch (e) {
   // User not logged in or error checking bookmark status
@@ -227,6 +230,9 @@ const totalComments = countAllComments(comments);
           </div>
         )}
       </header>
+
+      <!-- Article Stats Card (visible to author only) -->
+      <ArticleStatsCard articleId={article.id} slug={article.slug} isAuthor={isAuthor} />
 
       <!-- Content -->
       <div class="p-8 prose prose-lg max-w-none">
