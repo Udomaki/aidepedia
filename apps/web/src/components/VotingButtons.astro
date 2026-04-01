@@ -18,9 +18,9 @@ const canVote = editorId !== undefined;
     <button
       class:list={[
         "flex items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-200",
-        !canVote && "bg-gray-100 text-gray-400 cursor-not-allowed",
-        canVote && userVote === 'upvote' && "bg-green-100 text-green-700 hover:bg-green-200",
-        canVote && userVote !== 'upvote' && "bg-gray-100 text-gray-600 hover:bg-gray-200"
+        !canVote && "bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed",
+        canVote && userVote === 'upvote' && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50",
+        canVote && userVote !== 'upvote' && "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
       ]}
       data-vote-type="upvote"
       data-article-id={articleId}
@@ -32,8 +32,8 @@ const canVote = editorId !== undefined;
       <span class="font-semibold" id={`upvotes-${articleId}`}>{upvotes}</span>
     </button>
 
-    <div class="text-center px-3 py-2 bg-gray-50 rounded-lg min-w-[80px]">
-      <div class={`text-lg font-bold ${netScore >= 0 ? 'text-green-600' : 'text-red-600'}`} id={`net-score-${articleId}`}>
+    <div class="text-center px-3 py-2 bg-gray-50 dark:bg-slate-700 rounded-lg min-w-[80px]">
+      <div class={`text-lg font-bold ${netScore >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} id={`net-score-${articleId}`}>
         {netScore >= 0 ? '+' : ''}{netScore}
       </div>
     </div>
@@ -41,9 +41,9 @@ const canVote = editorId !== undefined;
     <button
       class:list={[
         "flex items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-200",
-        !canVote && "bg-gray-100 text-gray-400 cursor-not-allowed",
-        canVote && userVote === 'downvote' && "bg-red-100 text-red-700 hover:bg-red-200",
-        canVote && userVote !== 'downvote' && "bg-gray-100 text-gray-600 hover:bg-gray-200"
+        !canVote && "bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed",
+        canVote && userVote === 'downvote' && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50",
+        canVote && userVote !== 'downvote' && "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
       ]}
       data-vote-type="downvote"
       data-article-id={articleId}
@@ -85,24 +85,24 @@ const canVote = editorId !== undefined;
           const isUpvoteButton = button.querySelector('[data-vote-type="upvote"]') === button;
 
           if (voteType === 'upvote') {
-            const wasUpvoted = button.classList.contains('bg-green-100');
+            const wasUpvoted = button.classList.contains('bg-green-100') || button.classList.contains('bg-green-900/30');
             if (wasUpvoted) {
               upvotesEl.textContent = String(currentUpvotes - 1);
             } else {
               upvotesEl.textContent = String(currentUpvotes + 1);
               const downvoteButton = button.parentElement.querySelector('[data-vote-type="downvote"]');
-              if (downvoteButton && downvoteButton.classList.contains('bg-red-100') && currentDownvotes > 0) {
+              if (downvoteButton && (downvoteButton.classList.contains('bg-red-100') || downvoteButton.classList.contains('bg-red-900/30')) && currentDownvotes > 0) {
                 downvotesEl.textContent = String(currentDownvotes - 1);
               }
             }
           } else {
-            const wasDownvoted = button.classList.contains('bg-red-100');
+            const wasDownvoted = button.classList.contains('bg-red-100') || button.classList.contains('bg-red-900/30');
             if (wasDownvoted) {
               downvotesEl.textContent = String(currentDownvotes - 1);
             } else {
               downvotesEl.textContent = String(currentDownvotes + 1);
               const upvoteButton = button.parentElement.querySelector('[data-vote-type="upvote"]');
-              if (upvoteButton && upvoteButton.classList.contains('bg-green-100') && currentUpvotes > 0) {
+              if (upvoteButton && (upvoteButton.classList.contains('bg-green-100') || upvoteButton.classList.contains('bg-green-900/30')) && currentUpvotes > 0) {
                 upvotesEl.textContent = String(currentUpvotes - 1);
               }
             }
@@ -113,23 +113,33 @@ const canVote = editorId !== undefined;
           const newNetScore = newUpvotes - newDownvotes;
 
           netScoreEl.textContent = (newNetScore >= 0 ? '+' : '') + newNetScore;
-          netScoreEl.className = `text-lg font-bold ${newNetScore >= 0 ? 'text-green-600' : 'text-red-600'}`;
+          netScoreEl.className = `text-lg font-bold ${newNetScore >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`;
 
           // Update button styles
           const container = document.getElementById(`voting-${articleId}`);
           if (container) {
             const buttons = container.querySelectorAll('button');
             buttons.forEach(btn => {
-              btn.classList.remove('bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'hover:bg-green-200', 'hover:bg-red-200');
-              btn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+              // Remove all theme-specific classes
+              btn.classList.remove(
+                'bg-green-100', 'text-green-700', 'hover:bg-green-200',
+                'bg-red-100', 'text-red-700', 'hover:bg-red-200',
+                'bg-gray-100', 'text-gray-600', 'hover:bg-gray-200',
+                // Dark mode classes
+                'dark:bg-green-900/30', 'dark:text-green-400', 'dark:hover:bg-green-900/50',
+                'dark:bg-red-900/30', 'dark:text-red-400', 'dark:hover:bg-red-900/50',
+                'dark:bg-slate-700', 'dark:text-gray-300', 'dark:hover:bg-slate-600'
+              );
+              // Add default classes (light + dark variants)
+              btn.classList.add('bg-gray-100', 'dark:bg-slate-700', 'text-gray-600', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-slate-600');
             });
 
             if (data.vote === voteType) {
-              button.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+              button.classList.remove('bg-gray-100', 'dark:bg-slate-700', 'text-gray-600', 'dark:text-gray-300', 'hover:bg-gray-200', 'dark:hover:bg-slate-600');
               if (voteType === 'upvote') {
-                button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                button.classList.add('bg-green-100', 'dark:bg-green-900/30', 'text-green-700', 'dark:text-green-400', 'hover:bg-green-200', 'dark:hover:bg-green-900/50');
               } else {
-                button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+                button.classList.add('bg-red-100', 'dark:bg-red-900/30', 'text-red-700', 'dark:text-red-400', 'hover:bg-red-200', 'dark:hover:bg-red-900/50');
               }
             }
           }
