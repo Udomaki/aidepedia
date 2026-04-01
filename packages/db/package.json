@@ -10,12 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "drizzle-orm": "^0.39.0",
-    "postgres": "^3.4.0"
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.8"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.0",
-    "typescript": "^5.7.2"
+    "@types/node": "^22.10.0",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^6.0.2"
   },
   "exports": {
     ".": "./src/index.ts",
