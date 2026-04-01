@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -4745,6 +4745,310 @@ export async function toggleArticleReaction(
     }
     throw new DatabaseError(`Failed to toggle reaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+// ============================================
+// Article Statistics Queries
+// ============================================
+
+/**
+ * Get statistics for a specific article
+ */
+export async function getArticleStats(articleId: number, days: number = 30): Promise<{
+  totalViews: number;
+  uniqueVisitors: number;
+  avgReadTimeSeconds: number | null;
+  avgScrollDepth: number | null;
+  bounceRate: number | null;
+  viewsOverTime: { date: string; views: number; visitors: number }[];
+  topReferrers: { referrer: string; count: number }[];
+  reactions: Record<string, number>;
+  totalComments: number;
+}> {
+  try {
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - days);
+
+    // Get basic stats
+    const basicStats = await db.execute(sql`
+      SELECT 
+        COUNT(*) as "totalViews",
+        COUNT(DISTINCT visitor_hash) as "uniqueVisitors",
+        AVG(read_time_seconds) as "avgReadTimeSeconds",
+        AVG(scroll_depth) as "avgScrollDepth"
+      FROM page_views
+      WHERE article_id = ${articleId}
+        AND created_at >= ${threshold}
+    `);
+
+    // Calculate bounce rate (visitors who left without scrolling or reading)
+    const bounceStats = await db.execute(sql`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN scroll_depth IS NULL OR scroll_depth < 10 THEN 1 END) as bounced
+      FROM page_views
+      WHERE article_id = ${articleId}
+        AND created_at >= ${threshold}
+    `);
+
+    const bounceRate = bounceStats.rows[0]?.total > 0 
+      ? (Number(bounceStats.rows[0].bounced) / Number(bounceStats.rows[0].total)) * 100 
+      : null;
+
+    // Get views over time (daily)
+    const viewsOverTime = await db.execute(sql`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as views,
+        COUNT(DISTINCT visitor_hash) as visitors
+      FROM page_views
+      WHERE article_id = ${articleId}
+        AND created_at >= ${threshold}
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `);
+
+    // Get top referrers
+    const topReferrers = await db.execute(sql`
+      SELECT 
+        COALESCE(referrer, 'Direct') as referrer,
+        COUNT(*) as count
+      FROM page_views
+      WHERE article_id = ${articleId}
+        AND created_at >= ${threshold}
+      GROUP BY referrer
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+
+    // Get reaction counts
+    const reactions = await getArticleReactionCounts(articleId);
+
+    // Get comment count
+    const [{ commentCount }] = await db
+      .select({ commentCount: count() })
+      .from(comments)
+      .where(eq(comments.articleId, articleId));
+
+    const row = basicStats.rows[0];
+
+    return {
+      totalViews: Number(row?.totalViews || 0),
+      uniqueVisitors: Number(row?.uniqueVisitors || 0),
+      avgReadTimeSeconds: row?.avgReadTimeSeconds ? Number(row.avgReadTimeSeconds) : null,
+      avgScrollDepth: row?.avgScrollDepth ? Number(row.avgScrollDepth) : null,
+      bounceRate: bounceRate,
+      viewsOverTime: viewsOverTime.rows.map(r => ({
+        date: r.date as string,
+        views: Number(r.views),
+        visitors: Number(r.visitors),
+      })),
+      topReferrers: topReferrers.rows.map(r => ({
+        referrer: r.referrer as string,
+        count: Number(r.count),
+      })),
+      reactions,
+      totalComments: Number(commentCount),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch article stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get overall statistics for an author
+ */
+export async function getAuthorStats(userId: number, days: number = 30): Promise<{
+  totalViews: number;
+  uniqueVisitors: number;
+  totalArticles: number;
+  publishedArticles: number;
+  totalReactions: number;
+  totalComments: number;
+  avgReadTimeSeconds: number | null;
+  avgScrollDepth: number | null;
+  viewsOverTime: { date: string; views: number; visitors: number }[];
+  topArticles: {
+    id: number;
+    slug: string;
+    title: string;
+    views: number;
+    visitors: number;
+    avgReadTimeSeconds: number | null;
+    reactions: number;
+  }[];
+  recentArticles: {
+    id: number;
+    slug: string;
+    title: string;
+    excerpt: string | null;
+    publishedAt: Date | null;
+    views: number;
+  }[];
+}> {
+  try {
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - days);
+
+    // Get author's articles
+    const authorArticles = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.authorId, userId));
+
+    const articleIds = authorArticles.map(a => a.id);
+    const publishedArticles = authorArticles.filter(a => a.status === 'published');
+
+    if (articleIds.length === 0) {
+      return {
+        totalViews: 0,
+        uniqueVisitors: 0,
+        totalArticles: authorArticles.length,
+        publishedArticles: publishedArticles.length,
+        totalReactions: 0,
+        totalComments: 0,
+        avgReadTimeSeconds: null,
+        avgScrollDepth: null,
+        viewsOverTime: [],
+        topArticles: [],
+        recentArticles: [],
+      };
+    }
+
+    // Get basic stats across all articles
+    const basicStats = await db.execute(sql`
+      SELECT 
+        COUNT(*) as "totalViews",
+        COUNT(DISTINCT visitor_hash) as "uniqueVisitors",
+        AVG(read_time_seconds) as "avgReadTimeSeconds",
+        AVG(scroll_depth) as "avgScrollDepth"
+      FROM page_views
+      WHERE article_id = ANY(${articleIds})
+        AND created_at >= ${threshold}
+    `);
+
+    // Get total reactions
+    const [{ totalReactions }] = await db
+      .select({ totalReactions: count() })
+      .from(article_reactions)
+      .where(inArray(article_reactions.articleId, articleIds));
+
+    // Get total comments
+    const [{ totalComments }] = await db
+      .select({ totalComments: count() })
+      .from(comments)
+      .where(inArray(comments.articleId, articleIds));
+
+    // Get views over time
+    const viewsOverTime = await db.execute(sql`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as views,
+        COUNT(DISTINCT visitor_hash) as visitors
+      FROM page_views
+      WHERE article_id = ANY(${articleIds})
+        AND created_at >= ${threshold}
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `);
+
+    // Get top performing articles
+    const topArticlesData = await db.execute(sql`
+      SELECT 
+        a.id,
+        a.slug,
+        a.title,
+        COUNT(pv.id) as views,
+        COUNT(DISTINCT pv.visitor_hash) as visitors,
+        AVG(pv.read_time_seconds) as "avgReadTimeSeconds"
+      FROM articles a
+      LEFT JOIN page_views pv ON a.id = pv.article_id AND pv.created_at >= ${threshold}
+      WHERE a.id = ANY(${articleIds})
+      GROUP BY a.id, a.slug, a.title
+      ORDER BY views DESC
+      LIMIT 10
+    `);
+
+    // Get reaction counts per article for top articles
+    const topArticlesWithReactions = await Promise.all(
+      topArticlesData.rows.map(async (row) => {
+        const [{ reactionCount }] = await db
+          .select({ reactionCount: count() })
+          .from(article_reactions)
+          .where(eq(article_reactions.articleId, row.id as number));
+
+        return {
+          id: row.id as number,
+          slug: row.slug as string,
+          title: row.title as string,
+          views: Number(row.views),
+          visitors: Number(row.visitors),
+          avgReadTimeSeconds: row.avgReadTimeSeconds ? Number(row.avgReadTimeSeconds) : null,
+          reactions: Number(reactionCount),
+        };
+      })
+    );
+
+    // Get recent articles with view counts
+    const recentArticlesData = await db.execute(sql`
+      SELECT 
+        a.id,
+        a.slug,
+        a.title,
+        a.excerpt,
+        a.published_at,
+        COUNT(pv.id) as views
+      FROM articles a
+      LEFT JOIN page_views pv ON a.id = pv.article_id
+      WHERE a.id = ANY(${articleIds})
+      GROUP BY a.id, a.slug, a.title, a.excerpt, a.published_at
+      ORDER BY a.published_at DESC NULLS LAST
+      LIMIT 5
+    `);
+
+    const row = basicStats.rows[0];
+
+    return {
+      totalViews: Number(row?.totalViews || 0),
+      uniqueVisitors: Number(row?.uniqueVisitors || 0),
+      totalArticles: authorArticles.length,
+      publishedArticles: publishedArticles.length,
+      totalReactions: Number(totalReactions),
+      totalComments: Number(totalComments),
+      avgReadTimeSeconds: row?.avgReadTimeSeconds ? Number(row.avgReadTimeSeconds) : null,
+      avgScrollDepth: row?.avgScrollDepth ? Number(row.avgScrollDepth) : null,
+      viewsOverTime: viewsOverTime.rows.map(r => ({
+        date: r.date as string,
+        views: Number(r.views),
+        visitors: Number(r.visitors),
+      })),
+      topArticles: topArticlesWithReactions,
+      recentArticles: recentArticlesData.rows.map(r => ({
+        id: r.id as number,
+        slug: r.slug as string,
+        title: r.title as string,
+        excerpt: r.excerpt as string | null,
+        publishedAt: r.published_at as Date | null,
+        views: Number(r.views),
+      })),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch author stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Increment article view count (for backwards compatibility)
+ */
+export async function incrementArticleViewCount(articleId: number): Promise<void> {
+  await db
+    .update(articles)
+    .set({
+      viewCount: sql`${articles.viewCount} + 1`,
+    })
+    .where(eq(articles.id, articleId));
 }
 
 // ============================================

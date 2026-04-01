@@ -21,7 +21,7 @@ const pendingReviews = await getPendingReviews({ limit: 5 });
     </div>
 
     <!-- Quick Actions -->
-    <div class="mb-8 flex gap-4">
+    <div class="mb-8 flex gap-4 flex-wrap">
       <a
         href="/articles/new"
         class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -33,6 +33,12 @@ const pendingReviews = await getPendingReviews({ limit: 5 });
         class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
       >
         Review Pending ({stats.pendingReviews})
+      </a>
+      <a
+        href="/dashboard/stats"
+        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+      >
+        📊 My Statistics
       </a>
     </div>
 
