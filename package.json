@@ -16,13 +16,18 @@
     "db:studio": "pnpm --filter @aidepedia/db studio"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "eslint": "^9.16.0",
-    "turbo": "^2.4.4",
-    "typescript": "^5.7.2"
+    "@types/node": "^25.5.0",
+    "eslint": "^10.1.0",
+    "turbo": "^2.9.3",
+    "typescript": "^6.0.2"
   },
   "packageManager": "pnpm@10.0.0",
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^13.1.6",
+    "@astrojs/tailwind": "^6.0.2",
+    "astro": "^6.1.2"
   }
 }
