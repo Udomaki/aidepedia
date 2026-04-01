@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - AIdepedia</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(to bottom, #eff6ff, #ffffff);
+      color: #1e293b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 600px;
+    }
+
+    .icon {
+      font-size: 5rem;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #3b82f6;
+    }
+
+    p {
+      font-size: 1.125rem;
+      margin-bottom: 2rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.875rem 2rem;
+      background: #3b82f6;
+      color: white;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      transition: background 0.2s;
+      margin: 0.5rem;
+    }
+
+    .btn:hover {
+      background: #2563eb;
+    }
+
+    .btn-secondary {
+      background: #64748b;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .status {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      background: #f59e0b;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .cached-articles {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .cached-articles h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: #3b82f6;
+    }
+
+    .cached-list {
+      list-style: none;
+      text-align: left;
+    }
+
+    .cached-list li {
+      padding: 0.75rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .cached-list li:last-child {
+      border-bottom: none;
+    }
+
+    .cached-list a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+
+    .cached-list a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      p {
+        font-size: 1rem;
+      }
+
+      .btn {
+        display: block;
+        margin: 0.5rem 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>
+      It looks like you've lost your internet connection. 
+      Don't worry! You can still read articles you've previously visited.
+    </p>
+    
+    <a href="/" class="btn">Try Again</a>
+    <button onclick="window.location.reload()" class="btn btn-secondary">Refresh</button>
+
+    <div class="status">
+      <div class="status-dot"></div>
+      <div>
+        <strong>Offline Mode Active</strong><br>
+        <span style="font-size: 0.875rem;">Changes will sync when you're back online</span>
+      </div>
+    </div>
+
+    <div class="cached-articles">
+      <h2>📖 Cached Articles</h2>
+      <p style="font-size: 0.875rem; margin-bottom: 1rem;">
+        Articles you've visited are available offline
+      </p>
+      <ul class="cached-list" id="cached-list">
+        <li style="color: #64748b; font-style: italic;">Loading cached articles...</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Show cached articles
+    if ('caches' in window) {
+      caches.open('aidepedia-api-v1').then(cache => {
+        cache.keys().then(requests => {
+          const list = document.getElementById('cached-list');
+          const articles = requests
+            .filter(req => req.url.includes('/api/articles/'))
+            .map(req => {
+              const match = req.url.match(/\/api\/articles\/([^/]+)/);
+              return match ? match[1] : null;
+            })
+            .filter(slug => slug);
+
+          if (articles.length === 0) {
+            list.innerHTML = '<li style="color: #64748b; font-style: italic;">No cached articles yet. Visit some articles while online!</li>';
+          } else {
+            list.innerHTML = articles.map(slug => 
+              `<li><a href="/articles/${slug}">${slug.replace(/-/g, ' ')}</a></li>`
+            ).join('');
+          }
+        });
+      });
+    }
+
+    // Listen for online event
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

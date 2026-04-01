@@ -1,0 +1,172 @@
+---
+// Offline Status Indicator Component
+---
+
+<div id="offline-status" class="fixed top-16 left-0 right-0 bg-yellow-500 text-white text-center py-2 px-4 hidden z-40 transform transition-transform duration-300">
+  <div class="flex items-center justify-center gap-2">
+    <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"></path>
+    </svg>
+    <span class="font-medium">You're offline. Some features may be limited.</span>
+  </div>
+</div>
+
+<!-- Sync Status Indicator -->
+<div id="sync-status" class="fixed bottom-4 left-4 bg-blue-600 text-white rounded-lg shadow-lg px-4 py-3 hidden z-40">
+  <div class="flex items-center gap-2">
+    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+    </svg>
+    <span class="font-medium">Syncing changes...</span>
+  </div>
+</div>
+
+<script>
+  // Online/offline detection
+  function updateOnlineStatus() {
+    const offlineStatus = document.getElementById('offline-status');
+    if (!offlineStatus) return;
+
+    if (navigator.onLine) {
+      offlineStatus.classList.add('hidden');
+      
+      // Trigger sync of pending changes
+      syncPendingChanges();
+    } else {
+      offlineStatus.classList.remove('hidden');
+    }
+  }
+
+  // Listen for online/offline events
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+
+  // Check initial status
+  updateOnlineStatus();
+
+  // Sync pending changes when back online
+  async function syncPendingChanges() {
+    const syncStatus = document.getElementById('sync-status');
+    if (!syncStatus) return;
+
+    try {
+      const db = await openSyncDB();
+      const pendingRequests = await getAllPendingRequests(db);
+      
+      if (pendingRequests.length > 0) {
+        syncStatus.classList.remove('hidden');
+        
+        for (const request of pendingRequests) {
+          try {
+            const response = await fetch(request.url, {
+              method: request.method,
+              headers: request.headers,
+              body: request.body
+            });
+            
+            if (response.ok) {
+              await deletePendingRequest(db, request.timestamp);
+              
+              // Notify user of successful sync
+              showSyncNotification(request.url);
+            }
+          } catch (error) {
+            console.error('Failed to sync request:', error);
+          }
+        }
+        
+        syncStatus.classList.add('hidden');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      syncStatus.classList.add('hidden');
+    }
+  }
+
+  // IndexedDB helpers
+  function openSyncDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('aidepedia-sync', 1);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('pendingRequests')) {
+          db.createObjectStore('pendingRequests', { keyPath: 'timestamp' });
+        }
+      };
+    });
+  }
+
+  function getAllPendingRequests(db: IDBDatabase): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['pendingRequests'], 'readonly');
+      const store = transaction.objectStore('pendingRequests');
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function deletePendingRequest(db: IDBDatabase, timestamp: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['pendingRequests'], 'readwrite');
+      const store = transaction.objectStore('pendingRequests');
+      const request = store.delete(timestamp);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Show sync notification
+  function showSyncNotification(url: string) {
+    // Create a toast notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white rounded-lg shadow-lg px-4 py-3 z-50 animate-fade-in';
+    toast.innerHTML = `
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span class="font-medium">Changes synced successfully!</span>
+      </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toast.remove();
+    }, 3000);
+  }
+
+  // Listen for sync messages from service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'SYNC_COMPLETE') {
+        showSyncNotification(event.data.url);
+      }
+    });
+  }
+</script>
+
+<style>
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+</style>

@@ -7,11 +7,19 @@
   "background_color": "#ffffff",
   "theme_color": "#3B82F6",
   "orientation": "portrait-primary",
+  "scope": "/",
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     },
     {
       "src": "/og-image.svg",
@@ -20,5 +28,29 @@
     }
   ],
   "categories": ["education", "reference"],
-  "lang": "en-US"
+  "lang": "en-US",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Search Articles",
+      "short_name": "Search",
+      "description": "Search for articles",
+      "url": "/search",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Browse Articles",
+      "short_name": "Articles",
+      "description": "Browse all articles",
+      "url": "/articles",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+    }
+  ]
 }
