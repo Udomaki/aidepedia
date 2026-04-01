@@ -176,3 +176,35 @@ export interface ArticleTag {
   articleId: number;
   tagId: number;
 }
+
+// Edit suggestion types
+export type EditSuggestionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface EditSuggestion {
+  id: number;
+  articleId: number;
+  userId: number;
+  fieldName: string;
+  oldValue: string | null;
+  newValue: string;
+  reason: string | null;
+  status: EditSuggestionStatus;
+  createdAt: Date;
+}
+
+export interface NewEditSuggestion {
+  articleId: number;
+  userId: number;
+  fieldName: string;
+  oldValue?: string | null;
+  newValue: string;
+  reason?: string | null;
+}
+
+export interface EditSuggestionWithUser extends EditSuggestion {
+  user: {
+    id: number;
+    name: string | null;
+    image: string | null;
+  };
+}
