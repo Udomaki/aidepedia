@@ -1044,3 +1044,251 @@ export async function getRevisionUserVote(
     throw new DatabaseError(`Failed to get revision vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/**
+ * Get dashboard statistics
+ */
+export async function getDashboardStats(): Promise<{
+  totalArticles: number;
+  pendingReviews: number;
+  activeEditors: number;
+  publishedArticles: number;
+}> {
+  try {
+    const [
+      [{ totalArticles }],
+      [{ pendingReviews }],
+      [{ activeEditors }],
+      [{ publishedArticles }],
+    ] = await Promise.all([
+      db.select({ totalArticles: count() }).from(articles),
+      db.select({ pendingReviews: count() }).from(articles).where(eq(articles.status, 'pending_review')),
+      db.select({ activeEditors: count() }).from(editors).where(eq(editors.isActive, true)),
+      db.select({ publishedArticles: count() }).from(articles).where(eq(articles.status, 'published')),
+    ]);
+
+    return {
+      totalArticles: Number(totalArticles),
+      pendingReviews: Number(pendingReviews),
+      activeEditors: Number(activeEditors),
+      publishedArticles: Number(publishedArticles),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch dashboard stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get pending reviews for dashboard
+ */
+export async function getPendingReviews(
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<Article & { author?: Editor }>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(articles)
+        .where(eq(articles.status, 'pending_review'))
+        .orderBy(desc(articles.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(articles)
+        .where(eq(articles.status, 'pending_review')),
+    ]);
+
+    // Fetch author details for each article
+    const articlesWithAuthors = await Promise.all(
+      data.map(async (article) => {
+        let author: Editor | undefined;
+        if (article.authorId) {
+          try {
+            author = await getEditorById(article.authorId);
+          } catch (e) {
+            // Author not found, continue without author
+          }
+        }
+        return { ...article, author };
+      })
+    );
+
+    return {
+      data: articlesWithAuthors,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch pending reviews: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get activity feed for dashboard
+ */
+export async function getActivityFeed(
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<{
+  type: 'article_created' | 'article_updated' | 'article_published' | 'revision_created';
+  article: Article;
+  revision?: ArticleRevision;
+  editor?: Editor;
+  timestamp: Date;
+}>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Get recent revisions as activity feed
+    const [revisions, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(articleRevisions)
+        .orderBy(desc(articleRevisions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(articleRevisions),
+    ]);
+
+    // Build activity items
+    const activities = await Promise.all(
+      revisions.map(async (revision) => {
+        const article = await getArticleById(revision.articleId);
+        let editor: Editor | undefined;
+        try {
+          editor = await getEditorById(revision.editorId);
+        } catch (e) {
+          // Editor not found
+        }
+
+        const type = revision.changeType === 'created' 
+          ? 'article_created' 
+          : revision.changeType === 'published'
+          ? 'article_published'
+          : revision.changeType === 'reverted'
+          ? 'article_updated'
+          : 'revision_created';
+
+        return {
+          type,
+          article,
+          revision,
+          editor,
+          timestamp: revision.createdAt || new Date(),
+        };
+      })
+    );
+
+    return {
+      data: activities,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch activity feed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Approve an article (change status to published)
+ */
+export async function approveArticle(
+  articleId: number,
+  editorId: number
+): Promise<Article> {
+  try {
+    const [article] = await db
+      .update(articles)
+      .set({
+        status: 'published',
+        publishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId))
+      .returning();
+
+    if (!article) {
+      throw new NotFoundError('Article', `id:${articleId}`);
+    }
+
+    // Create revision for this approval
+    await createArticleRevision({
+      articleId: article.id,
+      editorId,
+      title: article.title,
+      content: article.content!,
+      excerpt: article.excerpt,
+      categoryId: article.categoryId,
+      tags: article.tags || [],
+      changeReason: 'Article approved and published',
+      changeType: 'published',
+    });
+
+    return article;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to approve article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Reject an article
+ */
+export async function rejectArticle(
+  articleId: number,
+  editorId: number,
+  reason?: string
+): Promise<Article> {
+  try {
+    const [article] = await db
+      .update(articles)
+      .set({
+        status: 'rejected',
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId))
+      .returning();
+
+    if (!article) {
+      throw new NotFoundError('Article', `id:${articleId}`);
+    }
+
+    // Create revision for this rejection
+    await createArticleRevision({
+      articleId: article.id,
+      editorId,
+      title: article.title,
+      content: article.content!,
+      excerpt: article.excerpt,
+      categoryId: article.categoryId,
+      tags: article.tags || [],
+      changeReason: reason || 'Article rejected',
+      changeType: 'updated',
+    });
+
+    return article;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to reject article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
