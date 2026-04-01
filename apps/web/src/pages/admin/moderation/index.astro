@@ -1,5 +1,5 @@
 ---
-import { getPendingReviews, getFlaggedContent, approveArticle, rejectArticle } from '@aidepedia/db';
+import { getPendingReviews, getFlaggedContent } from '@aidepedia/db';
 import Layout from '../../../layouts/Layout.astro';
 
 export const prerender = false;
@@ -14,6 +14,14 @@ const pendingReviews = await getPendingReviews({ page, limit: 20 });
 const flaggedContent = await getFlaggedContent({ page, limit: 20 });
 
 const currentData = tab === 'flagged' ? flaggedContent : pendingReviews;
+
+// Helper to get report reason (only exists on flagged content)
+function getReportReason(article: typeof currentData.data[0]): string | undefined {
+  if (tab === 'flagged') {
+    return (article as typeof currentData.data[0] & { reportReason?: string }).reportReason;
+  }
+  return undefined;
+}
 ---
 
 <Layout title="Moderation Queue">
@@ -76,9 +84,9 @@ const currentData = tab === 'flagged' ? flaggedContent : pendingReviews;
                         {article.title}
                       </a>
                     </h3>
-                    {tab === 'flagged' && article.reportReason && (
+                    {tab === 'flagged' && getReportReason(article) && (
                       <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
-                        ⚠️ {article.reportReason}
+                        ⚠️ {getReportReason(article)}
                       </span>
                     )}
                   </div>

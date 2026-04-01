@@ -114,7 +114,7 @@ import Layout from '../../layouts/Layout.astro';
     e.preventDefault();
     
     const formData = new FormData(form);
-    const data = {
+    const _data = {
       name: formData.get('name'),
       slug: formData.get('slug'),
       description: formData.get('description') || null,

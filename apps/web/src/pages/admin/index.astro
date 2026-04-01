@@ -1,12 +1,11 @@
 ---
-import { getAdminStats, getPendingReviews, getFlaggedContent, getAllUsers } from '@aidepedia/db';
+import { getAdminStats, getFlaggedContent, getAllUsers } from '@aidepedia/db';
 import Layout from '../../layouts/Layout.astro';
 
 export const prerender = false;
 
 // Fetch admin data
 const stats = await getAdminStats();
-const pendingReviews = await getPendingReviews({ limit: 5 });
 const flaggedContent = await getFlaggedContent({ limit: 5 });
 const recentUsers = await getAllUsers({ limit: 5 });
 ---
