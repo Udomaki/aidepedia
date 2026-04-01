@@ -271,3 +271,22 @@ export const bookmarks = pgTable('bookmarks', {
 }, (table) => ({
   userArticleIdx: index('bookmark_user_article_idx').on(table.userId, table.articleId),
 }));
+
+export const tags = pgTable('tags', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  slugIdx: index('tag_slug_idx').on(table.slug),
+  nameIdx: index('tag_name_idx').on(table.name),
+}));
+
+export const article_tags = pgTable('article_tags', {
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.articleId, table.tagId] }),
+  articleIdx: index('article_tag_article_idx').on(table.articleId),
+  tagIdx: index('article_tag_tag_idx').on(table.tagId),
+}));
