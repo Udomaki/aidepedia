@@ -15,5 +15,6 @@ namespace App {
   interface Locals {
     user?: Session['user'];
     session?: Session;
+    apiVersion?: string;
   }
 }
