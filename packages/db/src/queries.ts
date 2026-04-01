@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -15,6 +15,7 @@ import type {
   NewReputationEvent,
   ThreadedComment,
   Comment,
+  Notification,
 } from './types';
 import {
   NotFoundError,
@@ -2294,5 +2295,80 @@ export async function getFollowingActivityFeed(
     };
   } catch (error) {
     throw new DatabaseError(`Failed to fetch following activity feed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============ Notification Queries ============
+
+export async function getNotifications(
+  userId: number,
+  params: { page?: number; limit?: number; unreadOnly?: boolean } = {}
+): Promise<PaginatedResult<Notification>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [eq(notifications.userId, userId)];
+    if (params.unreadOnly) {
+      conditions.push(eq(notifications.read, false));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [data, [{ total }]] = await Promise.all([
+      db.select().from(notifications).where(whereClause)
+        .orderBy(desc(notifications.createdAt)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(notifications).where(whereClause),
+    ]);
+
+    return {
+      data,
+      meta: { total: Number(total), page, limit, totalPages: Math.ceil(Number(total) / limit) },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch notifications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function getUnreadNotificationCount(userId: number): Promise<number> {
+  try {
+    const [{ count: unreadCount }] = await db.select({ count: count() })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    return Number(unreadCount);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch unread count: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function createNotification(data: NewNotification): Promise<Notification> {
+  try {
+    const [notification] = await db.insert(notifications).values(data).returning();
+    return notification;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function markNotificationRead(id: number, userId: number): Promise<Notification> {
+  try {
+    const [notification] = await db.update(notifications).set({ read: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId))).returning();
+    if (!notification) throw new NotFoundError('Notification', `id:${id}`);
+    return notification;
+  } catch (error) {
+    if (error instanceof NotFoundError) throw error;
+    throw new DatabaseError(`Failed to mark notification read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function markAllNotificationsRead(userId: number): Promise<number> {
+  try {
+    const result = await db.update(notifications).set({ read: true })
+      .where(and(eq(notifications.userId, userId), eq(notifications.read, false))).returning();
+    return result.length;
+  } catch (error) {
+    throw new DatabaseError(`Failed to mark all read: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

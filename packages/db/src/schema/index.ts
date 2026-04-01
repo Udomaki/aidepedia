@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb } from 'drizzle-orm/pg-core';
 
 // Auth tables for @auth/core
 export const users = pgTable('users', {
@@ -246,4 +246,19 @@ export const follows = pgTable('follows', {
   followerIdx: index('follow_follower_idx').on(table.followerId),
   followingIdx: index('follow_following_idx').on(table.followingId),
   uniqueFollow: index('follow_unique_idx').on(table.followerId, table.followingId),
+}));
+
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  content: text('content'),
+  data: jsonb('data'),
+  read: boolean('read').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('notification_user_idx').on(table.userId),
+  readIdx: index('notification_read_idx').on(table.read),
+  createdAtIdx: index('notification_created_at_idx').on(table.createdAt),
 }));
