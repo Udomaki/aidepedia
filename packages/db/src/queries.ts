@@ -1915,3 +1915,384 @@ export async function updateUserProfile(
     throw new DatabaseError(`Failed to update user profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+// ========== FOLLOW QUERIES ==========
+
+/**
+ * Follow a user
+ * @throws {ValidationError} If trying to follow self or already following
+ */
+export async function followUser(followerId: number, followingId: number): Promise<void> {
+  try {
+    const { follows } = await import('./schema/index');
+    
+    // Can't follow yourself
+    if (followerId === followingId) {
+      throw new ValidationError('Cannot follow yourself');
+    }
+
+    // Check if already following
+    const [existing] = await db
+      .select()
+      .from(follows)
+      .where(
+        and(
+          eq(follows.followerId, followerId),
+          eq(follows.followingId, followingId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new ValidationError('Already following this user');
+    }
+
+    // Create follow relationship
+    await db.insert(follows).values({
+      followerId,
+      followingId,
+    });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to follow user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Unfollow a user
+ * @throws {ValidationError} If not following the user
+ */
+export async function unfollowUser(followerId: number, followingId: number): Promise<void> {
+  try {
+    const { follows } = await import('./schema/index');
+    
+    const [existing] = await db
+      .delete(follows)
+      .where(
+        and(
+          eq(follows.followerId, followerId),
+          eq(follows.followingId, followingId)
+        )
+      )
+      .returning();
+
+    if (!existing) {
+      throw new ValidationError('Not following this user');
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to unfollow user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Check if a user is following another user
+ */
+export async function isFollowing(followerId: number, followingId: number): Promise<boolean> {
+  try {
+    const { follows } = await import('./schema/index');
+    
+    const [follow] = await db
+      .select()
+      .from(follows)
+      .where(
+        and(
+          eq(follows.followerId, followerId),
+          eq(follows.followingId, followingId)
+        )
+      )
+      .limit(1);
+
+    return !!follow;
+  } catch (error) {
+    throw new DatabaseError(`Failed to check follow status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get followers of a user
+ */
+export async function getFollowers(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<{
+  id: number;
+  name: string | null;
+  image: string | null;
+  bio: string | null;
+  followedAt: Date;
+}>> {
+  try {
+    const { follows, users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: users.id,
+          name: users.name,
+          image: users.image,
+          bio: users.bio,
+          followedAt: follows.createdAt,
+        })
+        .from(follows)
+        .innerJoin(users, eq(follows.followerId, users.id))
+        .where(eq(follows.followingId, userId))
+        .orderBy(desc(follows.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(follows)
+        .where(eq(follows.followingId, userId)),
+    ]);
+
+    return {
+      data: data.map(d => ({
+        ...d,
+        followedAt: d.followedAt || new Date(),
+      })),
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch followers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get users that a user is following
+ */
+export async function getFollowing(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<{
+  id: number;
+  name: string | null;
+  image: string | null;
+  bio: string | null;
+  followedAt: Date;
+}>> {
+  try {
+    const { follows, users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: users.id,
+          name: users.name,
+          image: users.image,
+          bio: users.bio,
+          followedAt: follows.createdAt,
+        })
+        .from(follows)
+        .innerJoin(users, eq(follows.followingId, users.id))
+        .where(eq(follows.followerId, userId))
+        .orderBy(desc(follows.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(follows)
+        .where(eq(follows.followerId, userId)),
+    ]);
+
+    return {
+      data: data.map(d => ({
+        ...d,
+        followedAt: d.followedAt || new Date(),
+      })),
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch following: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get follower and following counts for a user
+ */
+export async function getFollowCounts(userId: number): Promise<{
+  followersCount: number;
+  followingCount: number;
+}> {
+  try {
+    const { follows } = await import('./schema/index');
+    
+    const [
+      [{ followersCount }],
+      [{ followingCount }],
+    ] = await Promise.all([
+      db.select({ followersCount: count() }).from(follows).where(eq(follows.followingId, userId)),
+      db.select({ followingCount: count() }).from(follows).where(eq(follows.followerId, userId)),
+    ]);
+
+    return {
+      followersCount: Number(followersCount),
+      followingCount: Number(followingCount),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch follow counts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get activity feed from followed users
+ */
+export async function getFollowingActivityFeed(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<{
+  type: 'article_created' | 'article_updated' | 'article_published' | 'revision_created' | 'comment' | 'vote';
+  articleId: number;
+  articleTitle: string;
+  userId: number;
+  userName: string | null;
+  userImage: string | null;
+  timestamp: Date;
+  details?: any;
+}>> {
+  try {
+    const { follows, articleRevisions, comments: commentsTable, articleUserVotes, users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Get list of users that the current user is following
+    const followingList = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+
+    if (followingList.length === 0) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
+
+    const followingIds = followingList.map(f => f.followingId);
+
+    // Get recent revisions from followed users
+    const revisions = await db
+      .select({
+        type: sql<string>`CASE 
+          WHEN ${articleRevisions.changeType} = 'created' THEN 'article_created'
+          WHEN ${articleRevisions.changeType} = 'published' THEN 'article_published'
+          ELSE 'revision_created'
+        END`,
+        articleId: articleRevisions.articleId,
+        articleTitle: articleRevisions.title,
+        userId: articleRevisions.editorId,
+        timestamp: articleRevisions.createdAt,
+        details: sql`json_build_object('changeType', ${articleRevisions.changeType}, 'changeReason', ${articleRevisions.changeReason})`,
+      })
+      .from(articleRevisions)
+      .where(inArray(articleRevisions.editorId, followingIds))
+      .orderBy(desc(articleRevisions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get recent comments from followed users
+    const userComments = await db
+      .select({
+        type: sql<string>`'comment'`,
+        articleId: commentsTable.articleId,
+        userId: commentsTable.userId,
+        timestamp: commentsTable.createdAt,
+        details: sql`json_build_object('content', ${commentsTable.content})`,
+      })
+      .from(commentsTable)
+      .where(inArray(commentsTable.userId, followingIds))
+      .orderBy(desc(commentsTable.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get recent votes from followed users
+    const votes = await db
+      .select({
+        type: sql<string>`'vote'`,
+        articleId: articleUserVotes.articleId,
+        userId: articleUserVotes.editorId,
+        timestamp: articleUserVotes.createdAt,
+        details: sql`json_build_object('voteType', ${articleUserVotes.voteType})`,
+      })
+      .from(articleUserVotes)
+      .where(inArray(articleUserVotes.editorId, followingIds))
+      .orderBy(desc(articleUserVotes.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Combine all activities
+    const allActivities = [...revisions, ...userComments, ...votes]
+      .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+      .slice(0, limit);
+
+    // Get user info and article titles for all activities
+    const userIds = new Set(allActivities.map(a => a.userId));
+    const articleIds = new Set(allActivities.map(a => a.articleId));
+
+    const [usersData, articlesData] = await Promise.all([
+      db.select().from(users).where(inArray(users.id, Array.from(userIds))),
+      db.select({ id: articles.id, title: articles.title }).from(articles).where(inArray(articles.id, Array.from(articleIds))),
+    ]);
+
+    const userMap = new Map(usersData.map(u => [u.id, u]));
+    const articleMap = new Map(articlesData.map(a => [a.id, a]));
+
+    // Enrich activities with user and article info
+    const enrichedActivities = allActivities.map(activity => {
+      const user = userMap.get(activity.userId);
+      const article = articleMap.get(activity.articleId);
+      
+      return {
+        type: activity.type as any,
+        articleId: activity.articleId,
+        articleTitle: article?.title || 'Unknown Article',
+        userId: activity.userId,
+        userName: user?.name || null,
+        userImage: user?.image || null,
+        timestamp: activity.timestamp || new Date(),
+        details: activity.details,
+      };
+    });
+
+    return {
+      data: enrichedActivities,
+      meta: {
+        total: enrichedActivities.length,
+        page,
+        limit,
+        totalPages: 1,
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch following activity feed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
