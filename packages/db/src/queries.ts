@@ -742,6 +742,11 @@ export async function updateEditorStats(
       throw error;
     }
     throw new DatabaseError(`Failed to update editor stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Vote on an article (upvote or downvote)
  * @throws {NotFoundError} If article is not found
  * @throws {ValidationError} If validation fails
  */
