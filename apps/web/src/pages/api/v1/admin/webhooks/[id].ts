@@ -4,6 +4,7 @@ import { db } from '@aidepedia/db';
 import { webhooks } from '@aidepedia/db/schema';
 import { successResponse, errorResponse } from '../../../../../lib/api-utils';
 import { eq } from '@aidepedia/db';
+import { logAuditEntry, AuditActions, ResourceTypes } from '../../../../../lib/audit';
 
 /**
  * GET /api/v1/admin/webhooks/[id]
@@ -108,6 +109,19 @@ export const PUT: APIRoute = async ({ request, params }) => {
       .where(eq(webhooks.id, webhookId))
       .returning();
 
+    // Log audit entry
+    await logAuditEntry({
+      userId: (session.user as any)?.id,
+      action: AuditActions.WEBHOOK_UPDATED,
+      resourceType: ResourceTypes.WEBHOOK,
+      resourceId: String(webhookId),
+      details: { 
+        changes: { url, events, enabled },
+        previousUrl: existing.url,
+      },
+      request,
+    });
+
     return successResponse(updated);
   } catch (error) {
     console.error('Update webhook error:', error);
@@ -145,6 +159,16 @@ export const DELETE: APIRoute = async ({ request, params }) => {
 
     // Delete webhook
     await db.delete(webhooks).where(eq(webhooks.id, webhookId));
+
+    // Log audit entry
+    await logAuditEntry({
+      userId: (session.user as any)?.id,
+      action: AuditActions.WEBHOOK_DELETED,
+      resourceType: ResourceTypes.WEBHOOK,
+      resourceId: String(webhookId),
+      details: { url: existing.url },
+      request,
+    });
 
     return successResponse({ deleted: true });
   } catch (error) {

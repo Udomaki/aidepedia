@@ -253,3 +253,55 @@ export interface NewEmailQueue {
   body: string;
   status?: EmailQueueStatus;
 }
+
+// Audit log types
+export type AuditAction = 
+  | 'user.role_changed'
+  | 'user.banned'
+  | 'user.unbanned'
+  | 'article.approved'
+  | 'article.rejected'
+  | 'article.deleted'
+  | 'settings.changed'
+  | 'webhook.created'
+  | 'webhook.updated'
+  | 'webhook.deleted'
+  | 'rate_limit.changed';
+
+export interface AuditLog {
+  id: number;
+  userId: number | null;
+  action: AuditAction | string;
+  resourceType: string;
+  resourceId: string | null;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: Date;
+}
+
+export interface NewAuditLog {
+  userId?: number | null;
+  action: AuditAction | string;
+  resourceType: string;
+  resourceId?: string | null;
+  details?: Record<string, unknown>;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+export interface AuditLogWithUser extends AuditLog {
+  user: {
+    id: number;
+    name: string | null;
+    email: string | null;
+  } | null;
+}
+
+export interface AuditLogQueryParams extends PaginationParams {
+  userId?: number;
+  action?: string;
+  resourceType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}

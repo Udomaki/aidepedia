@@ -21,7 +21,7 @@ const recentUsers = await getAllUsers({ limit: 5 });
     </div>
 
     <!-- Quick Actions -->
-    <div class="mb-8 flex gap-4">
+    <div class="mb-8 flex gap-4 flex-wrap">
       <a
         href="/admin/users"
         class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -45,6 +45,12 @@ const recentUsers = await getAllUsers({ limit: 5 });
         class="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
       >
         Rate Limits
+      </a>
+      <a
+        href="/admin/audit-log"
+        class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+      >
+        Audit Log
       </a>
     </div>
 

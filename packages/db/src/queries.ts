@@ -3591,3 +3591,212 @@ export async function insertPageView(data: {
     scrollDepth: data.scrollDepth ?? null,
   });
 }
+
+// ============================================
+// Audit Log Queries
+// ============================================
+
+import { audit_logs } from './schema/index';
+import type { AuditLog, NewAuditLog, AuditLogWithUser, AuditLogQueryParams } from './types';
+
+/**
+ * Create an audit log entry
+ */
+export async function createAuditLog(data: NewAuditLog): Promise<AuditLog> {
+  try {
+    const [log] = await db
+      .insert(audit_logs)
+      .values(data)
+      .returning();
+
+    return log;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create audit log: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get audit logs with filtering and pagination
+ */
+export async function getAuditLogs(
+  params: AuditLogQueryParams = {}
+): Promise<PaginatedResult<AuditLogWithUser>> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Build conditions
+    const conditions = [];
+
+    if (params.userId) {
+      conditions.push(eq(audit_logs.userId, params.userId));
+    }
+
+    if (params.action) {
+      conditions.push(eq(audit_logs.action, params.action));
+    }
+
+    if (params.resourceType) {
+      conditions.push(eq(audit_logs.resourceType, params.resourceType));
+    }
+
+    if (params.dateFrom) {
+      conditions.push(gte(audit_logs.createdAt, new Date(params.dateFrom)));
+    }
+
+    if (params.dateTo) {
+      // Add one day to include the end date fully
+      const endDate = new Date(params.dateTo);
+      endDate.setDate(endDate.getDate() + 1);
+      conditions.push(lte(audit_logs.createdAt, endDate));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: audit_logs.id,
+          userId: audit_logs.userId,
+          action: audit_logs.action,
+          resourceType: audit_logs.resourceType,
+          resourceId: audit_logs.resourceId,
+          details: audit_logs.details,
+          ipAddress: audit_logs.ipAddress,
+          userAgent: audit_logs.userAgent,
+          createdAt: audit_logs.createdAt,
+          user: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(audit_logs)
+        .leftJoin(users, eq(audit_logs.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(audit_logs.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(audit_logs)
+        .where(whereClause),
+    ]);
+
+    return {
+      data: data as AuditLogWithUser[],
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch audit logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get audit logs for a specific resource
+ */
+export async function getAuditLogsByResource(
+  resourceType: string,
+  resourceId: string,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<AuditLogWithUser>> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: audit_logs.id,
+          userId: audit_logs.userId,
+          action: audit_logs.action,
+          resourceType: audit_logs.resourceType,
+          resourceId: audit_logs.resourceId,
+          details: audit_logs.details,
+          ipAddress: audit_logs.ipAddress,
+          userAgent: audit_logs.userAgent,
+          createdAt: audit_logs.createdAt,
+          user: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(audit_logs)
+        .leftJoin(users, eq(audit_logs.userId, users.id))
+        .where(
+          and(
+            eq(audit_logs.resourceType, resourceType),
+            eq(audit_logs.resourceId, resourceId)
+          )
+        )
+        .orderBy(desc(audit_logs.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(audit_logs)
+        .where(
+          and(
+            eq(audit_logs.resourceType, resourceType),
+            eq(audit_logs.resourceId, resourceId)
+          )
+        ),
+    ]);
+
+    return {
+      data: data as AuditLogWithUser[],
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch audit logs by resource: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get distinct audit actions (for filter dropdown)
+ */
+export async function getAuditActions(): Promise<string[]> {
+  try {
+    const result = await db
+      .selectDistinct({ action: audit_logs.action })
+      .from(audit_logs)
+      .orderBy(audit_logs.action);
+
+    return result.map(r => r.action);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch audit actions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get distinct resource types (for filter dropdown)
+ */
+export async function getAuditResourceTypes(): Promise<string[]> {
+  try {
+    const result = await db
+      .selectDistinct({ resourceType: audit_logs.resourceType })
+      .from(audit_logs)
+      .orderBy(audit_logs.resourceType);
+
+    return result.map(r => r.resourceType);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch audit resource types: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

@@ -422,3 +422,21 @@ export const webhook_deliveries = pgTable('webhook_deliveries', {
   statusIdx: index('webhook_delivery_status_idx').on(table.status),
   createdAtIdx: index('webhook_delivery_created_at_idx').on(table.createdAt),
 }));
+
+// Audit logs for admin actions
+export const audit_logs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  action: varchar('action', { length: 100 }).notNull(),
+  resourceType: varchar('resource_type', { length: 100 }).notNull(),
+  resourceId: varchar('resource_id', { length: 255 }),
+  details: jsonb('details').$type<Record<string, unknown>>(),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('audit_log_user_idx').on(table.userId),
+  actionIdx: index('audit_log_action_idx').on(table.action),
+  resourceTypeIdx: index('audit_log_resource_type_idx').on(table.resourceType),
+  createdAtIdx: index('audit_log_created_at_idx').on(table.createdAt),
+}));
