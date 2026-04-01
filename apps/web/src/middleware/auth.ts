@@ -1,5 +1,6 @@
 import { defineMiddleware, sequence } from 'astro/middleware';
 import { getSession } from 'auth-astro/server';
+import { rateLimitMiddleware } from './rate-limit';
 
 // Routes that require authentication
 const protectedPaths = [
@@ -129,4 +130,4 @@ const authMiddleware = defineMiddleware(async (context, next) => {
   return next();
 });
 
-export const onRequest = sequence(authMiddleware);
+export const onRequest = sequence(rateLimitMiddleware, authMiddleware);

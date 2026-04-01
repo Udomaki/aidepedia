@@ -1,0 +1,268 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Rate Limits - Admin">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Rate Limits</h1>
+      <p class="text-gray-600">
+        Monitor and manage API rate limiting across the platform.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-8 flex gap-4">
+      <button
+        id="refreshBtn"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Refresh Data
+      </button>
+      <a
+        href="/admin"
+        class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+      >
+        Back to Dashboard
+      </a>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Active IPs</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+          </svg>
+        </div>
+        <p id="activeIPs" class="text-3xl font-bold text-gray-900">-</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Blocked IPs</h3>
+          <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </div>
+        <p id="blockedIPs" class="text-3xl font-bold text-red-600">-</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Rate Limit</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">100 / 15m</p>
+        <p class="text-xs text-gray-500 mt-1">Configured limit</p>
+      </div>
+    </div>
+
+    <!-- Blocked IPs Section -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Blocked IPs</h2>
+      <div id="blockedIPsList" class="space-y-3">
+        <p class="text-gray-500 text-center py-4">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Active Rate Limits Section -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Active Rate Limits</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                IP Address
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Requests
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Remaining
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Reset Time
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody id="rateLimitsTable" class="bg-white divide-y divide-gray-200">
+            <tr>
+              <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                Loading...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  async function fetchRateLimits() {
+    try {
+      const response = await fetch('/api/admin/rate-limits');
+      if (!response.ok) {
+        throw new Error('Failed to fetch rate limits');
+      }
+      const data = await response.json();
+      updateUI(data);
+    } catch (error) {
+      console.error('Error fetching rate limits:', error);
+      alert('Failed to load rate limits. Are you logged in as admin?');
+    }
+  }
+
+  function updateUI(data: any) {
+    // Update stats
+    document.getElementById('activeIPs')!.textContent = data.totalActive;
+    document.getElementById('blockedIPs')!.textContent = data.totalBlocked;
+
+    // Update blocked IPs list
+    const blockedIPsList = document.getElementById('blockedIPsList')!;
+    if (data.blockedIPs && data.blockedIPs.length > 0) {
+      blockedIPsList.innerHTML = data.blockedIPs.map((item: any) => `
+        <div class="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div>
+            <p class="font-mono text-sm font-medium text-gray-900">${item.ip}</p>
+            <p class="text-xs text-gray-500">Blocked at: ${new Date(item.blockedAt).toLocaleString()}</p>
+          </div>
+          <div class="flex gap-2">
+            <button
+              onclick="unblockIP('${item.ip}')"
+              class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Unblock
+            </button>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      blockedIPsList.innerHTML = '<p class="text-gray-500 text-center py-4">No blocked IPs</p>';
+    }
+
+    // Update rate limits table
+    const rateLimitsTable = document.getElementById('rateLimitsTable')!;
+    if (data.statuses && data.statuses.length > 0) {
+      rateLimitsTable.innerHTML = data.statuses.map((status: any) => `
+        <tr class="${status.blocked ? 'bg-red-50' : ''}">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="font-mono text-sm text-gray-900">${status.ip}</span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="flex items-center">
+              <span class="text-sm font-medium text-gray-900">${status.count}</span>
+              <span class="text-sm text-gray-500 ml-1">/ 100</span>
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="text-sm font-medium ${status.remaining < 20 ? 'text-red-600' : 'text-gray-900'}">
+              ${status.remaining}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="text-sm text-gray-500">
+              ${new Date(status.resetTime).toLocaleTimeString()}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            ${status.blocked
+              ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Blocked</span>'
+              : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>'
+            }
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <button
+              onclick="resetRateLimit('${status.ip}')"
+              class="text-blue-600 hover:text-blue-900 text-sm font-medium"
+            >
+              Reset
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    } else {
+      rateLimitsTable.innerHTML = `
+        <tr>
+          <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+            No active rate limits
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  async function unblockIP(ip: string) {
+    if (!confirm(`Are you sure you want to unblock ${ip}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/rate-limits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unblock', ip }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+        fetchRateLimits();
+      } else {
+        alert('Failed to unblock IP: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error unblocking IP:', error);
+      alert('Failed to unblock IP');
+    }
+  }
+
+  async function resetRateLimit(ip: string) {
+    if (!confirm(`Are you sure you want to reset rate limit for ${ip}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/rate-limits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', ip }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+        fetchRateLimits();
+      } else {
+        alert('Failed to reset rate limit: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error resetting rate limit:', error);
+      alert('Failed to reset rate limit');
+    }
+  }
+
+  // Make functions globally available
+  (window as any).unblockIP = unblockIP;
+  (window as any).resetRateLimit = resetRateLimit;
+
+  // Initial load
+  fetchRateLimits();
+
+  // Refresh button
+  document.getElementById('refreshBtn')!.addEventListener('click', fetchRateLimits);
+</script>
