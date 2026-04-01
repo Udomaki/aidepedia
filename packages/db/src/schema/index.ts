@@ -341,3 +341,48 @@ export const email_queue = pgTable('email_queue', {
   statusIdx: index('email_queue_status_idx').on(table.status),
   createdAtIdx: index('email_queue_created_at_idx').on(table.createdAt),
 }));
+
+// Analytics tables for privacy-focused page tracking
+export const page_views = pgTable('page_views', {
+  id: serial('id').primaryKey(),
+  // Hashed IP for privacy (SHA-256)
+  visitorHash: varchar('visitor_hash', { length: 64 }).notNull(),
+  // Page information
+  path: varchar('path', { length: 500 }).notNull(),
+  articleId: integer('article_id').references(() => articles.id, { onDelete: 'set null' }),
+  // Tracking metadata
+  referrer: varchar('referrer', { length: 500 }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  countryCode: varchar('country_code', { length: 2 }),
+  // Engagement metrics
+  readTimeSeconds: integer('read_time_seconds'),
+  scrollDepth: integer('scroll_depth'), // percentage 0-100
+  // Timestamp
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  visitorIdx: index('page_view_visitor_idx').on(table.visitorHash),
+  pathIdx: index('page_view_path_idx').on(table.path),
+  articleIdx: index('page_view_article_idx').on(table.articleId),
+  createdAtIdx: index('page_view_created_at_idx').on(table.createdAt),
+}));
+
+// Aggregated daily stats for performance
+export const daily_page_stats = pgTable('daily_page_stats', {
+  id: serial('id').primaryKey(),
+  date: timestamp('date').notNull(),
+  path: varchar('path', { length: 500 }).notNull(),
+  articleId: integer('article_id').references(() => articles.id, { onDelete: 'set null' }),
+  // Metrics
+  totalViews: integer('total_views').notNull().default(0),
+  uniqueVisitors: integer('unique_visitors').notNull().default(0),
+  avgReadTimeSeconds: integer('avg_read_time_seconds'),
+  avgScrollDepth: integer('avg_scroll_depth'),
+  // Traffic sources (aggregated)
+  referrerCounts: jsonb('referrer_counts').$type<Record<string, number>>(),
+  countryCounts: jsonb('country_counts').$type<Record<string, number>>(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  datePathIdx: index('daily_stats_date_path_idx').on(table.date, table.path),
+  articleDateIdx: index('daily_stats_article_date_idx').on(table.articleId, table.date),
+}));

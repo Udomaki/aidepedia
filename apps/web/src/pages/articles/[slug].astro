@@ -157,7 +157,7 @@ const totalComments = countAllComments(comments);
       <span class="text-gray-600">{article.title}</span>
     </nav>
 
-    <article class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <article data-article-id={article.id} class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <!-- Header -->
       <header class="p-8 border-b border-gray-200">
         <div class="flex items-center gap-3 mb-4">

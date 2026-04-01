@@ -116,7 +116,10 @@ const siteName = 'AIdepedia';
             <a href="/about" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
             <a href="https://github.com/Udomaki/aidepedia" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" target="_blank" rel="noopener noreferrer">GitHub</a>
             {user && (user as any)?.tier === 'admin' && (
-              <a href="/admin" role="menuitem" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
+              <div class="flex items-center space-x-3">
+                <a href="/admin" role="menuitem" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
+                <a href="/admin/analytics" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Analytics</a>
+              </div>
             )}
             {user ? (
               <div class="flex items-center space-x-3">
@@ -208,6 +211,34 @@ const siteName = 'AIdepedia';
 
       // Make announcement available globally
       window.announcePageChange = announcePageChange;
+    </script>
+
+    <!-- Privacy-focused analytics (no cookies, no PII) -->
+    <script src="/js/analytics.js" defer></script>
+
+    <!-- GDPR Privacy Notice -->
+    <div id="privacy-notice" class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 z-50 hidden">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <p class="text-sm">
+          <strong>Privacy Notice:</strong> We use privacy-focused analytics that doesn't use cookies or collect personal information. 
+          <a href="/about#privacy" class="underline hover:text-blue-300">Learn more</a>
+        </p>
+        <button 
+          onclick="document.getElementById('privacy-notice').classList.add('hidden'); localStorage.setItem('privacy-notice-dismissed', 'true');"
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium flex-shrink-0"
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+    <script is:inline>
+      // Show privacy notice if not dismissed
+      if (!localStorage.getItem('privacy-notice-dismissed')) {
+        const notice = document.getElementById('privacy-notice');
+        if (notice) {
+          notice.classList.remove('hidden');
+        }
+      }
     </script>
   </body>
 </html>
