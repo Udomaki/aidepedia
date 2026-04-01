@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getSession } from '../../lib/auth';
-import { getUserByUsername, getUserStats, getUserActivity, getArticleById } from '@aidepedia/db';
+import { getUserByUsername, getUserStats, getUserActivity, getArticleById, getFollowCounts } from '@aidepedia/db';
 
 export function getStaticPaths() {
   return [];
@@ -14,11 +14,13 @@ const currentUser = session?.user;
 // Fetch user data
 let user: any;
 let stats: any;
+let followCounts: any;
 let activities: any[] = [];
 
 try {
   user = await getUserByUsername(username || '');
   stats = await getUserStats(user.id);
+  followCounts = await getFollowCounts(user.id);
   
   // Only show activity if user allows it
   if (user.showActivity !== false) {
@@ -119,7 +121,12 @@ if (user.showBadges !== false) {
         </div>
         
         {currentUser && currentUser.id !== user.id && (
-          <button class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+          <button 
+            id="follow-btn"
+            data-user-id={user.id}
+            data-username={username}
+            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
             Follow
           </button>
         )}
@@ -137,25 +144,25 @@ if (user.showBadges !== false) {
 
     <!-- Stats Grid -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <a href={`/users/${username}/followers`} class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center hover:shadow-md transition-shadow">
+        <div class="text-3xl font-bold text-blue-600">{followCounts.followersCount}</div>
+        <div class="text-sm text-gray-600 mt-1">Followers</div>
+      </a>
+      <a href={`/users/${username}/following`} class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center hover:shadow-md transition-shadow">
+        <div class="text-3xl font-bold text-green-600">{followCounts.followingCount}</div>
+        <div class="text-sm text-gray-600 mt-1">Following</div>
+      </a>
       <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
-        <div class="text-3xl font-bold text-blue-600">{stats.articleCount}</div>
+        <div class="text-3xl font-bold text-purple-600">{stats.articleCount}</div>
         <div class="text-sm text-gray-600 mt-1">Articles</div>
       </div>
       <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
-        <div class="text-3xl font-bold text-green-600">{stats.revisionCount}</div>
+        <div class="text-3xl font-bold text-orange-600">{stats.revisionCount}</div>
         <div class="text-sm text-gray-600 mt-1">Edits</div>
       </div>
       <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
-        <div class="text-3xl font-bold text-purple-600">{stats.commentCount}</div>
+        <div class="text-3xl font-bold text-teal-600">{stats.commentCount}</div>
         <div class="text-sm text-gray-600 mt-1">Comments</div>
-      </div>
-      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
-        <div class="text-3xl font-bold text-orange-600">{stats.totalUpvotes}</div>
-        <div class="text-sm text-gray-600 mt-1">Upvotes</div>
-      </div>
-      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
-        <div class="text-3xl font-bold text-teal-600">{stats.netVotes}</div>
-        <div class="text-sm text-gray-600 mt-1">Net Score</div>
       </div>
     </div>
 
@@ -222,3 +229,61 @@ if (user.showBadges !== false) {
     )}
   </div>
 </Layout>
+
+<script>
+  const followBtn = document.getElementById('follow-btn');
+  
+  if (followBtn) {
+    let isFollowing = false;
+    
+    // Check initial follow status
+    const username = followBtn.dataset.username;
+    fetch(`/api/v1/users/${username}/follow`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data.following) {
+          isFollowing = true;
+          followBtn.textContent = 'Unfollow';
+          followBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+          followBtn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+        }
+      })
+      .catch(err => console.error('Error checking follow status:', err));
+    
+    followBtn.addEventListener('click', async () => {
+      try {
+        const method = isFollowing ? 'DELETE' : 'POST';
+        const response = await fetch(`/api/v1/users/${username}/follow`, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          isFollowing = !isFollowing;
+          
+          if (isFollowing) {
+            followBtn.textContent = 'Unfollow';
+            followBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            followBtn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+          } else {
+            followBtn.textContent = 'Follow';
+            followBtn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            followBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+          }
+          
+          // Refresh page to update follower count
+          window.location.reload();
+        } else {
+          alert(data.error?.message || 'Failed to update follow status');
+        }
+      } catch (error) {
+        console.error('Error updating follow status:', error);
+        alert('Failed to update follow status');
+      }
+    });
+  }
+</script>
