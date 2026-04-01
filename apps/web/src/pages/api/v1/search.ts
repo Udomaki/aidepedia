@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { 
   listArticles, 
-  getCategories 
+  getCategories,
+  getCategoryBySlug
 } from '@aidepedia/db';
 import { 
   successResponse, 
@@ -19,7 +20,9 @@ import {
  * - q: Search query (required)
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20, max: 100)
- * - category: Filter by category ID
+ * - category: Filter by category slug
+ * - dateFrom: Filter by date (ISO string or 'today', 'week', 'month', 'year')
+ * - dateTo: Filter by date (ISO string)
  * 
  * Searches in article titles and content
  */
@@ -32,7 +35,8 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     const { page, limit } = getPaginationParams(url);
-    const categoryId = url.searchParams.get('category');
+    const categorySlug = url.searchParams.get('category');
+    const dateFilter = url.searchParams.get('dateFrom') || url.searchParams.get('date');
 
     // Build query params
     const params: any = {
@@ -44,10 +48,53 @@ export const GET: APIRoute = async ({ url }) => {
       sortOrder: 'desc',
     };
 
-    if (categoryId) {
-      params.categoryId = parseInt(categoryId, 10);
-      if (isNaN(params.categoryId)) {
-        return errorResponse('VALIDATION_ERROR', 'Invalid category ID', 400);
+    // Handle category filter (by slug)
+    if (categorySlug) {
+      try {
+        const category = await getCategoryBySlug(categorySlug);
+        params.categoryId = category.id;
+      } catch (error) {
+        // Category not found, return empty results
+        return successResponse({
+          query: query.trim(),
+          results: [],
+        }, {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        });
+      }
+    }
+
+    // Handle date filter
+    if (dateFilter) {
+      const now = new Date();
+      let dateFrom: Date | undefined;
+      
+      switch (dateFilter) {
+        case 'today':
+          dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          break;
+        case 'week':
+          dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          break;
+        case 'year':
+          dateFrom = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+          break;
+        default:
+          // Try to parse as ISO date
+          dateFrom = new Date(dateFilter);
+          if (isNaN(dateFrom.getTime())) {
+            dateFrom = undefined;
+          }
+      }
+      
+      if (dateFrom) {
+        params.dateFrom = dateFrom.toISOString();
       }
     }
 
