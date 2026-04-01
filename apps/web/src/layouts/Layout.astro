@@ -42,11 +42,14 @@ const user = session?.user;
             )}
             {user ? (
               <div class="flex items-center space-x-3">
-                {user.image && (
-                  <img src={user.image} alt={user.name || 'User'} class="w-8 h-8 rounded-full" />
-                )}
-                <span class="text-gray-700 hidden sm:inline">{user.name}</span>
-                <a href="/logout" class="text-gray-600 hover:text-gray-900">Sign out</a>
+                <a href={`/users/${user.name}`} class="flex items-center space-x-3 hover:opacity-80 transition-opacity">
+                  {user.image && (
+                    <img src={user.image} alt={user.name || 'User'} class="w-8 h-8 rounded-full" />
+                  )}
+                  <span class="text-gray-700 hidden sm:inline">{user.name}</span>
+                </a>
+                <a href="/settings/profile" class="text-gray-600 hover:text-gray-900 text-sm">Settings</a>
+                <a href="/logout" class="text-gray-600 hover:text-gray-900 text-sm">Sign out</a>
               </div>
             ) : (
               <a href="/login" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
