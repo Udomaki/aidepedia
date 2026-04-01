@@ -386,3 +386,34 @@ export const daily_page_stats = pgTable('daily_page_stats', {
   datePathIdx: index('daily_stats_date_path_idx').on(table.date, table.path),
   articleDateIdx: index('daily_stats_article_date_idx').on(table.articleId, table.date),
 }));
+
+// Webhook tables for external integrations
+export const webhooks = pgTable('webhooks', {
+  id: serial('id').primaryKey(),
+  url: varchar('url', { length: 500 }).notNull(),
+  secret: varchar('secret', { length: 255 }).notNull(),
+  events: text('events').array().notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  enabledIdx: index('webhook_enabled_idx').on(table.enabled),
+}));
+
+export const webhook_deliveries = pgTable('webhook_deliveries', {
+  id: serial('id').primaryKey(),
+  webhookId: integer('webhook_id').notNull().references(() => webhooks.id, { onDelete: 'cascade' }),
+  event: varchar('event', { length: 100 }).notNull(),
+  payload: jsonb('payload').notNull(),
+  status: varchar('status', {
+    enum: ['pending', 'success', 'failed'],
+    length: 20
+  }).notNull().default('pending'),
+  responseCode: integer('response_code'),
+  deliveredAt: timestamp('delivered_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  webhookIdx: index('webhook_delivery_webhook_idx').on(table.webhookId),
+  statusIdx: index('webhook_delivery_status_idx').on(table.status),
+  createdAtIdx: index('webhook_delivery_created_at_idx').on(table.createdAt),
+}));
