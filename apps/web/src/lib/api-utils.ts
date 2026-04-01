@@ -4,6 +4,12 @@
  */
 
 import type { APIRoute } from 'astro';
+import { 
+  getVersionHeaders, 
+  extractVersion, 
+  logDeprecatedUsage,
+  isSunset 
+} from './api-version';
 
 /**
  * Standard API response wrapper
@@ -49,7 +55,8 @@ export function getPaginationParams(url: URL): PaginationParams {
 export function successResponse<T>(
   data: T,
   meta?: ApiResponse<T>['meta'],
-  status = 200
+  status = 200,
+  request?: Request
 ): Response {
   const response: ApiResponse<T> = {
     success: true,
@@ -60,13 +67,18 @@ export function successResponse<T>(
     response.meta = meta;
   }
   
+  // Get version headers
+  const version = request ? extractVersion(request, new URL(request.url).pathname) : '1';
+  const versionHeaders = getVersionHeaders(version);
+  
   return new Response(JSON.stringify(response), {
     status,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Version',
+      ...versionHeaders,
     },
   });
 }
@@ -77,7 +89,8 @@ export function successResponse<T>(
 export function errorResponse(
   code: string,
   message: string,
-  status = 400
+  status = 400,
+  request?: Request
 ): Response {
   const response: ApiResponse<never> = {
     success: false,
@@ -87,13 +100,18 @@ export function errorResponse(
     },
   };
   
+  // Get version headers
+  const version = request ? extractVersion(request, new URL(request.url).pathname) : '1';
+  const versionHeaders = getVersionHeaders(version);
+  
   return new Response(JSON.stringify(response), {
     status,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Version',
+      ...versionHeaders,
     },
   });
 }
@@ -106,8 +124,8 @@ export function handleCors(): Response {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Version',
     },
   });
 }
