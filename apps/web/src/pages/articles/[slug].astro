@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked } from '@aidepedia/db';
+import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 
 export async function getStaticPaths() {
@@ -39,6 +39,14 @@ if (!article) {
 const categories = await getCategories();
 const categoryMap = new Map(categories.map(c => [c.id, c]));
 const articleCategory = article.categoryId ? categoryMap.get(article.categoryId) : null;
+
+// Fetch article tags
+let articleTags = [];
+try {
+  articleTags = await getArticleTags(article.id);
+} catch (e) {
+  console.warn('Could not fetch article tags:', e);
+}
 
 // Fetch comments for the article
 let comments = [];
@@ -173,12 +181,15 @@ const totalComments = countAllComments(comments);
           )}
         </div>
 
-        {article.tags && article.tags.length > 0 && (
+        {articleTags && articleTags.length > 0 && (
           <div class="flex flex-wrap gap-2 mt-4">
-            {article.tags.map((tag: string) => (
-              <span class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
-                #{tag}
-              </span>
+            {articleTags.map((tag: any) => (
+              <a 
+                href={`/tags/${tag.slug}`}
+                class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full hover:bg-gray-200 transition-colors"
+              >
+                #{tag.name}
+              </a>
             ))}
           </div>
         )}

@@ -158,3 +158,21 @@ export class ValidationError extends DatabaseError {
     this.name = 'ValidationError';
   }
 }
+
+// Tag types
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+  createdAt: Date;
+}
+
+export interface NewTag {
+  name: string;
+  slug: string;
+}
+
+export interface ArticleTag {
+  articleId: number;
+  tagId: number;
+}
