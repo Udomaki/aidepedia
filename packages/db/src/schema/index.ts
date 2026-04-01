@@ -478,3 +478,14 @@ export const content_reports = pgTable('content_reports', {
   statusIdx: index('content_report_status_idx').on(table.status),
   createdAtIdx: index('content_report_created_at_idx').on(table.createdAt),
 }));
+
+// User blocks for blocking users
+export const user_blocks = pgTable('user_blocks', {
+  blockerId: integer('blocker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  blockedId: integer('blocked_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.blockerId, table.blockedId] }),
+  blockerIdx: index('user_block_blocker_idx').on(table.blockerId),
+  blockedIdx: index('user_block_blocked_idx').on(table.blockedId),
+}));
