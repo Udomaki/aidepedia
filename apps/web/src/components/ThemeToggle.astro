@@ -7,6 +7,8 @@
   type="button"
   class="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800 transition-colors"
   aria-label="Toggle theme"
+  aria-pressed="false"
+  title="Toggle dark mode"
 >
   <!-- Sun icon (shown in dark mode) -->
   <svg
@@ -15,6 +17,7 @@
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
+    aria-hidden="true"
   >
     <path
       stroke-linecap="round"
@@ -30,6 +33,7 @@
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
+    aria-hidden="true"
   >
     <path
       stroke-linecap="round"
@@ -38,6 +42,7 @@
       d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
     ></path>
   </svg>
+  <span class="sr-only">Toggle theme</span>
 </button>
 
 <script is:inline define:vars={{}}>
