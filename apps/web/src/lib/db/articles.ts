@@ -8,6 +8,9 @@ export {
   deleteArticle,
   getCategories,
   getTags,
+  getArticleRevisions,
+  getRevisionById,
+  revertToRevision,
 } from '@aidepedia/db';
 
-export type { Article, ArticleQueryParams, PaginatedResult } from '@aidepedia/db';
+export type { Article, ArticleQueryParams, PaginatedResult, ArticleRevision } from '@aidepedia/db';

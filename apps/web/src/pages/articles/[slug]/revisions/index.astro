@@ -1,0 +1,162 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import { getArticleBySlug, getArticleRevisions } from '@aidepedia/db';
+
+export async function getStaticPaths() {
+  // For static generation, we'd need to fetch all articles
+  // For now, we'll rely on SSR
+  return [];
+}
+
+const { slug } = Astro.params;
+
+let article = null;
+let revisions = null;
+
+if (slug) {
+  try {
+    article = await getArticleBySlug(slug);
+    const result = await getArticleRevisions(article.id, { limit: 100 });
+    revisions = result.data;
+  } catch (e) {
+    // Article not found, will redirect below
+  }
+}
+
+if (!article) {
+  return Astro.redirect('/articles');
+}
+
+const pageTitle = `Revision History: ${article.title} - AIdepedia`;
+
+function formatDate(date: Date | null): string {
+  if (!date) return 'Unknown date';
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(date));
+}
+
+function getChangeTypeLabel(changeType: string): string {
+  const labels: Record<string, string> = {
+    'created': '📝 Created',
+    'updated': '✏️ Updated',
+    'published': '✅ Published',
+    'reverted': '↩️ Reverted'
+  };
+  return labels[changeType] || changeType;
+}
+
+function getChangeTypeColor(changeType: string): string {
+  const colors: Record<string, string> = {
+    'created': 'bg-blue-100 text-blue-800',
+    'updated': 'bg-yellow-100 text-yellow-800',
+    'published': 'bg-green-100 text-green-800',
+    'reverted': 'bg-purple-100 text-purple-800'
+  };
+  return colors[changeType] || 'bg-gray-100 text-gray-800';
+}
+---
+
+<Layout title={pageTitle}>
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}`} class="text-blue-600 hover:text-blue-700">{article.title}</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Revisions</span>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <!-- Header -->
+      <header class="p-6 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Revision History</h1>
+            <p class="text-gray-600">{article.title}</p>
+          </div>
+          <a
+            href={`/articles/${article.slug}`}
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            ← Back to Article
+          </a>
+        </div>
+      </header>
+
+      <!-- Revisions List -->
+      <div class="divide-y divide-gray-200">
+        {revisions && revisions.length > 0 ? (
+          revisions.map((revision, index: number) => (
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-grow">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span class={`px-3 py-1 text-sm font-medium rounded-full ${getChangeTypeColor(revision.changeType)}`}>
+                      {getChangeTypeLabel(revision.changeType)}
+                    </span>
+                    {index === 0 && (
+                      <span class="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-800 rounded-full">
+                        Current Version
+                      </span>
+                    )}
+                  </div>
+                  
+                  <h3 class="text-lg font-semibold text-gray-900 mb-2">
+                    {revision.title}
+                  </h3>
+                  
+                  {revision.changeReason && (
+                    <p class="text-gray-600 text-sm mb-2">
+                      {revision.changeReason}
+                    </p>
+                  )}
+                  
+                  <div class="flex items-center gap-4 text-sm text-gray-500">
+                    <span>📅 {formatDate(revision.createdAt)}</span>
+                    <span>👤 Editor ID: {revision.editorId}</span>
+                  </div>
+                </div>
+                
+                <div class="flex gap-2">
+                  <a
+                    href={`/articles/${article.slug}/revisions/${revision.id}`}
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
+                  >
+                    View
+                  </a>
+                  {index !== 0 && (
+                    <a
+                      href={`/articles/${article.slug}/revisions/${revision.id}/revert`}
+                      class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium text-sm"
+                    >
+                      Restore
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div class="p-12 text-center text-gray-500">
+            <p class="text-lg">No revision history found</p>
+          </div>
+        )}
+      </div>
+
+      <!-- Footer -->
+      <footer class="p-6 bg-gray-50 border-t border-gray-200">
+        <div class="text-sm text-gray-600">
+          <p>💡 Every change to the article is tracked here. You can view any previous version or restore it.</p>
+        </div>
+      </footer>
+    </div>
+  </main>
+</Layout>

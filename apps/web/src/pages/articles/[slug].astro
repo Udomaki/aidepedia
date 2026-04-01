@@ -124,6 +124,12 @@ function getCategoryColor(category: string): string {
           </div>
           <div class="flex gap-2">
             <a
+              href={`/articles/${article.slug}/revisions`}
+              class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
+            >
+              📜 View History
+            </a>
+            <a
               href="/articles"
               class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
             >
