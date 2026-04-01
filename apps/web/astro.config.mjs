@@ -1,10 +1,11 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import cloudflare from '@astrojs/cloudflare';
+import auth from 'auth-astro';
 
 export default defineConfig({
   site: 'https://aidepedia.com',
-  integrations: [tailwind()],
+  integrations: [tailwind(), auth()],
   output: 'server',
   adapter: cloudflare(),
 });

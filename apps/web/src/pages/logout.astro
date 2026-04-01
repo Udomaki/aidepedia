@@ -1,0 +1,13 @@
+---
+import { getSession } from '../lib/auth';
+
+const session = await getSession(Astro.request);
+
+if (session) {
+  // Redirect to auth-astro's signout endpoint
+  return Astro.redirect('/api/auth/signout');
+}
+
+// If not logged in, redirect to home
+return Astro.redirect('/');
+---
