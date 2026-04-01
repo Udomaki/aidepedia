@@ -6,7 +6,7 @@ export const articles = pgTable('articles', {
   title: varchar('title', { length: 500 }).notNull(),
   content: text('content').notNull(),
   excerpt: text('excerpt'),
-  category: varchar('category', { length: 100 }).notNull(),
+  categoryId: integer('category_id').references(() => categories.id),
   tags: text('tags').array().default([]),
   
   status: varchar('status', { 
@@ -23,7 +23,7 @@ export const articles = pgTable('articles', {
   publishedAt: timestamp('published_at'),
 }, (table) => ({
   slugIdx: index('slug_idx').on(table.slug),
-  categoryIdx: index('category_idx').on(table.category),
+  categoryIdx: index('category_idx').on(table.categoryId),
   statusIdx: index('status_idx').on(table.status),
 }));
 
@@ -49,6 +49,23 @@ export const editors = pgTable('editors', {
 }, (table) => ({
   apiKeyIdx: index('api_key_idx').on(table.apiKey),
   tierIdx: index('tier_idx').on(table.tier),
+}));
+
+export const categories = pgTable('categories', {
+  id: serial('id').primaryKey(),
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  parentId: integer('parent_id'),
+  
+  articleCount: integer('article_count').default(0),
+  displayOrder: integer('display_order').default(0),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  slugIdx: index('category_slug_idx').on(table.slug),
+  parentIdx: index('category_parent_idx').on(table.parentId),
 }));
 
 export const articleVotes = pgTable('article_votes', {
@@ -102,7 +119,7 @@ export const articleRevisions = pgTable('article_revisions', {
   title: varchar('title', { length: 500 }).notNull(),
   content: text('content').notNull(),
   excerpt: text('excerpt'),
-  category: varchar('category', { length: 100 }).notNull(),
+  categoryId: integer('category_id').references(() => categories.id),
   tags: text('tags').array().default([]),
   
   changeReason: text('change_reason'),

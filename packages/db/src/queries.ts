@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions } from './schema/index';
+import { articles, articleRevisions, categories } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -8,6 +8,8 @@ import type {
   NewArticleRevision,
   ArticleQueryParams,
   PaginatedResult,
+  Category,
+  NewCategory,
 } from './types';
 import {
   NotFoundError,
@@ -83,8 +85,8 @@ export async function listArticles(
       conditions.push(eq(articles.status, params.status));
     }
 
-    if (params.category) {
-      conditions.push(eq(articles.category, params.category));
+    if (params.categoryId) {
+      conditions.push(eq(articles.categoryId, params.categoryId));
     }
 
     if (params.tags && params.tags.length > 0) {
@@ -208,7 +210,7 @@ export async function createArticle(
       title: article.title,
       content: article.content!,
       excerpt: article.excerpt,
-      category: article.category,
+      categoryId: article.categoryId,
       tags: article.tags || [],
       changeReason: changeReason || 'Initial version',
       changeType: 'created',
@@ -267,7 +269,7 @@ export async function updateArticle(
       title: article.title,
       content: article.content!,
       excerpt: article.excerpt,
-      category: article.category,
+      categoryId: article.categoryId,
       tags: article.tags || [],
       changeReason: changeReason || 'Article updated',
       changeType: 'updated',
@@ -396,7 +398,7 @@ export async function revertToRevision(
         title: revision.title,
         content: revision.content,
         excerpt: revision.excerpt,
-        category: revision.category,
+        categoryId: revision.categoryId,
         tags: revision.tags,
         updatedAt: new Date(),
       })
@@ -410,7 +412,7 @@ export async function revertToRevision(
       title: article.title,
       content: article.content,
       excerpt: article.excerpt,
-      category: article.category,
+      categoryId: article.categoryId,
       tags: article.tags || [],
       changeReason: `Reverted to revision ${revisionId}`,
       changeType: 'reverted',
@@ -454,19 +456,107 @@ export async function deleteArticle(articleId: number): Promise<Article> {
 }
 
 /**
- * Get distinct categories from articles
+ * Get all categories
  */
-export async function getCategories(): Promise<string[]> {
+export async function getCategories(): Promise<Category[]> {
   try {
-    const result = await db
-      .selectDistinct({ category: articles.category })
-      .from(articles)
-      .where(eq(articles.status, 'published'))
-      .orderBy(articles.category);
-
-    return result.map(r => r.category);
+    return await db
+      .select()
+      .from(categories)
+      .orderBy(categories.displayOrder, categories.name);
   } catch (error) {
     throw new DatabaseError(`Failed to fetch categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get category by slug
+ */
+export async function getCategoryBySlug(slug: string): Promise<Category> {
+  try {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.slug, slug))
+      .limit(1);
+
+    if (!category) {
+      throw new NotFoundError('Category', slug);
+    }
+
+    return category;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create a new category
+ */
+export async function createCategory(data: NewCategory): Promise<Category> {
+  try {
+    const [category] = await db
+      .insert(categories)
+      .values(data)
+      .returning();
+
+    return category;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update a category
+ */
+export async function updateCategory(
+  id: number,
+  updates: Partial<NewCategory>
+): Promise<Category> {
+  try {
+    const [category] = await db
+      .update(categories)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(categories.id, id))
+      .returning();
+
+    if (!category) {
+      throw new NotFoundError('Category', `id:${id}`);
+    }
+
+    return category;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a category
+ */
+export async function deleteCategory(id: number): Promise<void> {
+  try {
+    const [category] = await db
+      .delete(categories)
+      .where(eq(categories.id, id))
+      .returning();
+
+    if (!category) {
+      throw new NotFoundError('Category', `id:${id}`);
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to delete category: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

@@ -1,0 +1,152 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getCategoryBySlug } from '@aidepedia/db';
+
+const { slug } = Astro.params;
+
+try {
+  const category = await getCategoryBySlug(slug);
+---
+
+<Layout title={`Edit ${category.name} - AIdepedia`}>
+  <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="mb-6">
+      <a href={`/categories/${category.slug}`} class="text-blue-600 hover:text-blue-700">
+        ← Back to Category
+      </a>
+    </div>
+
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+      <h1 class="text-3xl font-bold mb-6">Edit Category</h1>
+
+      <form id="categoryForm" class="space-y-6">
+        <input type="hidden" name="id" value={category.id} />
+        
+        <div>
+          <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+            Category Name *
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            required
+            value={category.name}
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label for="slug" class="block text-sm font-medium text-gray-700 mb-2">
+            Slug *
+          </label>
+          <input
+            type="text"
+            id="slug"
+            name="slug"
+            required
+            pattern="[a-z0-9-]+"
+            value={category.slug}
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p class="text-sm text-gray-500 mt-1">
+            URL-friendly identifier. Use lowercase letters, numbers, and hyphens only.
+          </p>
+        </div>
+
+        <div>
+          <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+            Description
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows="3"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >{category.description || ''}</textarea>
+        </div>
+
+        <div>
+          <label for="displayOrder" class="block text-sm font-medium text-gray-700 mb-2">
+            Display Order
+          </label>
+          <input
+            type="number"
+            id="displayOrder"
+            name="displayOrder"
+            value={category.displayOrder || 0}
+            min="0"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p class="text-sm text-gray-500 mt-1">
+            Categories are sorted by this number (lower numbers appear first).
+          </p>
+        </div>
+
+        <div class="flex gap-4">
+          <button
+            type="submit"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition"
+          >
+            Update Category
+          </button>
+          <button
+            type="button"
+            id="deleteBtn"
+            class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition"
+          >
+            Delete Category
+          </button>
+          <a
+            href={`/categories/${category.slug}`}
+            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2 rounded-lg transition"
+          >
+            Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const form = document.getElementById('categoryForm') as HTMLFormElement;
+  const deleteBtn = document.getElementById('deleteBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const data = {
+      name: formData.get('name'),
+      slug: formData.get('slug'),
+      description: formData.get('description') || null,
+      displayOrder: parseInt(formData.get('displayOrder') as string) || 0,
+    };
+
+    try {
+      // Note: In a real app, this would call an API endpoint
+      alert('Category update would happen here via API');
+      window.location.href = '/categories';
+    } catch (error) {
+      alert('Failed to update category. Please try again.');
+    }
+  });
+
+  deleteBtn?.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
+      try {
+        // Note: In a real app, this would call an API endpoint
+        alert('Category deletion would happen here via API');
+        window.location.href = '/categories';
+      } catch (error) {
+        alert('Failed to delete category. Please try again.');
+      }
+    }
+  });
+</script>
+
+<?} catch (error) {
+  return Astro.redirect('/categories');
+}
+?>
