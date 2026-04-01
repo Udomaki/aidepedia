@@ -520,3 +520,17 @@ export const article_drafts = pgTable('article_drafts', {
   userIdx: index('draft_user_idx').on(table.userId),
   articleUserIdx: index('draft_article_user_idx').on(table.articleId, table.userId),
 }));
+
+// Feature flags for gradual rollouts
+export const feature_flags = pgTable('feature_flags', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  enabled: boolean('enabled').notNull().default(false),
+  rolloutPercentage: integer('rollout_percentage').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  nameIdx: index('feature_flag_name_idx').on(table.name),
+  enabledIdx: index('feature_flag_enabled_idx').on(table.enabled),
+}));
