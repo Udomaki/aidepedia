@@ -10,6 +10,11 @@ export const users = pgTable('users', {
   bio: text('bio'),
   showActivity: boolean('show_activity').default(true),
   showBadges: boolean('show_badges').default(true),
+  // Two-factor authentication fields
+  twoFactorEnabled: boolean('two_factor_enabled').default(false),
+  twoFactorSecret: varchar('two_factor_secret', { length: 255 }),
+  recoveryCodes: text('recovery_codes'),
+  twoFactorVerifiedAt: timestamp('two_factor_verified_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({

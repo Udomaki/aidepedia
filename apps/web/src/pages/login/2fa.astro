@@ -1,0 +1,181 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getSession } from '../../lib/auth';
+import { db, users, eq } from '@aidepedia/db';
+
+const session = await getSession(Astro.request);
+
+// If no session, redirect to login
+if (!session?.user?.id) {
+  return Astro.redirect('/login');
+}
+
+// Get user to check 2FA status
+const [user] = await db
+  .select()
+  .from(users)
+  .where(eq(users.id, parseInt(session.user.id)))
+  .limit(1);
+
+// If 2FA not enabled, redirect to dashboard
+if (!user?.twoFactorEnabled) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<Layout title="Two-Factor Authentication">
+  <div class="min-h-[calc(100vh-16rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+      <div>
+        <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
+          Two-Factor Authentication
+        </h2>
+        <p class="mt-2 text-center text-sm text-gray-600">
+          Enter the code from your authenticator app
+        </p>
+      </div>
+      
+      <div class="mt-8 space-y-6">
+        <!-- TOTP Code Input -->
+        <div>
+          <label for="totp-code" class="block text-sm font-medium text-gray-700 mb-2">
+            Authentication Code
+          </label>
+          <input 
+            type="text" 
+            id="totp-code" 
+            name="totp-code"
+            placeholder="000000"
+            maxlength="6"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl font-mono tracking-widest"
+            autocomplete="one-time-code"
+          />
+          <button 
+            id="verify-btn"
+            class="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Verify
+          </button>
+        </div>
+
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-300"></div>
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span class="px-2 bg-white text-gray-500">Or</span>
+          </div>
+        </div>
+
+        <!-- Recovery Code Input -->
+        <div>
+          <label for="recovery-code" class="block text-sm font-medium text-gray-700 mb-2">
+            Recovery Code
+          </label>
+          <input 
+            type="text" 
+            id="recovery-code" 
+            name="recovery-code"
+            placeholder="XXXX-XXXX"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-mono"
+          />
+          <p class="mt-2 text-xs text-gray-500">
+            Use one of your recovery codes if you don't have access to your authenticator device
+          </p>
+          <button 
+            id="recovery-btn"
+            class="w-full mt-4 bg-gray-600 text-white py-3 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          >
+            Use Recovery Code
+          </button>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <a href="/api/auth/signout" class="text-sm text-gray-600 hover:text-gray-900">
+          Sign in with a different account
+        </a>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script define:vars={{ userId: user?.id }}>
+  const userId = userId;
+
+  // Verify TOTP code
+  document.getElementById('verify-btn')?.addEventListener('click', async () => {
+    const code = (document.getElementById('totp-code') as HTMLInputElement).value;
+    
+    if (!code || code.length !== 6) {
+      alert('Please enter a 6-digit code');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          code: code,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Success - redirect to dashboard
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Verification error:', error);
+      alert('Invalid verification code. Please try again.');
+    }
+  });
+
+  // Use recovery code
+  document.getElementById('recovery-btn')?.addEventListener('click', async () => {
+    const code = (document.getElementById('recovery-code') as HTMLInputElement).value;
+    
+    if (!code) {
+      alert('Please enter a recovery code');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          recoveryCode: code.toUpperCase(),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      alert(data.message);
+      
+      // Success - redirect to dashboard
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Recovery code error:', error);
+      alert('Invalid recovery code. Please try again.');
+    }
+  });
+
+  // Auto-submit when 6 digits are entered
+  document.getElementById('totp-code')?.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    if (input.value.length === 6) {
+      document.getElementById('verify-btn').click();
+    }
+  });
+</script>

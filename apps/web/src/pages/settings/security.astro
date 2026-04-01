@@ -1,0 +1,361 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getSession } from '../../lib/auth';
+
+const session = await getSession(Astro.request);
+if (!session) {
+  return Astro.redirect('/login');
+}
+---
+
+<Layout title="Security Settings">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Security Settings</h1>
+      <p class="mt-2 text-gray-600">Manage your account security and two-factor authentication</p>
+    </div>
+
+    <div class="bg-white shadow rounded-lg">
+      <!-- Two-Factor Authentication Section -->
+      <div class="p-6 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Two-Factor Authentication</h2>
+        
+        <!-- 2FA Status -->
+        <div id="twofa-status" class="mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-gray-700">Status: <span id="status-badge" class="font-semibold">Checking...</span></p>
+              <p class="text-sm text-gray-500 mt-1">
+                Two-factor authentication adds an extra layer of security to your account
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Setup 2FA -->
+        <div id="setup-2fa" class="hidden">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <h3 class="font-semibold text-blue-900 mb-2">Setup Two-Factor Authentication</h3>
+            <ol class="list-decimal list-inside text-sm text-blue-800 space-y-2">
+              <li>Download an authenticator app (Google Authenticator, Authy, etc.)</li>
+              <li>Scan the QR code below or enter the manual code</li>
+              <li>Enter the 6-digit code from your app to verify</li>
+            </ol>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="text-center">
+              <p class="text-sm font-medium text-gray-700 mb-3">Scan this QR code:</p>
+              <div id="qr-code" class="inline-block bg-white p-4 border border-gray-300 rounded-lg">
+                <!-- QR code will be inserted here -->
+              </div>
+            </div>
+            
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-3">Or enter this code manually:</p>
+              <div class="bg-gray-100 p-4 rounded-lg font-mono text-sm break-all" id="manual-code">
+                <!-- Manual code will be inserted here -->
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="verify-code" class="block text-sm font-medium text-gray-700 mb-2">
+              Enter verification code:
+            </label>
+            <input 
+              type="text" 
+              id="verify-code" 
+              placeholder="000000"
+              maxlength="6"
+              class="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <button 
+            id="enable-2fa-btn"
+            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Enable 2FA
+          </button>
+          <button 
+            id="cancel-setup-btn"
+            class="ml-4 bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+
+        <!-- Manage 2FA (when enabled) -->
+        <div id="manage-2fa" class="hidden">
+          <div class="space-y-4">
+            <button 
+              id="view-recovery-codes-btn"
+              class="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              View Recovery Codes
+            </button>
+            <button 
+              id="regenerate-codes-btn"
+              class="w-full md:w-auto bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+            >
+              Regenerate Recovery Codes
+            </button>
+            <button 
+              id="disable-2fa-btn"
+              class="w-full md:w-auto bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              Disable 2FA
+            </button>
+          </div>
+        </div>
+
+        <!-- Recovery Codes Modal -->
+        <div id="recovery-codes-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">Recovery Codes</h3>
+            <p class="text-sm text-gray-600 mb-4">
+              These codes can be used to access your account if you lose your authenticator device.
+              Store them in a safe place.
+            </p>
+            <div id="recovery-codes-list" class="bg-gray-100 p-4 rounded-lg font-mono text-sm space-y-2 mb-4">
+              <!-- Recovery codes will be inserted here -->
+            </div>
+            <button 
+              id="close-modal-btn"
+              class="w-full bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <!-- Disable 2FA Modal -->
+        <div id="disable-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">Disable Two-Factor Authentication</h3>
+            <p class="text-sm text-gray-600 mb-4">
+              Enter your current 2FA code to disable two-factor authentication.
+            </p>
+            <div class="mb-4">
+              <label for="disable-verify-code" class="block text-sm font-medium text-gray-700 mb-2">
+                Verification code:
+              </label>
+              <input 
+                type="text" 
+                id="disable-verify-code" 
+                placeholder="000000"
+                maxlength="6"
+                class="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div class="flex space-x-4">
+              <button 
+                id="confirm-disable-btn"
+                class="flex-1 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                Disable 2FA
+              </button>
+              <button 
+                id="cancel-disable-btn"
+                class="flex-1 bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let currentSecret = '';
+
+  // Check 2FA status on load
+  async function check2FAStatus() {
+    try {
+      const response = await fetch('/api/2fa/status');
+      const data = await response.json();
+      
+      const statusBadge = document.getElementById('status-badge');
+      const setup2fa = document.getElementById('setup-2fa');
+      const manage2fa = document.getElementById('manage-2fa');
+      
+      if (data.enabled) {
+        statusBadge.textContent = 'Enabled';
+        statusBadge.className = 'font-semibold text-green-600';
+        setup2fa.classList.add('hidden');
+        manage2fa.classList.remove('hidden');
+      } else {
+        statusBadge.textContent = 'Disabled';
+        statusBadge.className = 'font-semibold text-red-600';
+        setup2fa.classList.remove('hidden');
+        manage2fa.classList.add('hidden');
+        
+        // Setup 2FA
+        await setup2FA();
+      }
+    } catch (error) {
+      console.error('Error checking 2FA status:', error);
+    }
+  }
+
+  async function setup2FA() {
+    try {
+      const response = await fetch('/api/2fa/setup', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      currentSecret = data.secret;
+      
+      // Display QR code
+      const qrCodeDiv = document.getElementById('qr-code');
+      qrCodeDiv.innerHTML = `<img src="${data.qrCode}" alt="2FA QR Code" class="w-48 h-48" />`;
+      
+      // Display manual code
+      const manualCode = document.getElementById('manual-code');
+      manualCode.textContent = data.manualEntryKey;
+    } catch (error) {
+      console.error('Error setting up 2FA:', error);
+      alert('Failed to setup 2FA. Please try again.');
+    }
+  }
+
+  // Enable 2FA
+  document.getElementById('enable-2fa-btn')?.addEventListener('click', async () => {
+    const code = (document.getElementById('verify-code') as HTMLInputElement).value;
+    
+    if (!code || code.length !== 6) {
+      alert('Please enter a 6-digit verification code');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/2fa/enable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: currentSecret,
+          verificationCode: code,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Show recovery codes
+      alert(data.message);
+      showRecoveryCodes(data.recoveryCodes);
+      
+      // Reload page to show manage UI
+      window.location.reload();
+    } catch (error) {
+      console.error('Error enabling 2FA:', error);
+      alert('Failed to enable 2FA: ' + (error as Error).message);
+    }
+  });
+
+  // Cancel setup
+  document.getElementById('cancel-setup-btn')?.addEventListener('click', () => {
+    window.location.href = '/settings/profile';
+  });
+
+  // View recovery codes
+  document.getElementById('view-recovery-codes-btn')?.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/2fa/recovery-codes');
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      showRecoveryCodes(data.recoveryCodes);
+    } catch (error) {
+      console.error('Error fetching recovery codes:', error);
+      alert('Failed to fetch recovery codes');
+    }
+  });
+
+  // Regenerate recovery codes
+  document.getElementById('regenerate-codes-btn')?.addEventListener('click', async () => {
+    if (!confirm('This will invalidate your existing recovery codes. Continue?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/2fa/recovery-codes', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      alert(data.message);
+      showRecoveryCodes(data.recoveryCodes);
+    } catch (error) {
+      console.error('Error regenerating recovery codes:', error);
+      alert('Failed to regenerate recovery codes');
+    }
+  });
+
+  // Disable 2FA
+  document.getElementById('disable-2fa-btn')?.addEventListener('click', () => {
+    document.getElementById('disable-modal').classList.remove('hidden');
+  });
+
+  document.getElementById('confirm-disable-btn')?.addEventListener('click', async () => {
+    const code = (document.getElementById('disable-verify-code') as HTMLInputElement).value;
+    
+    if (!code || code.length !== 6) {
+      alert('Please enter a 6-digit verification code');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verificationCode: code }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      alert(data.message);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      alert('Failed to disable 2FA: ' + (error as Error).message);
+    }
+  });
+
+  document.getElementById('cancel-disable-btn')?.addEventListener('click', () => {
+    document.getElementById('disable-modal').classList.add('hidden');
+  });
+
+  // Close modal
+  document.getElementById('close-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('recovery-codes-modal').classList.add('hidden');
+  });
+
+  function showRecoveryCodes(codes: string[]) {
+    const codesList = document.getElementById('recovery-codes-list');
+    codesList.innerHTML = codes.map(code => `<div>${code}</div>`).join('');
+    document.getElementById('recovery-codes-modal').classList.remove('hidden');
+  }
+
+  // Initialize
+  check2FAStatus();
+</script>
