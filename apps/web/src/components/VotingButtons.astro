@@ -1,0 +1,157 @@
+---
+interface Props {
+  articleId: number;
+  upvotes: number;
+  downvotes: number;
+  userVote?: 'upvote' | 'downvote' | null;
+  editorId?: number;
+}
+
+const { articleId, upvotes, downvotes, userVote, editorId } = Astro.props;
+
+const netScore = upvotes - downvotes;
+const canVote = editorId !== undefined;
+---
+
+<div class="flex items-center gap-3">
+  <div class="flex items-center gap-2" id={`voting-${articleId}`}>
+    <button
+      class:list={[
+        "flex items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-200",
+        !canVote && "bg-gray-100 text-gray-400 cursor-not-allowed",
+        canVote && userVote === 'upvote' && "bg-green-100 text-green-700 hover:bg-green-200",
+        canVote && userVote !== 'upvote' && "bg-gray-100 text-gray-600 hover:bg-gray-200"
+      ]}
+      data-vote-type="upvote"
+      data-article-id={articleId}
+      disabled={!canVote}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+      </svg>
+      <span class="font-semibold" id={`upvotes-${articleId}`}>{upvotes}</span>
+    </button>
+
+    <div class="text-center px-3 py-2 bg-gray-50 rounded-lg min-w-[80px]">
+      <div class={`text-lg font-bold ${netScore >= 0 ? 'text-green-600' : 'text-red-600'}`} id={`net-score-${articleId}`}>
+        {netScore >= 0 ? '+' : ''}{netScore}
+      </div>
+    </div>
+
+    <button
+      class:list={[
+        "flex items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-200",
+        !canVote && "bg-gray-100 text-gray-400 cursor-not-allowed",
+        canVote && userVote === 'downvote' && "bg-red-100 text-red-700 hover:bg-red-200",
+        canVote && userVote !== 'downvote' && "bg-gray-100 text-gray-600 hover:bg-gray-200"
+      ]}
+      data-vote-type="downvote"
+      data-article-id={articleId}
+      disabled={!canVote}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+      </svg>
+      <span class="font-semibold" id={`downvotes-${articleId}`}>{downvotes}</span>
+    </button>
+  </div>
+</div>
+
+{canVote && (
+  <script define:vars={{ articleId, editorId }}>
+    async function handleVote(articleId, button) {
+      const voteType = button.dataset.voteType;
+
+      try {
+        const response = await fetch(`/api/articles/${articleId}/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ editorId, voteType })
+        });
+
+        if (!response.ok) throw new Error('Failed to vote');
+
+        const data = await response.json();
+
+        // Update UI
+        const upvotesEl = document.getElementById(`upvotes-${articleId}`);
+        const downvotesEl = document.getElementById(`downvotes-${articleId}`);
+        const netScoreEl = document.getElementById(`net-score-${articleId}`);
+
+        if (upvotesEl && downvotesEl && netScoreEl) {
+          // Recalculate counts based on current state and response
+          const currentUpvotes = parseInt(upvotesEl.textContent || '0');
+          const currentDownvotes = parseInt(downvotesEl.textContent || '0');
+          const isUpvoteButton = button.querySelector('[data-vote-type="upvote"]') === button;
+
+          if (voteType === 'upvote') {
+            const wasUpvoted = button.classList.contains('bg-green-100');
+            if (wasUpvoted) {
+              upvotesEl.textContent = String(currentUpvotes - 1);
+            } else {
+              upvotesEl.textContent = String(currentUpvotes + 1);
+              const downvoteButton = button.parentElement.querySelector('[data-vote-type="downvote"]');
+              if (downvoteButton && downvoteButton.classList.contains('bg-red-100') && currentDownvotes > 0) {
+                downvotesEl.textContent = String(currentDownvotes - 1);
+              }
+            }
+          } else {
+            const wasDownvoted = button.classList.contains('bg-red-100');
+            if (wasDownvoted) {
+              downvotesEl.textContent = String(currentDownvotes - 1);
+            } else {
+              downvotesEl.textContent = String(currentDownvotes + 1);
+              const upvoteButton = button.parentElement.querySelector('[data-vote-type="upvote"]');
+              if (upvoteButton && upvoteButton.classList.contains('bg-green-100') && currentUpvotes > 0) {
+                upvotesEl.textContent = String(currentUpvotes - 1);
+              }
+            }
+          }
+
+          const newUpvotes = parseInt(upvotesEl.textContent || '0');
+          const newDownvotes = parseInt(downvotesEl.textContent || '0');
+          const newNetScore = newUpvotes - newDownvotes;
+
+          netScoreEl.textContent = (newNetScore >= 0 ? '+' : '') + newNetScore;
+          netScoreEl.className = `text-lg font-bold ${newNetScore >= 0 ? 'text-green-600' : 'text-red-600'}`;
+
+          // Update button styles
+          const container = document.getElementById(`voting-${articleId}`);
+          if (container) {
+            const buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => {
+              btn.classList.remove('bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'hover:bg-green-200', 'hover:bg-red-200');
+              btn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+            });
+
+            if (data.vote === voteType) {
+              button.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+              if (voteType === 'upvote') {
+                button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+              } else {
+                button.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Vote error:', error);
+        alert('Failed to vote. Please try again.');
+      }
+    }
+
+    // Attach event listeners
+    document.addEventListener('astro:page-load', () => {
+      const votingContainer = document.getElementById(`voting-${articleId}`);
+      if (votingContainer) {
+        const buttons = votingContainer.querySelectorAll('button');
+        buttons.forEach(button => {
+          button.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleVote(articleId, button);
+          });
+        });
+      }
+    });
+  </script>
+)}

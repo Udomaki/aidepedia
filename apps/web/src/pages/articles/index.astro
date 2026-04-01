@@ -1,473 +1,113 @@
 ---
+import { listArticles } from '@aidepedia/db';
+import type { Article } from '@aidepedia/db';
 import Layout from '../../layouts/Layout.astro';
-import ArticleCard from '../../components/ArticleCard.astro';
-import { listArticles, getCategories, getTags, type ArticleStatus } from '@aidepedia/db';
+import VotingButtons from '../../components/VotingButtons.astro';
 
-// Get query parameters
-const url = Astro.url;
-const page = parseInt(url.searchParams.get('page') || '1');
-const sortBy = url.searchParams.get('sortBy') || 'date';
-const sortOrder = url.searchParams.get('sortOrder') || 'desc';
-const search = url.searchParams.get('search') || '';
-const category = url.searchParams.get('category') || '';
-const tags = url.searchParams.get('tags') || '';
-const authorId = url.searchParams.get('authorId') || '';
-const minQuality = url.searchParams.get('minQuality') || '';
-const maxQuality = url.searchParams.get('maxQuality') || '';
-const dateFrom = url.searchParams.get('dateFrom') || '';
-const dateTo = url.searchParams.get('dateTo') || '';
-const showAdvanced = url.searchParams.get('advanced') === 'true';
+export const prerender = false;
 
-// Fetch categories and tags for filters
-let categories: string[] = [];
-let availableTags: string[] = [];
-try {
-  [categories, availableTags] = await Promise.all([
-    getCategories(),
-    getTags(),
-  ]);
-} catch (error) {
-  console.error('Failed to fetch filters:', error);
-}
-
-// Build query parameters
-const queryParams = {
-  status: 'published' as ArticleStatus,
-  page,
-  limit: 12,
-  category: category || undefined,
-  search: search || undefined,
-  tags: tags ? tags.split(',').filter(Boolean) : undefined,
-  authorId: authorId ? parseInt(authorId) : undefined,
-  minQualityScore: minQuality ? parseInt(minQuality) : undefined,
-  maxQualityScore: maxQuality ? parseInt(maxQuality) : undefined,
-  dateFrom: dateFrom || undefined,
-  dateTo: dateTo || undefined,
-  sortBy: sortBy as 'date' | 'title' | 'views' | 'quality',
-  sortOrder: sortOrder as 'asc' | 'desc',
-};
-
-// Fetch articles directly from database
-let articlesData;
-try {
-  articlesData = await listArticles(queryParams);
-} catch (error) {
-  console.error('Failed to fetch articles:', error);
-  articlesData = { data: [], meta: { total: 0, page: 1, limit: 12, totalPages: 0 } };
-}
-
-const { data: articles, meta } = articlesData;
-
-// Build pagination URL helper
-function buildPageUrl(newPage: number): string {
-  const params = new URLSearchParams();
-  if (sortBy !== 'date') params.set('sortBy', sortBy);
-  if (sortOrder !== 'desc') params.set('sortOrder', sortOrder);
-  if (search) params.set('search', search);
-  if (category) params.set('category', category);
-  if (tags) params.set('tags', tags);
-  if (authorId) params.set('authorId', authorId);
-  if (minQuality) params.set('minQuality', minQuality);
-  if (maxQuality) params.set('maxQuality', maxQuality);
-  if (dateFrom) params.set('dateFrom', dateFrom);
-  if (dateTo) params.set('dateTo', dateTo);
-  if (showAdvanced) params.set('advanced', 'true');
-  params.set('page', newPage.toString());
-  const queryString = params.toString();
-  return queryString ? `/articles?${queryString}` : '/articles';
-}
-
-// Get page numbers to display
-function getPageNumbers(currentPage: number, totalPages: number): number[] {
-  const pages: number[] = [];
-  
-  if (totalPages <= 5) {
-    for (let i = 1; i <= totalPages; i++) {
-      pages.push(i);
-    }
-  } else if (currentPage <= 3) {
-    for (let i = 1; i <= 5; i++) {
-      pages.push(i);
-    }
-  } else if (currentPage >= totalPages - 2) {
-    for (let i = totalPages - 4; i <= totalPages; i++) {
-      pages.push(i);
-    }
-  } else {
-    for (let i = currentPage - 2; i <= currentPage + 2; i++) {
-      pages.push(i);
-    }
-  }
-  
-  return pages;
-}
-
-const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
-
-// Check if any filters are active
-const hasActiveFilters = search || category || tags || authorId || minQuality || maxQuality || dateFrom || dateTo;
+// Fetch published articles
+const result = await listArticles({ status: 'published', limit: 20 });
+const articles: Article[] = result.data;
 ---
 
-<Layout 
-  title="Articles" 
-  description="Browse our comprehensive encyclopedia of AI-curated articles"
->
-  <main class="container mx-auto px-4 py-8">
-    <!-- Header -->
+<Layout title="Articles - AIdepedia">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="mb-8">
-      <nav class="text-sm mb-4">
-        <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
-        <span class="mx-2 text-gray-400">/</span>
-        <span class="text-gray-600">Articles</span>
-      </nav>
-      <h1 class="text-4xl font-bold text-gray-900">Articles</h1>
-      <p class="text-gray-600 mt-2">
-        {meta.total} article{meta.total !== 1 ? 's' : ''} in our encyclopedia
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Articles</h1>
+      <p class="text-gray-600">
+        Browse high-quality, AI-curated articles. Vote to help improve content quality.
       </p>
     </div>
 
-    <!-- Search and Filters -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-      <form method="GET" class="space-y-4">
-        <!-- Basic Filters -->
-        <div class="flex flex-col md:flex-row gap-4">
-          <!-- Search -->
-          <div class="flex-1">
-            <label for="search" class="block text-sm font-medium text-gray-700 mb-1">
-              Search
-            </label>
-            <input
-              type="text"
-              id="search"
-              name="search"
-              value={search}
-              placeholder="Search articles..."
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <!-- Category Filter -->
-          <div class="md:w-48">
-            <label for="category" class="block text-sm font-medium text-gray-700 mb-1">
-              Category
-            </label>
-            <select
-              id="category"
-              name="category"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All categories</option>
-              {categories.map((cat) => (
-                <option value={cat} selected={category === cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <!-- Sort By -->
-          <div class="md:w-48">
-            <label for="sortBy" class="block text-sm font-medium text-gray-700 mb-1">
-              Sort By
-            </label>
-            <select
-              id="sortBy"
-              name="sortBy"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="date" selected={sortBy === 'date'}>Date</option>
-              <option value="title" selected={sortBy === 'title'}>Title</option>
-              <option value="views" selected={sortBy === 'views'}>Views</option>
-              <option value="quality" selected={sortBy === 'quality'}>Quality Score</option>
-            </select>
-          </div>
-
-          <!-- Sort Order -->
-          <div class="md:w-40">
-            <label for="sortOrder" class="block text-sm font-medium text-gray-700 mb-1">
-              Order
-            </label>
-            <select
-              id="sortOrder"
-              name="sortOrder"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="desc" selected={sortOrder === 'desc'}>Descending</option>
-              <option value="asc" selected={sortOrder === 'asc'}>Ascending</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Advanced Filters Toggle -->
-        <div>
-          <button
-            type="button"
-            id="toggleAdvanced"
-            class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-          >
-            <svg class="w-4 h-4 transition-transform" id="advancedIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-            Advanced Filters
-          </button>
-        </div>
-
-        <!-- Advanced Filters (Collapsible) -->
-        <div id="advancedFilters" class={`space-y-4 ${showAdvanced ? '' : 'hidden'}`}>
-          <div class="border-t pt-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <!-- Tags Filter -->
-              <div>
-                <label for="tags" class="block text-sm font-medium text-gray-700 mb-1">
-                  Tags (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  id="tags"
-                  name="tags"
-                  value={tags}
-                  placeholder="e.g., technology, ai, science"
-                  list="tagsList"
-                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <datalist id="tagsList">
-                  {availableTags.map((tag) => (
-                    <option value={tag} />
-                  ))}
-                </datalist>
+    <div class="space-y-6">
+      {articles.map(article => (
+        <article class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between gap-6">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  {article.category}
+                </span>
+                {article.tags && article.tags.length > 0 && (
+                  <div class="flex gap-1">
+                    {article.tags.slice(0, 3).map(tag => (
+                      <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <!-- Author ID Filter -->
-              <div>
-                <label for="authorId" class="block text-sm font-medium text-gray-700 mb-1">
-                  Author ID
-                </label>
-                <input
-                  type="number"
-                  id="authorId"
-                  name="authorId"
-                  value={authorId}
-                  placeholder="Filter by author"
-                  min="1"
-                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              <a href={`/articles/${article.slug}`} class="group">
+                <h2 class="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-2">
+                  {article.title}
+                </h2>
+              </a>
 
-              <!-- Quality Score Range -->
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Quality Score Range
-                </label>
-                <div class="flex gap-2">
-                  <input
-                    type="number"
-                    id="minQuality"
-                    name="minQuality"
-                    value={minQuality}
-                    placeholder="Min"
-                    min="0"
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <input
-                    type="number"
-                    id="maxQuality"
-                    name="maxQuality"
-                    value={maxQuality}
-                    placeholder="Max"
-                    min="0"
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+              {article.excerpt && (
+                <p class="text-gray-600 mb-4 line-clamp-2">
+                  {article.excerpt}
+                </p>
+              )}
 
-              <!-- Date Range -->
-              <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Date Range
-                </label>
-                <div class="flex gap-2">
-                  <input
-                    type="date"
-                    id="dateFrom"
-                    name="dateFrom"
-                    value={dateFrom}
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <input
-                    type="date"
-                    id="dateTo"
-                    name="dateTo"
-                    value={dateTo}
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+              <div class="flex items-center gap-4 text-sm text-gray-500">
+                <span>
+                  Quality Score: <strong class="text-gray-700">{article.qualityScore || 0}</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  {article.viewCount || 0} views
+                </span>
+                <span>•</span>
+                <time datetime={article.createdAt?.toISOString()}>
+                  {new Date(article.createdAt || '').toLocaleDateString()}
+                </time>
               </div>
             </div>
+
+            <VotingButtons
+              articleId={article.id}
+              upvotes={article.upvotes || 0}
+              downvotes={article.downvotes || 0}
+              userVote={null}
+            />
           </div>
-        </div>
-
-        <!-- Hidden field to preserve advanced state -->
-        <input type="hidden" name="advanced" value={showAdvanced ? 'true' : 'false'} id="advancedField" />
-
-        <!-- Buttons -->
-        <div class="flex gap-2">
-          <button
-            type="submit"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Apply Filters
-          </button>
-          {hasActiveFilters && (
-            <a
-              href="/articles"
-              class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium inline-flex items-center"
-            >
-              Clear Filters
-            </a>
-          )}
-        </div>
-      </form>
+        </article>
+      ))}
     </div>
 
-    <!-- Active Filters Display -->
-    {hasActiveFilters && (
-      <div class="mb-6 flex flex-wrap gap-2">
-        {search && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
-            Search: {search}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), search: '', page: '1' })}`} class="ml-2 hover:text-blue-600">×</a>
-          </span>
-        )}
-        {category && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
-            Category: {category}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), category: '', page: '1' })}`} class="ml-2 hover:text-purple-600">×</a>
-          </span>
-        )}
-        {tags && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-            Tags: {tags}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), tags: '', page: '1' })}`} class="ml-2 hover:text-green-600">×</a>
-          </span>
-        )}
-        {authorId && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">
-            Author: {authorId}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), authorId: '', page: '1' })}`} class="ml-2 hover:text-yellow-600">×</a>
-          </span>
-        )}
-        {(minQuality || maxQuality) && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-orange-100 text-orange-800">
-            Quality: {minQuality || '0'} - {maxQuality || '∞'}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), minQuality: '', maxQuality: '', page: '1' })}`} class="ml-2 hover:text-orange-600">×</a>
-          </span>
-        )}
-        {(dateFrom || dateTo) && (
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-pink-100 text-pink-800">
-            Date: {dateFrom || '...'} to {dateTo || '...'}
-            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), dateFrom: '', dateTo: '', page: '1' })}`} class="ml-2 hover:text-pink-600">×</a>
-          </span>
-        )}
-      </div>
-    )}
-
-    <!-- Articles Grid -->
-    {articles.length > 0 ? (
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {articles.map((article: any) => (
-          <ArticleCard article={article} />
+    {result.meta.totalPages > 1 && (
+      <div class="mt-8 flex justify-center gap-2">
+        {Array.from({ length: result.meta.totalPages }, (_, i) => i + 1).map(page => (
+          <a
+            href={`/articles?page=${page}`}
+            class={`px-4 py-2 rounded-lg ${
+              page === result.meta.page
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {page}
+          </a>
         ))}
       </div>
-    ) : (
-      <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-1">No articles found</h3>
-        <p class="text-gray-600">Try adjusting your search or filter criteria</p>
+    )}
+
+    {articles.length === 0 && (
+      <div class="text-center py-16">
+        <p class="text-gray-500 text-lg">No articles found. Check back soon!</p>
       </div>
     )}
-
-    <!-- Pagination -->
-    {meta.totalPages > 1 && (
-      <div class="flex items-center justify-center gap-2">
-        {/* Previous Page */}
-        {meta.page > 1 ? (
-          <a
-            href={buildPageUrl(meta.page - 1)}
-            class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
-          >
-            ← Previous
-          </a>
-        ) : (
-          <span class="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 font-medium cursor-not-allowed">
-            ← Previous
-          </span>
-        )}
-
-        {/* Page Numbers */}
-        <div class="flex gap-1">
-          {pageNumbers.map((pageNum) => (
-            pageNum === meta.page ? (
-              <span class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
-                {pageNum}
-              </span>
-            ) : (
-              <a
-                href={buildPageUrl(pageNum)}
-                class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
-              >
-                {pageNum}
-              </a>
-            )
-          ))}
-        </div>
-
-        {/* Next Page */}
-        {meta.page < meta.totalPages ? (
-          <a
-            href={buildPageUrl(meta.page + 1)}
-            class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
-          >
-            Next →
-          </a>
-        ) : (
-          <span class="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-400 font-medium cursor-not-allowed">
-            Next →
-          </span>
-        )}
-      </div>
-    )}
-
-    {/* Page Info */}
-    {meta.totalPages > 1 && (
-      <p class="text-center text-gray-600 text-sm mt-4">
-        Page {meta.page} of {meta.totalPages}
-      </p>
-    )}
-  </main>
+  </div>
 </Layout>
 
-<script>
-  // Toggle advanced filters
-  const toggleBtn = document.getElementById('toggleAdvanced');
-  const advancedFilters = document.getElementById('advancedFilters');
-  const advancedIcon = document.getElementById('advancedIcon');
-  const advancedField = document.getElementById('advancedField') as HTMLInputElement;
-
-  if (toggleBtn && advancedFilters && advancedIcon && advancedField) {
-    toggleBtn.addEventListener('click', () => {
-      const isHidden = advancedFilters.classList.contains('hidden');
-      
-      if (isHidden) {
-        advancedFilters.classList.remove('hidden');
-        advancedIcon.style.transform = 'rotate(180deg)';
-        advancedField.value = 'true';
-      } else {
-        advancedFilters.classList.add('hidden');
-        advancedIcon.style.transform = 'rotate(0deg)';
-        advancedField.value = 'false';
-      }
-    });
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-</script>
+</style>

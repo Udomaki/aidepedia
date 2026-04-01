@@ -5,6 +5,8 @@ import type {
   reputationEvents,
   articleRevisions,
   categories,
+  articleUserVotes,
+  revisionUserVotes,
 } from './schema/index';
 
 // Category types
@@ -42,6 +44,14 @@ export type EventType =
 export type ArticleRevision = typeof articleRevisions.$inferSelect;
 export type NewArticleRevision = typeof articleRevisions.$inferInsert;
 export type ChangeType = 'created' | 'updated' | 'published' | 'reverted';
+
+// User vote types
+export type ArticleUserVote = typeof articleUserVotes.$inferSelect;
+export type NewArticleUserVote = typeof articleUserVotes.$inferInsert;
+export type UserVoteType = 'upvote' | 'downvote';
+
+export type RevisionUserVote = typeof revisionUserVotes.$inferSelect;
+export type NewRevisionUserVote = typeof revisionUserVotes.$inferInsert;
 
 // Pagination types
 export interface PaginationParams {
