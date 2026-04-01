@@ -99,6 +99,26 @@ export interface ArticleQueryParams extends PaginationParams {
   dateTo?: string;
 }
 
+// Notification types
+export interface Notification {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  content: string | null;
+  data: Record<string, unknown> | null;
+  read: boolean;
+  createdAt: Date;
+}
+
+export interface NewNotification {
+  userId: number;
+  type: string;
+  title: string;
+  content?: string;
+  data?: Record<string, unknown>;
+}
+
 // Error types
 export class DatabaseError extends Error {
   constructor(message: string, public code?: string) {
