@@ -3,7 +3,9 @@ import {
   getArticleBySlug, 
   getCategories,
   updateArticle,
-  deleteArticle
+  deleteArticle,
+  getUserByUsername,
+  createMentionNotifications,
 } from '@aidepedia/db';
 import { 
   successResponse, 
@@ -12,6 +14,7 @@ import {
   transformArticleForApi
 } from '../../../../lib/api-utils';
 import { getSession } from '../../../../lib/auth';
+import { parseMentions, extractUniqueUsernames } from '../../../../lib/mentions';
 
 /**
  * GET /api/v1/articles/[slug]
@@ -101,6 +104,42 @@ export const PUT: APIRoute = async ({ params, request }) => {
     // Update article
     const editorId = parseInt(session.user.id as string, 10);
     const updated = await updateArticle(article.id, updates, editorId, 'Updated via web interface');
+
+    // Handle @mentions in content if content was updated
+    if (content !== undefined) {
+      const mentions = parseMentions(content);
+      const uniqueUsernames = extractUniqueUsernames(mentions);
+      
+      if (uniqueUsernames.length > 0) {
+        // Resolve usernames to user IDs
+        const userPromises = uniqueUsernames.map(async (username) => {
+          try {
+            const user = await getUserByUsername(username);
+            return user;
+          } catch (error) {
+            // User not found, skip
+            return null;
+          }
+        });
+        const users = await Promise.all(userPromises);
+        
+        // Filter out non-existent users and the author themselves
+        const mentionedUserIds = users
+          .filter(user => user !== null && user.id !== editorId)
+          .map(user => user!.id);
+        
+        if (mentionedUserIds.length > 0) {
+          // Create mention notifications
+          await createMentionNotifications(mentionedUserIds, {
+            title: `You were mentioned in "${updated.title}"`,
+            content: `You were mentioned in the article "${updated.title}"`,
+            mentionedByUserId: editorId,
+            articleId: updated.id,
+            articleSlug: updated.slug,
+          });
+        }
+      }
+    }
 
     // Fetch category name if available
     let categoryName: string | undefined;
