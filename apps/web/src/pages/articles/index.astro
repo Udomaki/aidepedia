@@ -21,11 +21,12 @@ const queryParams = {
 };
 
 // Fetch articles directly from database
-let articlesData = { data: [], meta: { total: 0, page: 1, limit: 12, totalPages: 0 } };
+let articlesData;
 try {
   articlesData = await listArticles(queryParams);
 } catch (error) {
   console.error('Failed to fetch articles:', error);
+  articlesData = { data: [], meta: { total: 0, page: 1, limit: 12, totalPages: 0 } };
 }
 
 const { data: articles, meta } = articlesData;
