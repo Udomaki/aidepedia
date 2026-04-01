@@ -28,6 +28,11 @@ const publicPaths = [
   '/sitemap.xml',
 ];
 
+// Admin-only routes
+const adminPaths = [
+  '/admin',
+];
+
 function isProtectedPath(pathname: string): boolean {
   // Check for exact protected paths
   if (protectedPaths.some(path => pathname.startsWith(path))) {
@@ -44,6 +49,10 @@ function isProtectedPath(pathname: string): boolean {
   return false;
 }
 
+function isAdminPath(pathname: string): boolean {
+  return adminPaths.some(path => pathname.startsWith(path));
+}
+
 const authMiddleware = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
   
@@ -57,6 +66,44 @@ const authMiddleware = defineMiddleware(async (context, next) => {
       context.locals.user = session.user;
       context.locals.session = session;
     }
+    return next();
+  }
+  
+  // Check admin routes first
+  if (isAdminPath(pathname)) {
+    if (!session) {
+      // For API routes, return 401
+      if (pathname.startsWith('/api/')) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      // For page routes, redirect to login
+      return context.redirect(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+    }
+    
+    // Check if user has admin role
+    // Note: In production, you'd fetch the user's editor record and check tier
+    // For now, we'll use a simple email check or session role
+    const isAdmin = (session.user as any)?.role === 'admin' || 
+                    (session.user as any)?.tier === 'admin';
+    
+    if (!isAdmin) {
+      // For API routes, return 403
+      if (pathname.startsWith('/api/')) {
+        return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      // For page routes, redirect to home with error
+      return context.redirect('/?error=admin_required');
+    }
+    
+    // Attach user to locals
+    context.locals.user = session.user;
+    context.locals.session = session;
     return next();
   }
   
