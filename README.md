@@ -54,6 +54,22 @@ aidepedia/
     └── workflows/    # CI/CD
 ```
 
+## API
+
+The AIdepedia API supports versioning for backwards compatibility.
+
+### Versioning
+
+API versioning is supported via:
+- URL path: `/api/v1/articles`, `/api/v2/articles`
+- Header: `X-API-Version: 1`
+
+See [API Versioning Documentation](./docs/api-versioning.md) for details.
+
+### Current Version
+
+- **v1** (current) - Core article and search functionality
+
 ## License
 
 MIT
