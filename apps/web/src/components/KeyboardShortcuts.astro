@@ -1,0 +1,265 @@
+---
+/**
+ * KeyboardShortcuts.astro
+ * Global keyboard shortcut handler for AIdepedia
+ * 
+ * Shortcuts:
+ * - ? : Show shortcuts help
+ * - / : Focus search
+ * - g h : Go home
+ * - g a : Go to articles
+ * - g n : New article
+ * - e : Edit current article (if author)
+ * - Cmd/Ctrl+K : Open quick action menu
+ */
+
+interface Props {
+  isLoggedIn?: boolean;
+  canEdit?: boolean;
+  articleSlug?: string;
+}
+
+const { isLoggedIn = false, canEdit = false, articleSlug } = Astro.props;
+---
+
+<!-- Hidden keyboard shortcuts handler -->
+<div id="keyboard-shortcuts" data-logged-in={isLoggedIn} data-can-edit={canEdit} data-article-slug={articleSlug || ''}></div>
+
+<script>
+  // Keyboard shortcut state
+  let keySequence: string[] = [];
+  let sequenceTimeout: number | null = null;
+  
+  // Get data from the component
+  const shortcutsEl = document.getElementById('keyboard-shortcuts');
+  const isLoggedIn = shortcutsEl?.dataset.loggedIn === 'true';
+  const canEdit = shortcutsEl?.dataset.canEdit === 'true';
+  const articleSlug = shortcutsEl?.dataset.articleSlug;
+
+  // Reset key sequence after delay
+  function resetSequence() {
+    keySequence = [];
+    if (sequenceTimeout) {
+      clearTimeout(sequenceTimeout);
+      sequenceTimeout = null;
+    }
+  }
+
+  // Set timeout to reset sequence
+  function setSequenceTimeout() {
+    if (sequenceTimeout) {
+      clearTimeout(sequenceTimeout);
+    }
+    sequenceTimeout = window.setTimeout(resetSequence, 1000);
+  }
+
+  // Navigate to URL
+  function navigate(url: string) {
+    window.location.href = url;
+  }
+
+  // Focus search input
+  function focusSearch() {
+    const searchInput = document.querySelector<HTMLInputElement>('#search-input');
+    if (searchInput) {
+      searchInput.focus();
+      return;
+    }
+    
+    // If not on search page, go to search page
+    const searchPageInput = document.querySelector<HTMLInputElement>('#main-search-input');
+    if (searchPageInput) {
+      searchPageInput.focus();
+      return;
+    }
+    
+    // Navigate to search page
+    navigate('/search');
+  }
+
+  // Show keyboard help modal
+  function showHelpModal() {
+    const helpModal = document.getElementById('keyboard-help-modal');
+    if (helpModal) {
+      helpModal.classList.remove('hidden');
+      helpModal.setAttribute('aria-hidden', 'false');
+      const firstFocusable = helpModal.querySelector<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+      firstFocusable?.focus();
+    }
+  }
+
+  // Show quick action menu
+  function showQuickActionMenu() {
+    const quickActionModal = document.getElementById('quick-action-modal');
+    if (quickActionModal) {
+      quickActionModal.classList.remove('hidden');
+      quickActionModal.setAttribute('aria-hidden', 'false');
+      const searchInput = quickActionModal.querySelector<HTMLInputElement>('#quick-action-search');
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      // Reset selected index
+      const list = document.getElementById('quick-action-list');
+      if (list) {
+        list.dataset.selectedIndex = '0';
+        updateQuickActionSelection();
+      }
+    }
+  }
+
+  // Handle key sequences (like 'g h')
+  function handleSequence(key: string) {
+    keySequence.push(key);
+    setSequenceTimeout();
+
+    // Check for 'g' sequences
+    if (keySequence.length >= 2) {
+      const seq = keySequence.slice(-2).join(' ');
+      
+      switch (seq) {
+        case 'g h':
+          resetSequence();
+          navigate('/');
+          break;
+        case 'g a':
+          resetSequence();
+          navigate('/articles');
+          break;
+        case 'g n':
+          resetSequence();
+          if (isLoggedIn) {
+            navigate('/articles/new');
+          }
+          break;
+      }
+    }
+  }
+
+  // Update quick action selection visual
+  function updateQuickActionSelection() {
+    const list = document.getElementById('quick-action-list');
+    if (!list) return;
+    
+    const selectedIndex = parseInt(list.dataset.selectedIndex || '0');
+    const items = list.querySelectorAll<HTMLElement>('[role="option"]');
+    
+    items.forEach((item, index) => {
+      if (index === selectedIndex) {
+        item.classList.add('bg-blue-50', 'dark:bg-blue-900/30');
+        item.setAttribute('aria-selected', 'true');
+      } else {
+        item.classList.remove('bg-blue-50', 'dark:bg-blue-900/30');
+        item.setAttribute('aria-selected', 'false');
+      }
+    });
+  }
+
+  // Main keyboard event handler
+  document.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement;
+    
+    // Don't trigger shortcuts when typing in inputs
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      // Except for Escape and Cmd/Ctrl+K in inputs
+      if (e.key !== 'Escape' && !(e.key === 'k' && (e.metaKey || e.ctrlKey))) {
+        return;
+      }
+    }
+
+    // Close modals on Escape
+    if (e.key === 'Escape') {
+      const helpModal = document.getElementById('keyboard-help-modal');
+      const quickActionModal = document.getElementById('quick-action-modal');
+      
+      if (helpModal && !helpModal.classList.contains('hidden')) {
+        helpModal.classList.add('hidden');
+        helpModal.setAttribute('aria-hidden', 'true');
+        e.preventDefault();
+        return;
+      }
+      
+      if (quickActionModal && !quickActionModal.classList.contains('hidden')) {
+        quickActionModal.classList.add('hidden');
+        quickActionModal.setAttribute('aria-hidden', 'true');
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Quick Action Menu: Cmd/Ctrl + K
+    if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      showQuickActionMenu();
+      return;
+    }
+
+    // If a modal is open, handle navigation within it
+    const quickActionModal = document.getElementById('quick-action-modal');
+    if (quickActionModal && !quickActionModal.classList.contains('hidden')) {
+      const list = document.getElementById('quick-action-list');
+      const items = list?.querySelectorAll<HTMLElement>('[role="option"]');
+      const selectedIndex = parseInt(list?.dataset.selectedIndex || '0');
+      
+      if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) {
+        e.preventDefault();
+        if (items && selectedIndex < items.length - 1) {
+          list!.dataset.selectedIndex = String(selectedIndex + 1);
+          updateQuickActionSelection();
+        }
+        return;
+      }
+      
+      if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) {
+        e.preventDefault();
+        if (selectedIndex > 0) {
+          list!.dataset.selectedIndex = String(selectedIndex - 1);
+          updateQuickActionSelection();
+        }
+        return;
+      }
+      
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const selectedItem = items?.[selectedIndex] as HTMLAnchorElement;
+        if (selectedItem) {
+          selectedItem.click();
+        }
+        return;
+      }
+      
+      return; // Don't process other shortcuts when modal is open
+    }
+
+    // ?: Show help
+    if (e.key === '?' && e.shiftKey) {
+      e.preventDefault();
+      showHelpModal();
+      return;
+    }
+
+    // /: Focus search
+    if (e.key === '/') {
+      e.preventDefault();
+      focusSearch();
+      return;
+    }
+
+    // e: Edit article
+    if (e.key === 'e' && canEdit && articleSlug) {
+      e.preventDefault();
+      navigate(`/articles/${articleSlug}/edit`);
+      return;
+    }
+
+    // Handle sequences (g + key)
+    if (e.key === 'g' || (keySequence.length > 0 && keySequence[keySequence.length - 1] === 'g')) {
+      handleSequence(e.key);
+      return;
+    }
+  });
+
+  // Expose functions globally
+  (window as any).showKeyboardHelp = showHelpModal;
+  (window as any).showQuickActionMenu = showQuickActionMenu;
+</script>

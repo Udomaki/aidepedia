@@ -1,0 +1,134 @@
+---
+/**
+ * KeyboardHelpModal.astro
+ * Modal dialog showing all available keyboard shortcuts
+ */
+---
+
+<!-- Keyboard Shortcuts Help Modal -->
+<div 
+  id="keyboard-help-modal" 
+  class="fixed inset-0 z-[100] hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="keyboard-help-title"
+  aria-hidden="true"
+>
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" data-close-modal></div>
+  
+  <!-- Modal Content -->
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+        <h2 id="keyboard-help-title" class="text-xl font-bold text-gray-900 dark:text-gray-100">
+          Keyboard Shortcuts
+        </h2>
+        <button 
+          class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          data-close-modal
+          aria-label="Close keyboard shortcuts"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Shortcuts List -->
+      <div class="px-6 py-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+        <!-- Navigation -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Navigation
+          </h3>
+          <div class="space-y-2">
+            <ShortcutRow keys={["g", "h"]} description="Go to home page" />
+            <ShortcutRow keys={["g", "a"]} description="Go to articles" />
+            <ShortcutRow keys={["g", "n"]} description="New article" />
+          </div>
+        </div>
+        
+        <!-- Search -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Search
+          </h3>
+          <div class="space-y-2">
+            <ShortcutRow keys={["/"]} description="Focus search" />
+            <ShortcutRow keys={["⌘", "K"]} description="Open quick actions" />
+          </div>
+        </div>
+        
+        <!-- Article Actions -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Article Actions
+          </h3>
+          <div class="space-y-2">
+            <ShortcutRow keys={["e"]} description="Edit current article" />
+          </div>
+        </div>
+        
+        <!-- General -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            General
+          </h3>
+          <div class="space-y-2">
+            <ShortcutRow keys={["?"]} description="Show this help" />
+            <ShortcutRow keys={["Esc"]} description="Close modal / menu" />
+          </div>
+        </div>
+        
+        <!-- Quick Action Menu Navigation -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Quick Action Menu
+          </h3>
+          <div class="space-y-2">
+            <ShortcutRow keys={["↑", "↓"]} description="Navigate actions" />
+            <ShortcutRow keys={["Enter"]} description="Select action" />
+            <ShortcutRow keys={["Esc"]} description="Close menu" />
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="px-6 py-3 bg-gray-50 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-700">
+        <p class="text-sm text-gray-500 dark:text-gray-400 text-center">
+          Press <kbd class="px-2 py-0.5 bg-gray-200 dark:bg-slate-600 rounded text-xs font-mono">?</kbd> anytime to see this help
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shortcut Row Component -->
+<div class="flex items-center justify-between py-2" define:var={ShortcutRow}>
+  <span class="text-gray-700 dark:text-gray-300">{description}</span>
+  <div class="flex items-center gap-1">
+    {keys.map((key: string, index: number) => (
+      <>
+        <kbd class="px-2 py-1 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm font-mono text-gray-800 dark:text-gray-200 shadow-sm">
+          {key}
+        </kbd>
+        {index < keys.length - 1 && <span class="text-gray-400 mx-0.5">+</span>}
+      </>
+    ))}
+  </div>
+</div>
+
+<script>
+  // Close modal on backdrop click or close button
+  document.querySelectorAll('[data-close-modal]').forEach(el => {
+    el.addEventListener('click', () => {
+      const modal = document.getElementById('keyboard-help-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    });
+  });
+</script>

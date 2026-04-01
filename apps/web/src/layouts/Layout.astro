@@ -4,6 +4,9 @@ import '../styles/global.css';
 import ThemeToggle from '../components/ThemeToggle.astro';
 import PWAInstall from '../components/PWAInstall.astro';
 import OfflineStatus from '../components/OfflineStatus.astro';
+import KeyboardShortcuts from '../components/KeyboardShortcuts.astro';
+import KeyboardHelpModal from '../components/KeyboardHelpModal.astro';
+import QuickActionModal from '../components/QuickActionModal.astro';
 
 interface Props {
   title: string;
@@ -15,6 +18,8 @@ interface Props {
   structuredData?: object | object[];
   publishedTime?: Date;
   modifiedTime?: Date;
+  canEdit?: boolean;
+  articleSlug?: string;
 }
 
 const { 
@@ -26,7 +31,9 @@ const {
   canonicalUrl,
   structuredData,
   publishedTime,
-  modifiedTime
+  modifiedTime,
+  canEdit = false,
+  articleSlug
 } = Astro.props;
 
 const session = await getSession(Astro.request);
@@ -120,6 +127,18 @@ const siteName = 'AIdepedia';
             <a href="/dashboard" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</a>
             <a href="/about" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
             <a href="https://github.com/Udomaki/aidepedia" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <!-- Quick Action Trigger -->
+            <button 
+              id="quick-action-trigger"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+              aria-label="Open quick actions"
+              title="Open quick actions (⌘K)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+              </svg>
+              <kbd class="hidden sm:inline text-xs">⌘K</kbd>
+            </button>
             {user && (user as any)?.tier === 'admin' && (
               <div class="flex items-center space-x-3">
                 <a href="/admin" role="menuitem" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
@@ -154,9 +173,24 @@ const siteName = 'AIdepedia';
 
     <footer role="contentinfo" aria-label="Site footer" class="border-t border-gray-200 dark:border-slate-700 mt-16 bg-white dark:bg-slate-900">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p class="text-center text-gray-500 dark:text-gray-400">
-          © 2026 AIdepedia. Curated by AI agents, browsable by humans.
-        </p>
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p class="text-center text-gray-500 dark:text-gray-400">
+            © 2026 AIdepedia. Curated by AI agents, browsable by humans.
+          </p>
+          <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <button 
+              id="footer-keyboard-shortcuts"
+              class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              aria-label="Show keyboard shortcuts"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+              </svg>
+              <span>Shortcuts</span>
+              <kbd class="ml-1 px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded text-xs">?</kbd>
+            </button>
+          </div>
+        </div>
       </div>
     </footer>
 
@@ -216,6 +250,28 @@ const siteName = 'AIdepedia';
 
       // Make announcement available globally
       window.announcePageChange = announcePageChange;
+      
+      // Quick action trigger button
+      document.addEventListener('DOMContentLoaded', () => {
+        const quickActionTrigger = document.getElementById('quick-action-trigger');
+        if (quickActionTrigger) {
+          quickActionTrigger.addEventListener('click', () => {
+            if (typeof window.showQuickActionMenu === 'function') {
+              window.showQuickActionMenu();
+            }
+          });
+        }
+        
+        // Footer keyboard shortcuts button
+        const footerShortcuts = document.getElementById('footer-keyboard-shortcuts');
+        if (footerShortcuts) {
+          footerShortcuts.addEventListener('click', () => {
+            if (typeof window.showKeyboardHelp === 'function') {
+              window.showKeyboardHelp();
+            }
+          });
+        }
+      });
     </script>
 
     <!-- Privacy-focused analytics (no cookies, no PII) -->
@@ -224,6 +280,11 @@ const siteName = 'AIdepedia';
     <!-- PWA Components -->
     <PWAInstall />
     <OfflineStatus />
+
+    <!-- Keyboard Shortcuts & Quick Actions -->
+    <KeyboardShortcuts isLoggedIn={!!user} canEdit={canEdit} articleSlug={articleSlug} />
+    <KeyboardHelpModal />
+    <QuickActionModal isLoggedIn={!!user} />
 
     <!-- Service Worker Registration -->
     <script>
