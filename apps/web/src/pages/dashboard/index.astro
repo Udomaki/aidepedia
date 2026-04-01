@@ -1,0 +1,223 @@
+---
+import { getDashboardStats, getActivityFeed, getPendingReviews } from '@aidepedia/db';
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+
+// Fetch dashboard data
+const stats = await getDashboardStats();
+const recentActivity = await getActivityFeed({ limit: 10 });
+const pendingReviews = await getPendingReviews({ limit: 5 });
+---
+
+<Layout title="Editor Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Editor Dashboard</h1>
+      <p class="text-gray-600">
+        Manage articles, review pending edits, and track activity across AIdepedia.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-8 flex gap-4">
+      <a
+        href="/articles/new"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Create Article
+      </a>
+      <a
+        href="/dashboard/pending"
+        class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+      >
+        Review Pending ({stats.pendingReviews})
+      </a>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Articles</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.totalArticles}</p>
+        <p class="text-sm text-gray-500 mt-1">{stats.publishedArticles} published</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Pending Reviews</h3>
+          <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.pendingReviews}</p>
+        <a href="/dashboard/pending" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          View all →
+        </a>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Active Editors</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.activeEditors}</p>
+        <a href="/profiles" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          View all →
+        </a>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Activity (24h)</h3>
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{recentActivity.meta.total}</p>
+        <a href="/dashboard/activity" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          View all →
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Pending Reviews -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-900">Pending Reviews</h2>
+          <a href="/dashboard/pending" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            View all →
+          </a>
+        </div>
+
+        {pendingReviews.data.length > 0 ? (
+          <div class="space-y-4">
+            {pendingReviews.data.map(article => (
+              <div class="bg-white rounded-lg shadow border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 mb-1">
+                      <a href={`/articles/${article.slug}`} class="hover:text-blue-600">
+                        {article.title}
+                      </a>
+                    </h3>
+                    {article.excerpt && (
+                      <p class="text-sm text-gray-600 line-clamp-2 mb-2">
+                        {article.excerpt}
+                      </p>
+                    )}
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                      <span>By {article.author?.name || 'Unknown'}</span>
+                      <span>•</span>
+                      <time>{new Date(article.createdAt || '').toLocaleDateString()}</time>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 ml-4">
+                    <a
+                      href={`/articles/${article.slug}`}
+                      class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium"
+                    >
+                      View
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
+            <p class="text-gray-500">No pending reviews</p>
+          </div>
+        )}
+      </div>
+
+      <!-- Recent Activity -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-900">Recent Activity</h2>
+          <a href="/dashboard/activity" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            View all →
+          </a>
+        </div>
+
+        {recentActivity.data.length > 0 ? (
+          <div class="space-y-4">
+            {recentActivity.data.map(activity => (
+              <div class="bg-white rounded-lg shadow border border-gray-200 p-4">
+                <div class="flex items-start gap-3">
+                  <div class="flex-shrink-0">
+                    {activity.type === 'article_created' && (
+                      <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                    )}
+                    {activity.type === 'article_published' && (
+                      <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    )}
+                    {(activity.type === 'article_updated' || activity.type === 'revision_created') && (
+                      <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-gray-900">
+                      <span class="font-medium">{activity.editor?.name || 'Unknown'}</span>
+                      {activity.type === 'article_created' && ' created '}
+                      {activity.type === 'article_published' && ' published '}
+                      {activity.type === 'article_updated' && ' updated '}
+                      {activity.type === 'revision_created' && ' edited '}
+                      <a href={`/articles/${activity.article.slug}`} class="text-blue-600 hover:text-blue-700 font-medium">
+                        {activity.article.title}
+                      </a>
+                    </p>
+                    {activity.revision?.changeReason && (
+                      <p class="text-xs text-gray-500 mt-1 truncate">
+                        {activity.revision.changeReason}
+                      </p>
+                    )}
+                    <p class="text-xs text-gray-500 mt-1">
+                      <time datetime={activity.timestamp.toISOString()}>
+                        {activity.timestamp.toLocaleString()}
+                      </time>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
+            <p class="text-gray-500">No recent activity</p>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>
