@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
+import ReportButton from '../../components/ReportButton.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
@@ -247,6 +248,7 @@ const totalComments = countAllComments(comments);
             >
               ✏️ Suggest Edit
             </button>
+            <ReportButton contentType="article" contentId={article.id} isLoggedIn={isUserLoggedIn} />
             <a
               href={`/articles/${article.slug}/revisions`}
               class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"

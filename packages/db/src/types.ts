@@ -326,3 +326,54 @@ export interface NewSystemSetting {
   value: Record<string, unknown>;
   updatedBy?: number | null;
 }
+
+// Content report types
+export type ContentType = 'article' | 'comment';
+export type ReportReason = 'spam' | 'harassment' | 'misinformation' | 'inappropriate' | 'copyright' | 'other';
+export type ReportStatus = 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+
+export interface ContentReport {
+  id: number;
+  reporterId: number;
+  contentType: ContentType;
+  contentId: number;
+  reason: ReportReason;
+  description: string | null;
+  status: ReportStatus;
+  reviewedBy: number | null;
+  reviewedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface NewContentReport {
+  reporterId: number;
+  contentType: ContentType;
+  contentId: number;
+  reason: ReportReason;
+  description?: string | null;
+}
+
+export interface ContentReportWithDetails extends ContentReport {
+  reporter: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+  reviewer?: {
+    id: number;
+    name: string | null;
+  } | null;
+  content?: {
+    type: ContentType;
+    id: number;
+    title?: string;
+    excerpt?: string;
+  };
+}
+
+export interface ContentReportQueryParams extends PaginationParams {
+  status?: ReportStatus;
+  reason?: ReportReason;
+  contentType?: ContentType;
+  reporterId?: number;
+}
