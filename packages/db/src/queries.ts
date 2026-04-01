@@ -32,6 +32,7 @@ import {
   ValidationError,
   DatabaseError,
 } from './types';
+import { triggerWebhookEvent } from './webhooks';
 
 /**
  * Fetch an article by its slug
@@ -232,6 +233,14 @@ export async function createArticle(
       changeType: 'created',
     });
 
+    // Trigger webhook
+    await triggerWebhookEvent('article.created', {
+      id: article.id,
+      slug: article.slug,
+      title: article.title,
+      authorId: editorId,
+    });
+
     return article;
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -289,6 +298,14 @@ export async function updateArticle(
       tags: article.tags || [],
       changeReason: changeReason || 'Article updated',
       changeType: 'updated',
+    });
+
+    // Trigger webhook
+    await triggerWebhookEvent('article.updated', {
+      id: article.id,
+      slug: article.slug,
+      title: article.title,
+      editorId,
     });
 
     return article;
@@ -461,6 +478,13 @@ export async function deleteArticle(articleId: number): Promise<Article> {
     if (!article) {
       throw new NotFoundError('Article', `id:${articleId}`);
     }
+
+    // Trigger webhook
+    await triggerWebhookEvent('article.deleted', {
+      id: article.id,
+      slug: article.slug,
+      title: article.title,
+    });
 
     return article;
   } catch (error) {
@@ -1607,6 +1631,13 @@ export async function createComment(data: {
       })
       .returning();
 
+    // Trigger webhook
+    await triggerWebhookEvent('comment.created', {
+      id: comment.id,
+      articleId: comment.articleId,
+      userId: comment.userId,
+    });
+
     return comment;
   } catch (error) {
     throw new DatabaseError(`Failed to create comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1684,6 +1715,13 @@ export async function deleteComment(id: number, userId: number): Promise<void> {
     }
 
     await db.delete(comments).where(eq(comments.id, id));
+
+    // Trigger webhook
+    await triggerWebhookEvent('comment.deleted', {
+      id: existing.id,
+      articleId: existing.articleId,
+      userId: existing.userId,
+    });
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof ValidationError) {
       throw error;
@@ -1960,6 +1998,12 @@ export async function followUser(followerId: number, followingId: number): Promi
 
     // Create follow relationship
     await db.insert(follows).values({
+      followerId,
+      followingId,
+    });
+
+    // Trigger webhook
+    await triggerWebhookEvent('user.followed', {
       followerId,
       followingId,
     });
