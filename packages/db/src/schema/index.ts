@@ -450,3 +450,31 @@ export const audit_logs = pgTable('audit_logs', {
   resourceTypeIdx: index('audit_log_resource_type_idx').on(table.resourceType),
   createdAtIdx: index('audit_log_created_at_idx').on(table.createdAt),
 }));
+
+// Content reports for user-reported inappropriate content
+export const content_reports = pgTable('content_reports', {
+  id: serial('id').primaryKey(),
+  reporterId: integer('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  reason: varchar('reason', {
+    enum: ['spam', 'harassment', 'misinformation', 'inappropriate', 'copyright', 'other'],
+    length: 20
+  }).notNull(),
+  description: text('description'),
+  status: varchar('status', {
+    enum: ['pending', 'reviewed', 'resolved', 'dismissed'],
+    length: 20
+  }).notNull().default('pending'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  reporterIdx: index('content_report_reporter_idx').on(table.reporterId),
+  contentTypeIdx: index('content_report_content_type_idx').on(table.contentType),
+  statusIdx: index('content_report_status_idx').on(table.status),
+  createdAtIdx: index('content_report_created_at_idx').on(table.createdAt),
+}));

@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -26,6 +26,11 @@ import type {
   EmailDigestSettings,
   EmailQueue,
   NewEmailQueue,
+  ContentReport,
+  NewContentReport,
+  ContentReportWithDetails,
+  ContentReportQueryParams,
+  ReportStatus,
 } from './types';
 import {
   NotFoundError,
@@ -3891,5 +3896,281 @@ export async function setMaintenanceModeSettings(
     return newSettings;
   } catch (error) {
     throw new DatabaseError(`Failed to update maintenance settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============ Content Reports ============
+
+/**
+ * Create a new content report
+ */
+export async function createContentReport(report: NewContentReport): Promise<ContentReport> {
+  try {
+    const [newReport] = await db
+      .insert(content_reports)
+      .values(report)
+      .returning();
+
+    return newReport;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create content report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a content report by ID
+ */
+export async function getContentReportById(id: number): Promise<ContentReportWithDetails> {
+  try {
+    const [report] = await db
+      .select()
+      .from(content_reports)
+      .where(eq(content_reports.id, id))
+      .limit(1);
+
+    if (!report) {
+      throw new NotFoundError('ContentReport', `id:${id}`);
+    }
+
+    // Get reporter details
+    const [reporter] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.id, report.reporterId))
+      .limit(1);
+
+    // Get reviewer details if exists
+    let reviewer = null;
+    if (report.reviewedBy) {
+      const [reviewerData] = await db
+        .select({
+          id: users.id,
+          name: users.name,
+        })
+        .from(users)
+        .where(eq(users.id, report.reviewedBy))
+        .limit(1);
+      reviewer = reviewerData || null;
+    }
+
+    // Get content details based on type
+    let content = null;
+    if (report.contentType === 'article') {
+      const [article] = await db
+        .select({
+          id: articles.id,
+          title: articles.title,
+          excerpt: articles.excerpt,
+        })
+        .from(articles)
+        .where(eq(articles.id, report.contentId))
+        .limit(1);
+      if (article) {
+        content = {
+          type: 'article' as const,
+          ...article,
+        };
+      }
+    } else if (report.contentType === 'comment') {
+      const [comment] = await db
+        .select({
+          id: comments.id,
+          excerpt: comments.content,
+        })
+        .from(comments)
+        .where(eq(comments.id, report.contentId))
+        .limit(1);
+      if (comment) {
+        content = {
+          type: 'comment' as const,
+          ...comment,
+        };
+      }
+    }
+
+    return {
+      ...report,
+      reporter: reporter!,
+      reviewer,
+      content: content || undefined,
+    };
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch content report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * List content reports with filtering and pagination
+ */
+export async function listContentReports(
+  params: ContentReportQueryParams = {}
+): Promise<PaginatedResult<ContentReportWithDetails>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Build conditions
+    const conditions = [];
+    
+    if (params.status) {
+      conditions.push(eq(content_reports.status, params.status));
+    }
+    
+    if (params.reason) {
+      conditions.push(eq(content_reports.reason, params.reason));
+    }
+    
+    if (params.contentType) {
+      conditions.push(eq(content_reports.contentType, params.contentType));
+    }
+    
+    if (params.reporterId) {
+      conditions.push(eq(content_reports.reporterId, params.reporterId));
+    }
+
+    // Get total count
+    const countQuery = db
+      .select({ count: count() })
+      .from(content_reports);
+    
+    const [{ count: total }] = conditions.length > 0
+      ? await countQuery.where(and(...conditions))
+      : await countQuery;
+
+    // Get reports
+    const reportsQuery = db
+      .select()
+      .from(content_reports)
+      .orderBy(desc(content_reports.createdAt))
+      .limit(limit)
+      .offset(offset);
+    
+    const reports = conditions.length > 0
+      ? await reportsQuery.where(and(...conditions))
+      : await reportsQuery;
+
+    // Enrich with details
+    const enrichedReports = await Promise.all(
+      reports.map(async (report) => {
+        // Get reporter details
+        const [reporter] = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          })
+          .from(users)
+          .where(eq(users.id, report.reporterId))
+          .limit(1);
+
+        // Get reviewer details if exists
+        let reviewer = null;
+        if (report.reviewedBy) {
+          const [reviewerData] = await db
+            .select({
+              id: users.id,
+              name: users.name,
+            })
+            .from(users)
+            .where(eq(users.id, report.reviewedBy))
+            .limit(1);
+          reviewer = reviewerData || null;
+        }
+
+        // Get content details based on type
+        let content = null;
+        if (report.contentType === 'article') {
+          const [article] = await db
+            .select({
+              id: articles.id,
+              title: articles.title,
+              excerpt: articles.excerpt,
+            })
+            .from(articles)
+            .where(eq(articles.id, report.contentId))
+            .limit(1);
+          if (article) {
+            content = {
+              type: 'article' as const,
+              ...article,
+            };
+          }
+        } else if (report.contentType === 'comment') {
+          const [comment] = await db
+            .select({
+              id: comments.id,
+              excerpt: comments.content,
+            })
+            .from(comments)
+            .where(eq(comments.id, report.contentId))
+            .limit(1);
+          if (comment) {
+            content = {
+              type: 'comment' as const,
+              ...comment,
+            };
+          }
+        }
+
+        return {
+          ...report,
+          reporter: reporter!,
+          reviewer,
+          content: content || undefined,
+        };
+      })
+    );
+
+    return {
+      data: enrichedReports,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to list content reports: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update content report status
+ */
+export async function updateContentReportStatus(
+  id: number,
+  status: ReportStatus,
+  reviewedBy: number
+): Promise<ContentReport> {
+  try {
+    const [updated] = await db
+      .update(content_reports)
+      .set({
+        status,
+        reviewedBy,
+        reviewedAt: new Date(),
+      })
+      .where(eq(content_reports.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundError('ContentReport', `id:${id}`);
+    }
+
+    return updated;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update content report: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

@@ -1,0 +1,289 @@
+---
+import { listContentReports } from '@aidepedia/db';
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+
+// Get query params
+const url = new URL(Astro.request.url);
+const page = parseInt(url.searchParams.get('page') || '1');
+const status = url.searchParams.get('status') || undefined;
+const reason = url.searchParams.get('reason') || undefined;
+const contentType = url.searchParams.get('contentType') || undefined;
+
+// Fetch reports
+const result = await listContentReports({
+  page,
+  limit: 20,
+  ...(status && { status: status as any }),
+  ...(reason && { reason: reason as any }),
+  ...(contentType && { contentType: contentType as any }),
+});
+
+const reports = result.data;
+const meta = result.meta;
+
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(date));
+}
+
+function getStatusColor(status: string): string {
+  const colors: Record<string, string> = {
+    'pending': 'bg-yellow-100 text-yellow-800',
+    'reviewed': 'bg-blue-100 text-blue-800',
+    'resolved': 'bg-green-100 text-green-800',
+    'dismissed': 'bg-gray-100 text-gray-800',
+  };
+  return colors[status] || 'bg-gray-100 text-gray-800';
+}
+
+function getReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    'spam': '📧 Spam',
+    'harassment': '😠 Harassment',
+    'misinformation': '❌ Misinformation',
+    'inappropriate': '🚫 Inappropriate',
+    'copyright': '©️ Copyright',
+    'other': '❓ Other',
+  };
+  return labels[reason] || reason;
+}
+---
+
+<Layout title="Content Reports - Admin">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">Content Reports</h1>
+          <p class="text-gray-600">
+            Review and manage user-reported content.
+          </p>
+        </div>
+        <a
+          href="/admin"
+          class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+        >
+          ← Back to Dashboard
+        </a>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div class="flex flex-wrap gap-4">
+        <div>
+          <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select
+            id="status-filter"
+            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            onchange="window.location.href = updateQueryParam('status', this.value)"
+          >
+            <option value="">All</option>
+            <option value="pending" selected={status === 'pending'}>Pending</option>
+            <option value="reviewed" selected={status === 'reviewed'}>Reviewed</option>
+            <option value="resolved" selected={status === 'resolved'}>Resolved</option>
+            <option value="dismissed" selected={status === 'dismissed'}>Dismissed</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="reason-filter" class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+          <select
+            id="reason-filter"
+            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            onchange="window.location.href = updateQueryParam('reason', this.value)"
+          >
+            <option value="">All</option>
+            <option value="spam" selected={reason === 'spam'}>Spam</option>
+            <option value="harassment" selected={reason === 'harassment'}>Harassment</option>
+            <option value="misinformation" selected={reason === 'misinformation'}>Misinformation</option>
+            <option value="inappropriate" selected={reason === 'inappropriate'}>Inappropriate</option>
+            <option value="copyright" selected={reason === 'copyright'}>Copyright</option>
+            <option value="other" selected={reason === 'other'}>Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="type-filter" class="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
+          <select
+            id="type-filter"
+            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            onchange="window.location.href = updateQueryParam('contentType', this.value)"
+          >
+            <option value="">All</option>
+            <option value="article" selected={contentType === 'article'}>Articles</option>
+            <option value="comment" selected={contentType === 'comment'}>Comments</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports List -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+      {reports.length > 0 ? (
+        <div class="divide-y divide-gray-200">
+          {reports.map(report => (
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start justify-between gap-6">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span class={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(report.status)}`}>
+                      {report.status}
+                    </span>
+                    <span class="text-sm text-gray-600">
+                      {getReasonLabel(report.reason)}
+                    </span>
+                    <span class="text-xs text-gray-500">
+                      {report.contentType === 'article' ? '📄 Article' : '💬 Comment'}
+                    </span>
+                  </div>
+
+                  {report.content && (
+                    <div class="mb-2">
+                      {report.contentType === 'article' && report.content.title && (
+                        <h3 class="text-lg font-semibold text-gray-900">
+                          <a href={`/articles/${report.content.id}`} class="hover:text-blue-600">
+                            {report.content.title}
+                          </a>
+                        </h3>
+                      )}
+                      {report.content.excerpt && (
+                        <p class="text-sm text-gray-600 line-clamp-2">
+                          {report.content.excerpt.substring(0, 150)}...
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {report.description && (
+                    <p class="text-sm text-gray-700 mb-2 bg-gray-50 p-2 rounded">
+                      <strong>Details:</strong> {report.description}
+                    </p>
+                  )}
+
+                  <div class="flex items-center gap-4 text-sm text-gray-500">
+                    <span>Reported by: {report.reporter.name || report.reporter.email}</span>
+                    <span>•</span>
+                    <time>{formatDate(report.createdAt)}</time>
+                  </div>
+
+                  {report.reviewer && (
+                    <div class="text-sm text-gray-500 mt-1">
+                      Reviewed by: {report.reviewer.name || 'Unknown'}
+                      {report.reviewedAt && ` on ${formatDate(report.reviewedAt)}`}
+                    </div>
+                  )}
+                </div>
+
+                {report.status === 'pending' && (
+                  <div class="flex flex-col gap-2 min-w-[140px]">
+                    <button
+                      onclick={`updateReportStatus(${report.id}, 'resolved')`}
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                    >
+                      ✓ Resolve
+                    </button>
+                    <button
+                      onclick={`updateReportStatus(${report.id}, 'reviewed')`}
+                      class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                    >
+                      👁 Mark Reviewed
+                    </button>
+                    <button
+                      onclick={`updateReportStatus(${report.id}, 'dismissed')`}
+                      class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
+                    >
+                      ✗ Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div class="p-12 text-center text-gray-500">
+          <p class="text-lg">No reports found</p>
+          <p class="text-sm mt-2">All reported content has been reviewed.</p>
+        </div>
+      )}
+    </div>
+
+    <!-- Pagination -->
+    {meta.totalPages > 1 && (
+      <div class="mt-6 flex items-center justify-center gap-2">
+        {page > 1 && (
+          <a
+            href={`?page=${page - 1}${status ? `&status=${status}` : ''}${reason ? `&reason=${reason}` : ''}${contentType ? `&contentType=${contentType}` : ''}`}
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            ← Previous
+          </a>
+        )}
+        <span class="text-gray-600">
+          Page {page} of {meta.totalPages}
+        </span>
+        {page < meta.totalPages && (
+          <a
+            href={`?page=${page + 1}${status ? `&status=${status}` : ''}${reason ? `&reason=${reason}` : ''}${contentType ? `&contentType=${contentType}` : ''}`}
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Next →
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</Layout>
+
+<script>
+  function updateQueryParam(key: string, value: string): string {
+    const url = new URL(window.location.href);
+    if (value) {
+      url.searchParams.set(key, value);
+    } else {
+      url.searchParams.delete(key);
+    }
+    url.searchParams.set('page', '1'); // Reset to first page when filtering
+    return url.toString();
+  }
+
+  async function updateReportStatus(reportId: number, status: string) {
+    if (!confirm(`Are you sure you want to mark this report as ${status}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/admin/reports/${reportId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        window.location.reload();
+      } else {
+        alert(result.error?.message || 'Failed to update report');
+      }
+    } catch (error) {
+      console.error('Error updating report:', error);
+      alert('Failed to update report. Please try again.');
+    }
+  }
+
+  // Make functions available globally
+  (window as any).updateQueryParam = updateQueryParam;
+  (window as any).updateReportStatus = updateReportStatus;
+</script>
