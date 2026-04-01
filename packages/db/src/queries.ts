@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -5264,4 +5264,385 @@ export async function getUserDrafts(
   } catch (error) {
     throw new DatabaseError(`Failed to fetch user drafts: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+// ============================================
+// A/B Testing Experiment Functions
+// ============================================
+
+/**
+ * Create a new experiment
+ */
+export async function createExperiment(data: {
+  name: string;
+  description?: string;
+  variants: Array<{ name: string; weight: number }>;
+  status?: 'draft' | 'running' | 'paused' | 'completed';
+  startDate?: Date;
+  endDate?: Date;
+}) {
+  try {
+    const [experiment] = await db
+      .insert(experiments)
+      .values({
+        name: data.name,
+        description: data.description || null,
+        variants: data.variants,
+        status: data.status || 'draft',
+        startDate: data.startDate || null,
+        endDate: data.endDate || null,
+      })
+      .returning();
+
+    return experiment;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * List all experiments
+ */
+export async function listExperiments(params: {
+  status?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<PaginatedResult<any>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    if (params.status) {
+      conditions.push(eq(experiments.status, params.status));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(experiments)
+        .where(whereClause)
+        .orderBy(desc(experiments.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(experiments)
+        .where(whereClause),
+    ]);
+
+    // Get assignment counts for each experiment
+    const experimentsWithStats = await Promise.all(
+      data.map(async (exp) => {
+        const [assignmentCount] = await db
+          .select({ total: count() })
+          .from(experiment_assignments)
+          .where(eq(experiment_assignments.experimentId, exp.id));
+
+        const [conversionCount] = await db
+          .select({ total: count() })
+          .from(experiment_assignments)
+          .where(and(
+            eq(experiment_assignments.experimentId, exp.id),
+            eq(experiment_assignments.converted, true)
+          ));
+
+        return {
+          ...exp,
+          assignmentCount: Number(assignmentCount.total),
+          conversionCount: Number(conversionCount.total),
+        };
+      })
+    );
+
+    return {
+      data: experimentsWithStats,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to list experiments: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get an experiment by ID
+ */
+export async function getExperimentById(id: number) {
+  try {
+    const [experiment] = await db
+      .select()
+      .from(experiments)
+      .where(eq(experiments.id, id))
+      .limit(1);
+
+    if (!experiment) {
+      throw new NotFoundError('Experiment', `id:${id}`);
+    }
+
+    // Get detailed stats
+    const assignments = await db
+      .select({
+        variant: experiment_assignments.variant,
+        total: count(),
+        conversions: sql<number>`SUM(CASE WHEN ${experiment_assignments.converted} THEN 1 ELSE 0 END)`,
+      })
+      .from(experiment_assignments)
+      .where(eq(experiment_assignments.experimentId, id))
+      .groupBy(experiment_assignments.variant);
+
+    return {
+      ...experiment,
+      stats: assignments.map(a => ({
+        variant: a.variant,
+        total: Number(a.total),
+        conversions: Number(a.conversions),
+        conversionRate: Number(a.total) > 0 
+          ? ((Number(a.conversions) / Number(a.total)) * 100).toFixed(2)
+          : '0.00',
+      })),
+    };
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to get experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update an experiment
+ */
+export async function updateExperiment(
+  id: number,
+  data: {
+    name?: string;
+    description?: string;
+    variants?: Array<{ name: string; weight: number }>;
+    status?: 'draft' | 'running' | 'paused' | 'completed';
+    startDate?: Date;
+    endDate?: Date;
+  }
+) {
+  try {
+    const [experiment] = await db
+      .update(experiments)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(experiments.id, id))
+      .returning();
+
+    if (!experiment) {
+      throw new NotFoundError('Experiment', `id:${id}`);
+    }
+
+    return experiment;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete an experiment
+ */
+export async function deleteExperiment(id: number) {
+  try {
+    const [experiment] = await db
+      .delete(experiments)
+      .where(eq(experiments.id, id))
+      .returning();
+
+    if (!experiment) {
+      throw new NotFoundError('Experiment', `id:${id}`);
+    }
+
+    return experiment;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to delete experiment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get or create assignment for a user in an experiment
+ * Uses deterministic hashing to ensure consistent assignment
+ */
+export async function getOrAssignVariant(
+  experimentId: number,
+  userId: string
+): Promise<{ variant: string; isNew: boolean }> {
+  try {
+    // Check if assignment already exists
+    const [existing] = await db
+      .select()
+      .from(experiment_assignments)
+      .where(and(
+        eq(experiment_assignments.experimentId, experimentId),
+        eq(experiment_assignments.userId, userId)
+      ))
+      .limit(1);
+
+    if (existing) {
+      return { variant: existing.variant, isNew: false };
+    }
+
+    // Get experiment to get variants
+    const experiment = await getExperimentById(experimentId);
+    
+    if (experiment.status !== 'running') {
+      throw new ValidationError('Experiment is not running');
+    }
+
+    // Deterministic assignment based on user ID hash
+    const hash = hashString(`${experimentId}-${userId}`);
+    const variants = experiment.variants as Array<{ name: string; weight: number }>;
+    const variant = selectVariant(variants, hash);
+
+    // Create assignment
+    await db
+      .insert(experiment_assignments)
+      .values({
+        experimentId,
+        userId,
+        variant,
+        converted: false,
+      });
+
+    return { variant, isNew: true };
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to assign variant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Track a conversion for an experiment
+ */
+export async function trackConversion(
+  experimentId: number,
+  userId: string
+) {
+  try {
+    const [assignment] = await db
+      .update(experiment_assignments)
+      .set({
+        converted: true,
+        convertedAt: new Date(),
+      })
+      .where(and(
+        eq(experiment_assignments.experimentId, experimentId),
+        eq(experiment_assignments.userId, userId)
+      ))
+      .returning();
+
+    if (!assignment) {
+      throw new NotFoundError('Assignment', `experiment:${experimentId}, user:${userId}`);
+    }
+
+    return assignment;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to track conversion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get experiment results with detailed stats
+ */
+export async function getExperimentResults(experimentId: number) {
+  try {
+    const experiment = await getExperimentById(experimentId);
+
+    // Get variant-level stats
+    const variantStats = await db
+      .select({
+        variant: experiment_assignments.variant,
+        totalAssignments: count(),
+        conversions: sql<number>`SUM(CASE WHEN ${experiment_assignments.converted} THEN 1 ELSE 0 END)`,
+      })
+      .from(experiment_assignments)
+      .where(eq(experiment_assignments.experimentId, experimentId))
+      .groupBy(experiment_assignments.variant);
+
+    const results = variantStats.map(v => ({
+      variant: v.variant,
+      totalAssignments: Number(v.totalAssignments),
+      conversions: Number(v.conversions),
+      conversionRate: Number(v.totalAssignments) > 0
+        ? (Number(v.conversions) / Number(v.totalAssignments)) * 100
+        : 0,
+    }));
+
+    // Calculate statistical significance (simplified chi-square)
+    const totalConversions = results.reduce((sum, r) => sum + r.conversions, 0);
+    const totalAssignments = results.reduce((sum, r) => sum + r.totalAssignments, 0);
+
+    return {
+      experiment,
+      results,
+      summary: {
+        totalAssignments,
+        totalConversions,
+        overallConversionRate: totalAssignments > 0
+          ? (totalConversions / totalAssignments) * 100
+          : 0,
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get experiment results: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Helper functions for variant assignment
+
+/**
+ * Simple hash function for deterministic variant assignment
+ */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Select a variant based on weights using a hash value
+ */
+function selectVariant(
+  variants: Array<{ name: string; weight: number }>,
+  hash: number
+): string {
+  const totalWeight = variants.reduce((sum, v) => sum + v.weight, 0);
+  let threshold = (hash % totalWeight) + 1;
+
+  for (const variant of variants) {
+    threshold -= variant.weight;
+    if (threshold <= 0) {
+      return variant.name;
+    }
+  }
+
+  // Fallback to first variant
+  return variants[0].name;
 }

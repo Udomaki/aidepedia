@@ -1,0 +1,606 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="A/B Testing - Admin">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">A/B Testing</h1>
+          <p class="text-gray-600">
+            Create and manage experiments to test different variants.
+          </p>
+        </div>
+        <button
+          id="createExperimentBtn"
+          class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          Create Experiment
+        </button>
+      </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div class="flex items-start">
+        <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h3 class="text-sm font-medium text-blue-900">How A/B Testing Works</h3>
+          <p class="text-sm text-blue-700 mt-1">
+            Create experiments with multiple variants and assign weights to control traffic distribution.
+            Users are consistently assigned to variants using deterministic hashing, ensuring the same user
+            always sees the same variant. Track conversions to measure variant performance.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p class="mt-4 text-gray-600">Loading experiments...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+      <div class="flex items-center">
+        <svg class="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+          <h3 class="text-lg font-medium text-red-900">Failed to load experiments</h3>
+          <p id="errorMessage" class="text-sm text-red-700 mt-1"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-white rounded-xl shadow-md border border-gray-200 p-12 text-center">
+      <svg class="mx-auto w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">No experiments yet</h3>
+      <p class="text-gray-600 mb-6">Create your first experiment to start A/B testing.</p>
+      <button
+        id="createFirstExperimentBtn"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Create First Experiment
+      </button>
+    </div>
+
+    <!-- Experiments List -->
+    <div id="experimentsList" class="hidden space-y-4"></div>
+
+    <!-- Create/Edit Modal -->
+    <div id="experimentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 id="modalTitle" class="text-2xl font-bold text-gray-900">Create Experiment</h2>
+            <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form id="experimentForm" class="space-y-4">
+            <input type="hidden" id="experimentId" />
+
+            <div>
+              <label for="experimentName" class="block text-sm font-medium text-gray-700 mb-1">
+                Experiment Name *
+              </label>
+              <input
+                type="text"
+                id="experimentName"
+                name="name"
+                required
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., homepage-cta-test"
+              />
+            </div>
+
+            <div>
+              <label for="experimentDescription" class="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                id="experimentDescription"
+                name="description"
+                rows="3"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Describe the experiment..."
+              ></textarea>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Variants *
+              </label>
+              <div id="variantsContainer" class="space-y-2"></div>
+              <button
+                type="button"
+                id="addVariantBtn"
+                class="mt-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                + Add Variant
+              </button>
+            </div>
+
+            <div>
+              <label for="experimentStatus" class="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                id="experimentStatus"
+                name="status"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="draft">Draft</option>
+                <option value="running">Running</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date
+                </label>
+                <input
+                  type="datetime-local"
+                  id="startDate"
+                  name="startDate"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">
+                  End Date
+                </label>
+                <input
+                  type="datetime-local"
+                  id="endDate"
+                  name="endDate"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                id="cancelBtn"
+                class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Experiment
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 id="resultsTitle" class="text-2xl font-bold text-gray-900">Experiment Results</h2>
+            <button id="closeResultsBtn" class="text-gray-400 hover:text-gray-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div id="resultsContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // State
+  let experiments = [];
+
+  // DOM Elements
+  const loadingState = document.getElementById('loadingState');
+  const errorState = document.getElementById('errorState');
+  const emptyState = document.getElementById('emptyState');
+  const experimentsList = document.getElementById('experimentsList');
+  const experimentModal = document.getElementById('experimentModal');
+  const resultsModal = document.getElementById('resultsModal');
+  const experimentForm = document.getElementById('experimentForm');
+  const variantsContainer = document.getElementById('variantsContainer');
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    loadExperiments();
+    setupEventListeners();
+  });
+
+  function setupEventListeners() {
+    document.getElementById('createExperimentBtn')?.addEventListener('click', () => openModal());
+    document.getElementById('createFirstExperimentBtn')?.addEventListener('click', () => openModal());
+    document.getElementById('closeModalBtn')?.addEventListener('click', () => closeModal());
+    document.getElementById('cancelBtn')?.addEventListener('click', () => closeModal());
+    document.getElementById('closeResultsBtn')?.addEventListener('click', () => closeResultsModal());
+    document.getElementById('addVariantBtn')?.addEventListener('click', () => addVariantRow());
+    
+    experimentForm?.addEventListener('submit', handleSubmit);
+    
+    // Close modals on background click
+    experimentModal?.addEventListener('click', (e) => {
+      if (e.target === experimentModal) closeModal();
+    });
+    resultsModal?.addEventListener('click', (e) => {
+      if (e.target === resultsModal) closeResultsModal();
+    });
+  }
+
+  async function loadExperiments() {
+    try {
+      const response = await fetch('/api/v1/admin/experiments');
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to load experiments');
+      }
+
+      experiments = data.data || [];
+      renderExperiments();
+    } catch (error) {
+      console.error('Error loading experiments:', error);
+      showError(error instanceof Error ? error.message : 'Failed to load experiments');
+    } finally {
+      loadingState?.classList.add('hidden');
+    }
+  }
+
+  function renderExperiments() {
+    if (experiments.length === 0) {
+      emptyState?.classList.remove('hidden');
+      return;
+    }
+
+    experimentsList?.classList.remove('hidden');
+    
+    experimentsList.innerHTML = experiments.map(exp => `
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="text-xl font-semibold text-gray-900">${escapeHtml(exp.name)}</h3>
+            ${exp.description ? `<p class="text-gray-600 mt-1">${escapeHtml(exp.description)}</p>` : ''}
+          </div>
+          <span class="px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(exp.status)}">
+            ${exp.status}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-4 gap-4 mb-4 text-center">
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-2xl font-bold text-gray-900">${exp.assignmentCount || 0}</p>
+            <p class="text-sm text-gray-600">Assignments</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-2xl font-bold text-green-600">${exp.conversionCount || 0}</p>
+            <p class="text-sm text-gray-600">Conversions</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-2xl font-bold text-blue-600">${exp.assignmentCount > 0 ? ((exp.conversionCount / exp.assignmentCount) * 100).toFixed(1) : 0}%</p>
+            <p class="text-sm text-gray-600">Conv. Rate</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-2xl font-bold text-gray-900">${exp.variants?.length || 0}</p>
+            <p class="text-sm text-gray-600">Variants</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="flex space-x-2">
+            ${exp.variants?.map((v: any) => `
+              <span class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                ${escapeHtml(v.name)} (${v.weight})
+              </span>
+            `).join('') || ''}
+          </div>
+          <div class="flex space-x-2">
+            <button
+              onclick="viewResults(${exp.id})"
+              class="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+            >
+              View Results
+            </button>
+            <button
+              onclick="editExperiment(${exp.id})"
+              class="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onclick="deleteExperiment(${exp.id})"
+              class="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'running': return 'bg-green-100 text-green-800';
+      case 'paused': return 'bg-yellow-100 text-yellow-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  function openModal(experiment?: any) {
+    const modalTitle = document.getElementById('modalTitle');
+    const experimentIdInput = document.getElementById('experimentId') as HTMLInputElement;
+    const nameInput = document.getElementById('experimentName') as HTMLInputElement;
+    const descriptionInput = document.getElementById('experimentDescription') as HTMLTextAreaElement;
+    const statusSelect = document.getElementById('experimentStatus') as HTMLSelectElement;
+    const startDateInput = document.getElementById('startDate') as HTMLInputElement;
+    const endDateInput = document.getElementById('endDate') as HTMLInputElement;
+
+    // Reset form
+    experimentForm?.reset();
+    variantsContainer.innerHTML = '';
+
+    if (experiment) {
+      modalTitle!.textContent = 'Edit Experiment';
+      experimentIdInput.value = experiment.id;
+      nameInput.value = experiment.name;
+      descriptionInput.value = experiment.description || '';
+      statusSelect.value = experiment.status;
+      
+      if (experiment.startDate) {
+        startDateInput.value = new Date(experiment.startDate).toISOString().slice(0, 16);
+      }
+      if (experiment.endDate) {
+        endDateInput.value = new Date(experiment.endDate).toISOString().slice(0, 16);
+      }
+
+      // Add existing variants
+      experiment.variants?.forEach((v: any) => addVariantRow(v.name, v.weight));
+    } else {
+      modalTitle!.textContent = 'Create Experiment';
+      experimentIdInput.value = '';
+      // Add default variants
+      addVariantRow('control', 50);
+      addVariantRow('treatment', 50);
+    }
+
+    experimentModal?.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    experimentModal?.classList.add('hidden');
+  }
+
+  function addVariantRow(name = '', weight = 50) {
+    const row = document.createElement('div');
+    row.className = 'flex space-x-2 items-center';
+    row.innerHTML = `
+      <input
+        type="text"
+        placeholder="Variant name"
+        value="${escapeHtml(name)}"
+        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent variant-name"
+        required
+      />
+      <input
+        type="number"
+        placeholder="Weight"
+        value="${weight}"
+        min="1"
+        class="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent variant-weight"
+        required
+      />
+      <button
+        type="button"
+        onclick="this.parentElement.remove()"
+        class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    `;
+    variantsContainer?.appendChild(row);
+  }
+
+  async function handleSubmit(e: Event) {
+    e.preventDefault();
+
+    const formData = new FormData(experimentForm!);
+    const experimentId = (document.getElementById('experimentId') as HTMLInputElement).value;
+
+    // Collect variants
+    const variantNames = Array.from(document.querySelectorAll('.variant-name')) as HTMLInputElement[];
+    const variantWeights = Array.from(document.querySelectorAll('.variant-weight')) as HTMLInputElement[];
+    
+    const variants = variantNames.map((nameInput, i) => ({
+      name: nameInput.value.trim(),
+      weight: parseInt(variantWeights[i].value, 10),
+    })).filter(v => v.name && v.weight > 0);
+
+    if (variants.length < 2) {
+      alert('At least 2 variants are required');
+      return;
+    }
+
+    const data = {
+      name: formData.get('name'),
+      description: formData.get('description'),
+      status: formData.get('status'),
+      startDate: formData.get('startDate') || null,
+      endDate: formData.get('endDate') || null,
+      variants,
+    };
+
+    try {
+      const url = experimentId 
+        ? `/api/v1/admin/experiments/${experimentId}`
+        : '/api/v1/admin/experiments';
+      const method = experimentId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to save experiment');
+      }
+
+      closeModal();
+      loadExperiments();
+    } catch (error) {
+      console.error('Error saving experiment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save experiment');
+    }
+  }
+
+  async function viewResults(id: number) {
+    try {
+      const response = await fetch(`/api/v1/admin/experiments/${id}?results=true`);
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to load results');
+      }
+
+      const { experiment, results, summary } = result.data;
+      const resultsTitle = document.getElementById('resultsTitle');
+      const resultsContent = document.getElementById('resultsContent');
+
+      resultsTitle!.textContent = `Results: ${experiment.name}`;
+      
+      resultsContent!.innerHTML = `
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <p class="text-3xl font-bold text-gray-900">${summary.totalAssignments}</p>
+            <p class="text-sm text-gray-600">Total Assignments</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <p class="text-3xl font-bold text-green-600">${summary.totalConversions}</p>
+            <p class="text-sm text-gray-600">Total Conversions</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <p class="text-3xl font-bold text-blue-600">${summary.overallConversionRate.toFixed(2)}%</p>
+            <p class="text-sm text-gray-600">Overall Conv. Rate</p>
+          </div>
+        </div>
+
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">Variant Performance</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-200">
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Variant</th>
+                <th class="text-right py-3 px-4 font-medium text-gray-700">Assignments</th>
+                <th class="text-right py-3 px-4 font-medium text-gray-700">Conversions</th>
+                <th class="text-right py-3 px-4 font-medium text-gray-700">Conv. Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${results.map((r: any) => `
+                <tr class="border-b border-gray-100">
+                  <td class="py-3 px-4 font-medium">${escapeHtml(r.variant)}</td>
+                  <td class="py-3 px-4 text-right">${r.totalAssignments}</td>
+                  <td class="py-3 px-4 text-right text-green-600">${r.conversions}</td>
+                  <td class="py-3 px-4 text-right font-medium ${r.conversionRate > summary.overallConversionRate ? 'text-green-600' : 'text-gray-900'}">
+                    ${r.conversionRate.toFixed(2)}%
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      resultsModal?.classList.remove('hidden');
+    } catch (error) {
+      console.error('Error loading results:', error);
+      alert(error instanceof Error ? error.message : 'Failed to load results');
+    }
+  }
+
+  function closeResultsModal() {
+    resultsModal?.classList.add('hidden');
+  }
+
+  function editExperiment(id: number) {
+    const experiment = experiments.find(e => e.id === id);
+    if (experiment) {
+      openModal(experiment);
+    }
+  }
+
+  async function deleteExperiment(id: number) {
+    if (!confirm('Are you sure you want to delete this experiment? This will also delete all assignments.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/admin/experiments/${id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to delete experiment');
+      }
+
+      loadExperiments();
+    } catch (error) {
+      console.error('Error deleting experiment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete experiment');
+    }
+  }
+
+  function showError(message: string) {
+    loadingState?.classList.add('hidden');
+    errorState?.classList.remove('hidden');
+    const errorMessage = document.getElementById('errorMessage');
+    if (errorMessage) {
+      errorMessage.textContent = message;
+    }
+  }
+
+  function escapeHtml(text: string) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Make functions available globally for onclick handlers
+  (window as any).viewResults = viewResults;
+  (window as any).editExperiment = editExperiment;
+  (window as any).deleteExperiment = deleteExperiment;
+</script>

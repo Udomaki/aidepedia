@@ -587,3 +587,38 @@ export const backups = pgTable('backups', {
   statusIdx: index('backup_status_idx').on(table.status),
   createdAtIdx: index('backup_created_at_idx').on(table.createdAt),
 }));
+
+// A/B Testing experiments
+export const experiments = pgTable('experiments', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull().unique(),
+  description: text('description'),
+  variants: jsonb('variants').notNull().$type<Array<{ name: string; weight: number }>>(),
+  status: varchar('status', {
+    enum: ['draft', 'running', 'paused', 'completed'],
+    length: 20
+  }).notNull().default('draft'),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  nameIdx: index('experiment_name_idx').on(table.name),
+  statusIdx: index('experiment_status_idx').on(table.status),
+}));
+
+// A/B Testing experiment assignments
+export const experiment_assignments = pgTable('experiment_assignments', {
+  id: serial('id').primaryKey(),
+  experimentId: integer('experiment_id').notNull().references(() => experiments.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 255 }).notNull(), // Can be logged-in user ID or anonymous session ID
+  variant: varchar('variant', { length: 100 }).notNull(),
+  converted: boolean('converted').default(false),
+  convertedAt: timestamp('converted_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  experimentIdx: index('assignment_experiment_idx').on(table.experimentId),
+  userIdx: index('assignment_user_idx').on(table.userId),
+  experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
+  convertedIdx: index('assignment_converted_idx').on(table.converted),
+}));
