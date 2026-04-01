@@ -1,48 +1,68 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getCategories } from '@aidepedia/db';
+import { generateOrganizationSchema, generateWebsiteSchema, generateBreadcrumbSchema } from '../../lib/structured-data';
 
 const categories = await getCategories();
+
+const pageTitle = 'Categories - AIdepedia';
+const pageDescription = 'Browse articles by category on AIdepedia';
+const canonicalUrl = 'https://aidepedia.com/categories';
+
+// Generate structured data
+const organizationSchema = generateOrganizationSchema();
+const websiteSchema = generateWebsiteSchema();
+const breadcrumbSchema = generateBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Categories', url: '/categories' }
+]);
+const structuredData = [organizationSchema, websiteSchema, breadcrumbSchema];
 ---
 
-<Layout title="Categories - AIdepedia">
-  <div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-4xl font-bold">Categories</h1>
-      <a
-        href="/categories/new"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition"
-      >
-        New Category
-      </a>
+<Layout 
+  title={pageTitle}
+  description={pageDescription}
+  canonicalUrl={canonicalUrl}
+  structuredData={structuredData}
+>
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Categories</span>
+    </nav>
+
+    <h1 class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+      Browse by Category
+    </h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {categories.map((category) => (
+        <a
+          href={`/categories/${category.slug}`}
+          class="block bg-white dark:bg-slate-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 p-6 border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500"
+        >
+          <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            {category.name}
+          </h2>
+          {category.description && (
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">
+              {category.description}
+            </p>
+          )}
+          <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <span>{category.articleCount || 0} articles</span>
+          </div>
+        </a>
+      ))}
     </div>
 
-    {categories.length === 0 ? (
+    {categories.length === 0 && (
       <div class="text-center py-12">
-        <p class="text-gray-500 text-lg">No categories found.</p>
-        <p class="text-gray-400 mt-2">Create your first category to get started!</p>
-      </div>
-    ) : (
-      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {categories.map((category) => (
-          <a
-            href={`/categories/${category.slug}`}
-            class="block p-6 bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition"
-          >
-            <div class="flex items-start justify-between">
-              <div class="flex-1">
-                <h2 class="text-xl font-semibold mb-2">{category.name}</h2>
-                {category.description && (
-                  <p class="text-gray-600 text-sm mb-3">{category.description}</p>
-                )}
-                <div class="flex items-center gap-4 text-sm text-gray-500">
-                  <span>{category.articleCount || 0} articles</span>
-                </div>
-              </div>
-            </div>
-          </a>
-        ))}
+        <p class="text-gray-500 dark:text-gray-400 text-lg">
+          No categories found.
+        </p>
       </div>
     )}
-  </div>
+  </main>
 </Layout>
