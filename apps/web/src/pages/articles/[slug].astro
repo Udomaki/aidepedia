@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getArticleBySlug, listArticles, getCategories } from '@aidepedia/db';
+import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle } from '@aidepedia/db';
 
 export async function getStaticPaths() {
   // Try to fetch all published articles for static generation
@@ -39,6 +39,14 @@ const categories = await getCategories();
 const categoryMap = new Map(categories.map(c => [c.id, c]));
 const articleCategory = article.categoryId ? categoryMap.get(article.categoryId) : null;
 
+// Fetch comments for the article
+let comments = [];
+try {
+  comments = await getCommentsByArticle(article.id);
+} catch (e) {
+  console.warn('Could not fetch comments:', e);
+}
+
 const pageTitle = `${article.title} - AIdepedia`;
 
 function formatDate(date: Date): string {
@@ -49,6 +57,22 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diff = now.getTime() - then.getTime();
+  
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return formatDate(date);
+}
+
 function getCategoryColor(categoryName: string | undefined): string {
   const colors: Record<string, string> = {
     'technology': 'bg-blue-600',
@@ -57,6 +81,19 @@ function getCategoryColor(categoryName: string | undefined): string {
   };
   return colors[(categoryName || '').toLowerCase()] || 'bg-gray-600';
 }
+
+// Count total comments including replies
+function countAllComments(commentList: any[]): number {
+  let count = commentList.length;
+  for (const comment of commentList) {
+    if (comment.replies && comment.replies.length > 0) {
+      count += countAllComments(comment.replies);
+    }
+  }
+  return count;
+}
+
+const totalComments = countAllComments(comments);
 ---
 
 <Layout title={pageTitle}>
@@ -146,5 +183,285 @@ function getCategoryColor(categoryName: string | undefined): string {
         </div>
       </footer>
     </article>
+
+    <!-- Comments Section -->
+    <section class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h2 class="text-2xl font-bold text-gray-900">
+          💬 Comments ({totalComments})
+        </h2>
+      </div>
+
+      <!-- Comment Form -->
+      <div class="p-6 border-b border-gray-200 bg-gray-50">
+        <form id="comment-form" class="space-y-4">
+          <div>
+            <label for="comment-content" class="block text-sm font-medium text-gray-700 mb-2">
+              Add a comment
+            </label>
+            <textarea
+              id="comment-content"
+              name="content"
+              rows="3"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Share your thoughts..."
+              required
+            ></textarea>
+          </div>
+          <div class="flex items-center justify-between">
+            <p id="auth-message" class="text-sm text-gray-500">
+              <!-- Will be populated by client-side script -->
+            </p>
+            <button
+              type="submit"
+              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Post Comment
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Comments List -->
+      <div id="comments-list" class="divide-y divide-gray-200">
+        {comments.length === 0 ? (
+          <div class="p-8 text-center text-gray-500">
+            <p class="text-lg mb-2">No comments yet</p>
+            <p class="text-sm">Be the first to share your thoughts!</p>
+          </div>
+        ) : (
+          comments.map((comment: any) => (
+            <CommentThread comment={comment} level={0} />
+          ))
+        )
+      </div>
+    </section>
   </main>
 </Layout>
+
+<!-- Comment Thread Component -->
+{comments.map((comment: any) => (
+  <div slot={`comment-${comment.id}`} class="comment-thread" data-comment-id={comment.id}>
+    <div class="p-6">
+      <div class="flex items-start gap-4">
+        <div class="flex-shrink-0">
+          {comment.author?.image ? (
+            <img
+              src={comment.author.image}
+              alt={comment.author.name || 'User'}
+              class="w-10 h-10 rounded-full"
+            />
+          ) : (
+            <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-medium">
+              {(comment.author?.name || 'A')[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-medium text-gray-900">
+              {comment.author?.name || 'Anonymous'}
+            </span>
+            <span class="text-sm text-gray-500">
+              {formatRelativeTime(comment.createdAt)}
+            </span>
+          </div>
+          <p class="text-gray-700 mb-2">{comment.content}</p>
+          <button
+            class="text-sm text-blue-600 hover:text-blue-700 font-medium reply-btn"
+            data-comment-id={comment.id}
+          >
+            Reply
+          </button>
+        </div>
+      </div>
+
+      <!-- Reply Form (hidden by default) -->
+      <div id={`reply-form-${comment.id}`} class="hidden ml-14 mt-4">
+        <form class="space-y-3 reply-form" data-parent-id={comment.id}>
+          <textarea
+            name="content"
+            rows="2"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            placeholder="Write a reply..."
+            required
+          ></textarea>
+          <div class="flex gap-2">
+            <button
+              type="submit"
+              class="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              Reply
+            </button>
+            <button
+              type="button"
+              class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium cancel-reply-btn"
+              data-comment-id={comment.id}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Nested Replies -->
+      {comment.replies && comment.replies.length > 0 && (
+        <div class="ml-14 mt-4 space-y-4 border-l-2 border-gray-200 pl-4">
+          {comment.replies.map((reply: any) => (
+            <div class="comment-reply" data-comment-id={reply.id}>
+              <div class="flex items-start gap-3">
+                <div class="flex-shrink-0">
+                  {reply.author?.image ? (
+                    <img
+                      src={reply.author.image}
+                      alt={reply.author.name || 'User'}
+                      class="w-8 h-8 rounded-full"
+                    />
+                  ) : (
+                    <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-medium text-sm">
+                      {(reply.author?.name || 'A')[0].toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-medium text-gray-900 text-sm">
+                      {reply.author?.name || 'Anonymous'}
+                    </span>
+                    <span class="text-xs text-gray-500">
+                      {formatRelativeTime(reply.createdAt)}
+                    </span>
+                  </div>
+                  <p class="text-gray-700 text-sm">{reply.content}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+))}
+
+<script define:vars={{ slug }}>
+  // Comment section client-side functionality
+  const articleSlug = slug;
+  let currentUser = null;
+
+  // Check authentication status
+  async function checkAuth() {
+    try {
+      const response = await fetch('/api/auth/session');
+      const data = await response.json();
+      currentUser = data.user || null;
+      updateAuthUI();
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      updateAuthUI();
+    }
+  }
+
+  function updateAuthUI() {
+    const authMessage = document.getElementById('auth-message');
+    const submitBtn = document.querySelector('#comment-form button[type="submit"]');
+    
+    if (currentUser) {
+      authMessage.innerHTML = `Posting as <strong>${currentUser.name || currentUser.email}</strong>`;
+      submitBtn.disabled = false;
+    } else {
+      authMessage.innerHTML = '<a href="/login" class="text-blue-600 hover:text-blue-700">Sign in</a> to comment';
+      submitBtn.disabled = true;
+    }
+  }
+
+  // Handle main comment form submission
+  document.getElementById('comment-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const form = e.target;
+    const content = form.content.value.trim();
+    
+    if (!content) return;
+
+    try {
+      const response = await fetch(`/api/v1/articles/${articleSlug}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+
+      if (response.ok) {
+        // Reload page to show new comment
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to post comment');
+      }
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      alert('Failed to post comment');
+    }
+  });
+
+  // Handle reply button clicks
+  document.querySelectorAll('.reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const commentId = btn.dataset.commentId;
+      const replyForm = document.getElementById(`reply-form-${commentId}`);
+      replyForm?.classList.toggle('hidden');
+    });
+  });
+
+  // Handle cancel reply buttons
+  document.querySelectorAll('.cancel-reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const commentId = btn.dataset.commentId;
+      const replyForm = document.getElementById(`reply-form-${commentId}`);
+      replyForm?.classList.add('hidden');
+    });
+  });
+
+  // Handle reply form submissions
+  document.querySelectorAll('.reply-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (!currentUser) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const parentId = form.dataset.parentId;
+      const content = form.content.value.trim();
+      
+      if (!content) return;
+
+      try {
+        const response = await fetch(`/api/v1/articles/${articleSlug}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId, content })
+        });
+
+        if (response.ok) {
+          // Reload page to show new reply
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Failed to post reply');
+        }
+      } catch (error) {
+        console.error('Error posting reply:', error);
+        alert('Failed to post reply');
+      }
+    });
+  });
+
+  // Initialize
+  checkAuth();
+</script>
