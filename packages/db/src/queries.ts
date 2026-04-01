@@ -2298,6 +2298,153 @@ export async function getFollowingActivityFeed(
   }
 }
 
+// ========== BOOKMARK QUERIES ==========
+
+/**
+ * Toggle a bookmark (add if not bookmarked, remove if bookmarked)
+ */
+export async function toggleBookmark(
+  userId: number,
+  articleId: number
+): Promise<{ bookmarked: boolean }> {
+  try {
+    const { bookmarks } = await import('./schema/index');
+    
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if already bookmarked
+    const [existing] = await db
+      .select()
+      .from(bookmarks)
+      .where(
+        and(
+          eq(bookmarks.userId, userId),
+          eq(bookmarks.articleId, articleId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      // Remove bookmark
+      await db
+        .delete(bookmarks)
+        .where(
+          and(
+            eq(bookmarks.userId, userId),
+            eq(bookmarks.articleId, articleId)
+          )
+        );
+      
+      return { bookmarked: false };
+    } else {
+      // Add bookmark
+      await db.insert(bookmarks).values({
+        userId,
+        articleId,
+      });
+      
+      return { bookmarked: true };
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to toggle bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get user's bookmarks with pagination
+ */
+export async function getUserBookmarks(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<Article & { bookmarkedAt: Date }>> {
+  try {
+    const { bookmarks } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: articles.id,
+          slug: articles.slug,
+          title: articles.title,
+          content: articles.content,
+          excerpt: articles.excerpt,
+          categoryId: articles.categoryId,
+          tags: articles.tags,
+          status: articles.status,
+          authorId: articles.authorId,
+          qualityScore: articles.qualityScore,
+          viewCount: articles.viewCount,
+          upvotes: articles.upvotes,
+          downvotes: articles.downvotes,
+          createdAt: articles.createdAt,
+          updatedAt: articles.updatedAt,
+          publishedAt: articles.publishedAt,
+          bookmarkedAt: bookmarks.createdAt,
+        })
+        .from(bookmarks)
+        .innerJoin(articles, eq(bookmarks.articleId, articles.id))
+        .where(eq(bookmarks.userId, userId))
+        .orderBy(desc(bookmarks.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(bookmarks)
+        .where(eq(bookmarks.userId, userId)),
+    ]);
+
+    return {
+      data: data.map(d => ({
+        ...d,
+        bookmarkedAt: d.bookmarkedAt || new Date(),
+      })),
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch bookmarks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Check if an article is bookmarked by a user
+ */
+export async function isBookmarked(
+  userId: number,
+  articleId: number
+): Promise<boolean> {
+  try {
+    const { bookmarks } = await import('./schema/index');
+    
+    const [bookmark] = await db
+      .select()
+      .from(bookmarks)
+      .where(
+        and(
+          eq(bookmarks.userId, userId),
+          eq(bookmarks.articleId, articleId)
+        )
+      )
+      .limit(1);
+
+    return !!bookmark;
+  } catch (error) {
+    throw new DatabaseError(`Failed to check bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 // ============ Notification Queries ============
 
 export async function getNotifications(
