@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
-import { listArticles, type ArticleStatus } from '@aidepedia/db';
+import { listArticles, getCategories, getTags, type ArticleStatus } from '@aidepedia/db';
 
 // Get query parameters
 const url = Astro.url;
@@ -10,6 +10,25 @@ const sortBy = url.searchParams.get('sortBy') || 'date';
 const sortOrder = url.searchParams.get('sortOrder') || 'desc';
 const search = url.searchParams.get('search') || '';
 const category = url.searchParams.get('category') || '';
+const tags = url.searchParams.get('tags') || '';
+const authorId = url.searchParams.get('authorId') || '';
+const minQuality = url.searchParams.get('minQuality') || '';
+const maxQuality = url.searchParams.get('maxQuality') || '';
+const dateFrom = url.searchParams.get('dateFrom') || '';
+const dateTo = url.searchParams.get('dateTo') || '';
+const showAdvanced = url.searchParams.get('advanced') === 'true';
+
+// Fetch categories and tags for filters
+let categories: string[] = [];
+let availableTags: string[] = [];
+try {
+  [categories, availableTags] = await Promise.all([
+    getCategories(),
+    getTags(),
+  ]);
+} catch (error) {
+  console.error('Failed to fetch filters:', error);
+}
 
 // Build query parameters
 const queryParams = {
@@ -18,6 +37,14 @@ const queryParams = {
   limit: 12,
   category: category || undefined,
   search: search || undefined,
+  tags: tags ? tags.split(',').filter(Boolean) : undefined,
+  authorId: authorId ? parseInt(authorId) : undefined,
+  minQualityScore: minQuality ? parseInt(minQuality) : undefined,
+  maxQualityScore: maxQuality ? parseInt(maxQuality) : undefined,
+  dateFrom: dateFrom || undefined,
+  dateTo: dateTo || undefined,
+  sortBy: sortBy as 'date' | 'title' | 'views' | 'quality',
+  sortOrder: sortOrder as 'asc' | 'desc',
 };
 
 // Fetch articles directly from database
@@ -38,6 +65,13 @@ function buildPageUrl(newPage: number): string {
   if (sortOrder !== 'desc') params.set('sortOrder', sortOrder);
   if (search) params.set('search', search);
   if (category) params.set('category', category);
+  if (tags) params.set('tags', tags);
+  if (authorId) params.set('authorId', authorId);
+  if (minQuality) params.set('minQuality', minQuality);
+  if (maxQuality) params.set('maxQuality', maxQuality);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
+  if (showAdvanced) params.set('advanced', 'true');
   params.set('page', newPage.toString());
   const queryString = params.toString();
   return queryString ? `/articles?${queryString}` : '/articles';
@@ -69,6 +103,9 @@ function getPageNumbers(currentPage: number, totalPages: number): number[] {
 }
 
 const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
+
+// Check if any filters are active
+const hasActiveFilters = search || category || tags || authorId || minQuality || maxQuality || dateFrom || dateTo;
 ---
 
 <Layout 
@@ -92,6 +129,7 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
     <!-- Search and Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
       <form method="GET" class="space-y-4">
+        <!-- Basic Filters -->
         <div class="flex flex-col md:flex-row gap-4">
           <!-- Search -->
           <div class="flex-1">
@@ -113,14 +151,18 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
             <label for="category" class="block text-sm font-medium text-gray-700 mb-1">
               Category
             </label>
-            <input
-              type="text"
+            <select
               id="category"
               name="category"
-              value={category}
-              placeholder="All categories"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            >
+              <option value="">All categories</option>
+              {categories.map((cat) => (
+                <option value={cat} selected={category === cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </div>
 
           <!-- Sort By -->
@@ -136,6 +178,7 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
               <option value="date" selected={sortBy === 'date'}>Date</option>
               <option value="title" selected={sortBy === 'title'}>Title</option>
               <option value="views" selected={sortBy === 'views'}>Views</option>
+              <option value="quality" selected={sortBy === 'quality'}>Quality Score</option>
             </select>
           </div>
 
@@ -155,6 +198,117 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
           </div>
         </div>
 
+        <!-- Advanced Filters Toggle -->
+        <div>
+          <button
+            type="button"
+            id="toggleAdvanced"
+            class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+          >
+            <svg class="w-4 h-4 transition-transform" id="advancedIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            Advanced Filters
+          </button>
+        </div>
+
+        <!-- Advanced Filters (Collapsible) -->
+        <div id="advancedFilters" class={`space-y-4 ${showAdvanced ? '' : 'hidden'}`}>
+          <div class="border-t pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <!-- Tags Filter -->
+              <div>
+                <label for="tags" class="block text-sm font-medium text-gray-700 mb-1">
+                  Tags (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  id="tags"
+                  name="tags"
+                  value={tags}
+                  placeholder="e.g., technology, ai, science"
+                  list="tagsList"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <datalist id="tagsList">
+                  {availableTags.map((tag) => (
+                    <option value={tag} />
+                  ))}
+                </datalist>
+              </div>
+
+              <!-- Author ID Filter -->
+              <div>
+                <label for="authorId" class="block text-sm font-medium text-gray-700 mb-1">
+                  Author ID
+                </label>
+                <input
+                  type="number"
+                  id="authorId"
+                  name="authorId"
+                  value={authorId}
+                  placeholder="Filter by author"
+                  min="1"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <!-- Quality Score Range -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Quality Score Range
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    type="number"
+                    id="minQuality"
+                    name="minQuality"
+                    value={minQuality}
+                    placeholder="Min"
+                    min="0"
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <input
+                    type="number"
+                    id="maxQuality"
+                    name="maxQuality"
+                    value={maxQuality}
+                    placeholder="Max"
+                    min="0"
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <!-- Date Range -->
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Date Range
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    type="date"
+                    id="dateFrom"
+                    name="dateFrom"
+                    value={dateFrom}
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <input
+                    type="date"
+                    id="dateTo"
+                    name="dateTo"
+                    value={dateTo}
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden field to preserve advanced state -->
+        <input type="hidden" name="advanced" value={showAdvanced ? 'true' : 'false'} id="advancedField" />
+
         <!-- Buttons -->
         <div class="flex gap-2">
           <button
@@ -163,7 +317,7 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
           >
             Apply Filters
           </button>
-          {(search || category || sortBy !== 'date' || sortOrder !== 'desc') && (
+          {hasActiveFilters && (
             <a
               href="/articles"
               class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium inline-flex items-center"
@@ -174,6 +328,48 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
         </div>
       </form>
     </div>
+
+    <!-- Active Filters Display -->
+    {hasActiveFilters && (
+      <div class="mb-6 flex flex-wrap gap-2">
+        {search && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+            Search: {search}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), search: '', page: '1' })}`} class="ml-2 hover:text-blue-600">×</a>
+          </span>
+        )}
+        {category && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+            Category: {category}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), category: '', page: '1' })}`} class="ml-2 hover:text-purple-600">×</a>
+          </span>
+        )}
+        {tags && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+            Tags: {tags}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), tags: '', page: '1' })}`} class="ml-2 hover:text-green-600">×</a>
+          </span>
+        )}
+        {authorId && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">
+            Author: {authorId}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), authorId: '', page: '1' })}`} class="ml-2 hover:text-yellow-600">×</a>
+          </span>
+        )}
+        {(minQuality || maxQuality) && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-orange-100 text-orange-800">
+            Quality: {minQuality || '0'} - {maxQuality || '∞'}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), minQuality: '', maxQuality: '', page: '1' })}`} class="ml-2 hover:text-orange-600">×</a>
+          </span>
+        )}
+        {(dateFrom || dateTo) && (
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-pink-100 text-pink-800">
+            Date: {dateFrom || '...'} to {dateTo || '...'}
+            <a href={`/articles?${new URLSearchParams({ ...Object.fromEntries(url.searchParams), dateFrom: '', dateTo: '', page: '1' })}`} class="ml-2 hover:text-pink-600">×</a>
+          </span>
+        )}
+      </div>
+    )}
 
     <!-- Articles Grid -->
     {articles.length > 0 ? (
@@ -251,3 +447,27 @@ const pageNumbers = getPageNumbers(meta.page, meta.totalPages);
     )}
   </main>
 </Layout>
+
+<script>
+  // Toggle advanced filters
+  const toggleBtn = document.getElementById('toggleAdvanced');
+  const advancedFilters = document.getElementById('advancedFilters');
+  const advancedIcon = document.getElementById('advancedIcon');
+  const advancedField = document.getElementById('advancedField') as HTMLInputElement;
+
+  if (toggleBtn && advancedFilters && advancedIcon && advancedField) {
+    toggleBtn.addEventListener('click', () => {
+      const isHidden = advancedFilters.classList.contains('hidden');
+      
+      if (isHidden) {
+        advancedFilters.classList.remove('hidden');
+        advancedIcon.style.transform = 'rotate(180deg)';
+        advancedField.value = 'true';
+      } else {
+        advancedFilters.classList.add('hidden');
+        advancedIcon.style.transform = 'rotate(0deg)';
+        advancedField.value = 'false';
+      }
+    });
+  }
+</script>
