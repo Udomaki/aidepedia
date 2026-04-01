@@ -211,6 +211,9 @@ const totalComments = countAllComments(comments);
           {article.publishedAt && (
             <span>✨ Published {formatDate(article.publishedAt)}</span>
           )}
+          {article.readingTime && (
+            <span>⏱ {article.readingTime} min read</span>
+          )}
           {article.viewCount && article.viewCount > 0 && (
             <span>👁 {article.viewCount} views</span>
           )}
