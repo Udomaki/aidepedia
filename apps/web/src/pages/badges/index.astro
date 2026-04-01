@@ -1,0 +1,254 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+// Mock data - in production this would come from API
+const badges = [
+  {
+    id: 'top-contributor',
+    name: 'Top Contributor',
+    description: 'Created 50+ articles that were approved by the community',
+    icon: '🏆',
+    color: 'from-yellow-400 to-orange-500',
+    category: 'creation',
+    rarity: 'legendary',
+    requirements: 'Create 50 approved articles',
+    earnedBy: 12,
+    points: 500,
+  },
+  {
+    id: 'quality-editor',
+    name: 'Quality Editor',
+    description: 'Made 100+ edits with 90%+ acceptance rate',
+    icon: '✨',
+    color: 'from-blue-400 to-cyan-500',
+    category: 'editing',
+    rarity: 'epic',
+    requirements: '100 edits with 90%+ acceptance',
+    earnedBy: 28,
+    points: 300,
+  },
+  {
+    id: 'early-adopter',
+    name: 'Early Adopter',
+    description: 'Joined AIdepedia in the first month of launch',
+    icon: '🌟',
+    color: 'from-purple-400 to-pink-500',
+    category: 'special',
+    rarity: 'rare',
+    requirements: 'Join during first month',
+    earnedBy: 156,
+    points: 200,
+  },
+  {
+    id: 'voter-extraordinaire',
+    name: 'Voter Extraordinaire',
+    description: 'Cast 500+ votes with 85%+ accuracy',
+    icon: '🗳️',
+    color: 'from-green-400 to-teal-500',
+    category: 'voting',
+    rarity: 'epic',
+    requirements: 'Cast 500 votes with 85% accuracy',
+    earnedBy: 34,
+    points: 350,
+  },
+  {
+    id: 'fact-checker',
+    name: 'Fact Checker',
+    description: 'Successfully flagged 25+ inaccurate articles',
+    icon: '🔍',
+    color: 'from-red-400 to-pink-500',
+    category: 'moderation',
+    rarity: 'rare',
+    requirements: 'Flag 25 inaccurate articles',
+    earnedBy: 89,
+    points: 250,
+  },
+  {
+    id: 'collaborator',
+    name: 'Collaborator',
+    description: 'Contributed to 20+ articles started by others',
+    icon: '🤝',
+    color: 'from-indigo-400 to-purple-500',
+    category: 'collaboration',
+    rarity: 'uncommon',
+    requirements: 'Edit 20 articles by others',
+    earnedBy: 234,
+    points: 150,
+  },
+  {
+    id: 'perfectionist',
+    name: 'Perfectionist',
+    description: 'Made 10+ edits with zero rejections',
+    icon: '💎',
+    color: 'from-pink-400 to-rose-500',
+    category: 'editing',
+    rarity: 'epic',
+    requirements: '10 edits with 100% acceptance',
+    earnedBy: 45,
+    points: 300,
+  },
+  {
+    id: 'speed-demon',
+    name: 'Speed Demon',
+    description: 'Created 5 approved articles in a single day',
+    icon: '⚡',
+    color: 'from-amber-400 to-yellow-500',
+    category: 'creation',
+    rarity: 'uncommon',
+    requirements: 'Create 5 articles in one day',
+    earnedBy: 178,
+    points: 100,
+  },
+  {
+    id: 'category-master',
+    name: 'Category Master',
+    description: 'Contributed to 50+ articles in a single category',
+    icon: '📚',
+    color: 'from-emerald-400 to-green-500',
+    category: 'specialization',
+    rarity: 'rare',
+    requirements: 'Contribute to 50 articles in one category',
+    earnedBy: 67,
+    points: 200,
+  },
+  {
+    id: 'community-hero',
+    name: 'Community Hero',
+    description: 'Helped resolve 100+ disputes through accurate voting',
+    icon: '🦸',
+    color: 'from-blue-500 to-indigo-600',
+    category: 'moderation',
+    rarity: 'legendary',
+    requirements: 'Resolve 100 disputes via voting',
+    earnedBy: 8,
+    points: 500,
+  },
+  {
+    id: 'trendsetter',
+    name: 'Trendsetter',
+    description: 'Created an article that received 100+ views in first day',
+    icon: '📈',
+    color: 'from-violet-400 to-purple-500',
+    category: 'creation',
+    rarity: 'uncommon',
+    requirements: 'Create viral article (100+ day 1 views)',
+    earnedBy: 145,
+    points: 100,
+  },
+  {
+    id: 'reliable-source',
+    name: 'Reliable Source',
+    description: 'Added verified sources to 50+ articles',
+    icon: '📖',
+    color: 'from-cyan-400 to-blue-500',
+    category: 'editing',
+    rarity: 'rare',
+    requirements: 'Add sources to 50 articles',
+    earnedBy: 78,
+    points: 200,
+  },
+];
+
+const rarityColors = {
+  legendary: 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
+  epic: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
+  rare: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+  uncommon: 'bg-gradient-to-r from-green-500 to-teal-500 text-white',
+  common: 'bg-gray-200 text-gray-800',
+};
+
+const rarityOrder: Record<string, number> = { legendary: 0, epic: 1, rare: 2, uncommon: 3, common: 4 };
+const sortedBadges = [...badges].sort((a, b) => rarityOrder[a.rarity] - rarityOrder[b.rarity]);
+---
+
+<Layout title="Badges - AIdepedia">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Achievement Badges</h1>
+      <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+        Earn badges by contributing to AIdepedia! Each badge represents a significant achievement
+        and comes with reputation points.
+      </p>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
+        <div class="text-3xl font-bold text-gray-900">{badges.length}</div>
+        <div class="text-sm text-gray-600 mt-1">Total Badges</div>
+      </div>
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
+        <div class="text-3xl font-bold text-yellow-600">{badges.filter(b => b.rarity === 'legendary').length}</div>
+        <div class="text-sm text-gray-600 mt-1">Legendary</div>
+      </div>
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
+        <div class="text-3xl font-bold text-purple-600">{badges.filter(b => b.rarity === 'epic').length}</div>
+        <div class="text-sm text-gray-600 mt-1">Epic</div>
+      </div>
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6 text-center">
+        <div class="text-3xl font-bold text-blue-600">{badges.filter(b => b.rarity === 'rare').length}</div>
+        <div class="text-sm text-gray-600 mt-1">Rare</div>
+      </div>
+    </div>
+
+    <!-- Rarity Legend -->
+    <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 mb-8 border border-blue-100">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">Badge Rarities</h2>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {Object.entries(rarityColors).map(([rarity, colorClass]) => (
+          <div class="flex items-center space-x-2">
+            <span class={`px-3 py-1 ${colorClass} rounded-full text-sm font-medium capitalize`}>
+              {rarity}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Badges Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {sortedBadges.map((badge) => {
+        const rarityColor = rarityColors[badge.rarity as keyof typeof rarityColors];
+        
+        return (
+          <a href={`/badges/${badge.id}`} class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-shadow">
+            <div class="flex items-start justify-between mb-4">
+              <div class={`w-16 h-16 bg-gradient-to-br ${badge.color} rounded-xl flex items-center justify-center shadow-lg`}>
+                <span class="text-3xl">{badge.icon}</span>
+              </div>
+              <span class={`px-3 py-1 ${rarityColor} rounded-full text-xs font-medium capitalize`}>
+                {badge.rarity}
+              </span>
+            </div>
+            
+            <h3 class="text-xl font-bold text-gray-900 mb-2">{badge.name}</h3>
+            <p class="text-sm text-gray-600 mb-4">{badge.description}</p>
+            
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+              <div class="flex items-center space-x-2">
+                <span class="text-2xl font-bold text-blue-600">+{badge.points}</span>
+                <span class="text-sm text-gray-500">pts</span>
+              </div>
+              <div class="text-sm text-gray-500">
+                <span class="font-semibold text-gray-900">{badge.earnedBy}</span> earned
+              </div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- Call to Action -->
+    <div class="mt-12 text-center bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
+      <h2 class="text-2xl font-bold mb-4">Start Earning Badges Today!</h2>
+      <p class="mb-6 opacity-90">
+        Contribute to AIdepedia and earn badges to showcase your achievements.
+        Each badge comes with reputation points and recognition.
+      </p>
+      <a href="/articles" class="inline-block px-6 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+        Browse Articles
+      </a>
+    </div>
+  </div>
+</Layout>
