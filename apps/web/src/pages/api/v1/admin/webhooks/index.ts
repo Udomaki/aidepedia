@@ -4,6 +4,7 @@ import { db } from '@aidepedia/db';
 import { webhooks } from '@aidepedia/db/schema';
 import { successResponse, errorResponse } from '../../../../../lib/api-utils';
 import { desc } from '@aidepedia/db';
+import { logAuditEntry, AuditActions, ResourceTypes } from '../../../../../lib/audit';
 
 /**
  * GET /api/v1/admin/webhooks
@@ -86,6 +87,16 @@ export const POST: APIRoute = async ({ request }) => {
         enabled,
       })
       .returning();
+
+    // Log audit entry
+    await logAuditEntry({
+      userId: (session.user as any)?.id,
+      action: AuditActions.WEBHOOK_CREATED,
+      resourceType: ResourceTypes.WEBHOOK,
+      resourceId: String(webhook.id),
+      details: { url: webhook.url, events: webhook.events },
+      request,
+    });
 
     return successResponse(webhook, undefined, 201);
   } catch (error) {
