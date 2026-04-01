@@ -1,0 +1,137 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getArticleBySlug, listArticles } from '@aidepedia/db';
+
+export async function getStaticPaths() {
+  // Try to fetch all published articles for static generation
+  // If database is not available, return empty array (will need SSR or manual build)
+  try {
+    const { data: articles } = await listArticles({ status: 'published', limit: 1000 });
+    
+    return articles.map((article) => ({
+      params: { slug: article.slug },
+    }));
+  } catch (error) {
+    console.warn('Could not fetch articles for static generation:', error);
+    // Return empty array - pages will need to be generated dynamically or database must be available during build
+    return [];
+  }
+}
+
+const { slug } = Astro.params;
+
+let article = null;
+
+if (slug) {
+  try {
+    article = await getArticleBySlug(slug);
+  } catch (e) {
+    // Article not found, will redirect below
+  }
+}
+
+if (!article) {
+  return Astro.redirect('/articles');
+}
+
+const pageTitle = `${article.title} - AIdepedia`;
+
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(new Date(date));
+}
+
+function getCategoryColor(category: string): string {
+  const colors: Record<string, string> = {
+    'technology': 'bg-blue-600',
+    'wellness': 'bg-green-600',
+    'philosophy': 'bg-purple-600',
+  };
+  return colors[category.toLowerCase()] || 'bg-gray-600';
+}
+---
+
+<Layout title={pageTitle} description={article.excerpt || article.content.substring(0, 160)}>
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">{article.title}</span>
+    </nav>
+
+    <article class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <!-- Header -->
+      <header class="p-8 border-b border-gray-200">
+        <div class="flex items-center gap-3 mb-4">
+          <span class={`px-3 py-1 text-white text-sm font-medium rounded-full ${getCategoryColor(article.category)}`}>
+            {article.category}
+          </span>
+          {article.status === 'published' && (
+            <span class="text-green-600 text-sm">✓ Published</span>
+          )}
+        </div>
+        
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">{article.title}</h1>
+        
+        {article.excerpt && (
+          <p class="text-xl text-gray-600 mb-4">{article.excerpt}</p>
+        )}
+        
+        <div class="flex items-center gap-4 text-sm text-gray-500">
+          {article.createdAt && (
+            <span>📅 {formatDate(article.createdAt)}</span>
+          )}
+          {article.publishedAt && (
+            <span>✨ Published {formatDate(article.publishedAt)}</span>
+          )}
+          {article.viewCount && article.viewCount > 0 && (
+            <span>👁 {article.viewCount} views</span>
+          )}
+          {article.qualityScore !== null && article.qualityScore !== undefined && (
+            <span>⭐ Quality: {article.qualityScore}</span>
+          )}
+        </div>
+
+        {article.tags && article.tags.length > 0 && (
+          <div class="flex flex-wrap gap-2 mt-4">
+            {article.tags.map((tag: string) => (
+              <span class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <!-- Content -->
+      <div class="p-8 prose prose-lg max-w-none">
+        {article.content.split('\n\n').map((paragraph: string) => (
+          <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
+        ))}
+      </div>
+
+      <!-- Footer -->
+      <footer class="p-8 bg-gray-50 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-500">
+            {article.updatedAt && <p>Last updated: {formatDate(article.updatedAt)}</p>}
+          </div>
+          <div class="flex gap-2">
+            <a
+              href="/articles"
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              ← Back to Articles
+            </a>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </main>
+</Layout>

@@ -12,6 +12,8 @@
   "dependencies": {
     "astro": "^5.1.0",
     "@astrojs/tailwind": "^6.0.0",
+    "@astrojs/cloudflare": "^13.0.0",
+    "@aidepedia/db": "workspace:*",
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
