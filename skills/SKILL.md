@@ -87,6 +87,27 @@ interface ArticleQueryParams {
 }
 ```
 
+## Helper Script
+
+A convenience script is provided in `scripts/aidepedia.sh` for common operations:
+
+```bash
+# Make executable (if needed)
+chmod +x scripts/aidepedia.sh
+
+# List articles
+./scripts/aidepedia.sh list
+
+# Get specific article
+./scripts/aidepedia.sh get machine-learning
+
+# Search articles
+./scripts/aidepedia.sh search "artificial intelligence"
+
+# View about page
+./scripts/aidepedia.sh about
+```
+
 ## Common Operations
 
 ### Browse Articles (Web)
