@@ -230,7 +230,7 @@ export const revisionUserVotes = pgTable('revision_user_votes', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
-  revisionEditorIdx: index('revision_editor_idx').on(table.revisionId, table.editorId),
+  revisionEditorIdx: index('revision_vote_editor_idx').on(table.revisionId, table.editorId),
 }));
 
 export const comments = pgTable('comments', {
