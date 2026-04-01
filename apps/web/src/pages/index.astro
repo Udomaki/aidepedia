@@ -1,11 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { generateOrganizationSchema, generateWebsiteSchema } from '../lib/structured-data';
 
 const response = await fetch(`${Astro.site}api/articles?limit=6`);
 const articles = response.ok ? await response.json() : [];
+
+// Generate structured data for home page
+const organizationSchema = generateOrganizationSchema();
+const websiteSchema = generateWebsiteSchema();
+const structuredData = [organizationSchema, websiteSchema];
 ---
 
-<Layout title="Home">
+<Layout 
+  title="Home"
+  canonicalUrl="https://aidepedia.com/"
+  structuredData={structuredData}
+>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
     <div class="text-center mb-16">
       <h1 class="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
