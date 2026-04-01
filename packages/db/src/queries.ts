@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -1678,5 +1678,240 @@ export async function deleteComment(id: number, userId: number): Promise<void> {
       throw error;
     }
     throw new DatabaseError(`Failed to delete comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ========== USER PROFILE QUERIES ==========
+
+/**
+ * Get user by username (name) for public profile
+ * @throws {NotFoundError} If user is not found
+ */
+export async function getUserByUsername(username: string) {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.name, username))
+      .limit(1);
+
+    if (!user) {
+      throw new NotFoundError('User', username);
+    }
+
+    return user;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get user by ID
+ * @throws {NotFoundError} If user is not found
+ */
+export async function getUserById(userId: number) {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      throw new NotFoundError('User', `id:${userId}`);
+    }
+
+    return user;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get user statistics (article count, votes, etc.)
+ */
+export async function getUserStats(userId: number) {
+  try {
+    const { users } = await import('./schema/index');
+    
+    // Get article counts
+    const [
+      [{ articleCount }],
+      [{ revisionCount }],
+      [{ commentCount }],
+      [{ totalUpvotes }],
+      [{ totalDownvotes }],
+    ] = await Promise.all([
+      db.select({ articleCount: count() }).from(articles).where(eq(articles.authorId, userId)),
+      db.select({ revisionCount: count() }).from(articleRevisions).where(eq(articleRevisions.editorId, userId)),
+      db.select({ commentCount: count() }).from(comments).where(eq(comments.userId, userId)),
+      db.select({ totalUpvotes: sql<number>`COALESCE(SUM(${articles.upvotes}), 0)` }).from(articles).where(eq(articles.authorId, userId)),
+      db.select({ totalDownvotes: sql<number>`COALESCE(SUM(${articles.downvotes}), 0)` }).from(articles).where(eq(articles.authorId, userId)),
+    ]);
+
+    return {
+      articleCount: Number(articleCount),
+      revisionCount: Number(revisionCount),
+      commentCount: Number(commentCount),
+      totalUpvotes: Number(totalUpvotes),
+      totalDownvotes: Number(totalDownvotes),
+      netVotes: Number(totalUpvotes) - Number(totalDownvotes),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch user stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get user activity feed (recent edits, comments, votes)
+ */
+export async function getUserActivity(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+) {
+  try {
+    const { users, comments } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Get recent article revisions
+    const revisions = await db
+      .select({
+        type: sql<string>`'edit'`,
+        id: articleRevisions.id,
+        articleId: articleRevisions.articleId,
+        articleTitle: articleRevisions.title,
+        timestamp: articleRevisions.createdAt,
+        changeType: articleRevisions.changeType,
+      })
+      .from(articleRevisions)
+      .where(eq(articleRevisions.editorId, userId))
+      .orderBy(desc(articleRevisions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get recent comments
+    const userComments = await db
+      .select({
+        type: sql<string>`'comment'`,
+        id: comments.id,
+        articleId: comments.articleId,
+        content: comments.content,
+        timestamp: comments.createdAt,
+      })
+      .from(comments)
+      .where(eq(comments.userId, userId))
+      .orderBy(desc(comments.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get recent votes
+    const votes = await db
+      .select({
+        type: sql<string>`'vote'`,
+        id: articleUserVotes.id,
+        articleId: articleUserVotes.articleId,
+        voteType: articleUserVotes.voteType,
+        timestamp: articleUserVotes.createdAt,
+      })
+      .from(articleUserVotes)
+      .where(eq(articleUserVotes.editorId, userId))
+      .orderBy(desc(articleUserVotes.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Combine and sort activities
+    const activities = [...revisions, ...userComments, ...votes]
+      .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+      .slice(0, limit);
+
+    // Fetch article titles for comments and votes
+    const articleIds = new Set<number>();
+    userComments.forEach(c => articleIds.add(c.articleId));
+    votes.forEach(v => articleIds.add(v.articleId));
+
+    const articleTitles = new Map<number, string>();
+    if (articleIds.size > 0) {
+      const articlesData = await db
+        .select({ id: articles.id, title: articles.title })
+        .from(articles)
+        .where(inArray(articles.id, Array.from(articleIds)));
+      
+      articlesData.forEach(a => articleTitles.set(a.id, a.title));
+    }
+
+    // Add article titles to activities
+    const enrichedActivities = activities.map(activity => {
+      if (activity.type === 'comment' || activity.type === 'vote') {
+        return {
+          ...activity,
+          articleTitle: articleTitles.get(activity.articleId) || 'Unknown Article',
+        };
+      }
+      return activity;
+    });
+
+    return {
+      data: enrichedActivities,
+      meta: {
+        total: enrichedActivities.length,
+        page,
+        limit,
+        totalPages: 1,
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch user activity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update user profile
+ * @throws {NotFoundError} If user is not found
+ */
+export async function updateUserProfile(
+  userId: number,
+  updates: {
+    name?: string;
+    bio?: string;
+    image?: string;
+    showActivity?: boolean;
+    showBadges?: boolean;
+  }
+) {
+  try {
+    const { users } = await import('./schema/index');
+    
+    const [user] = await db
+      .update(users)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!user) {
+      throw new NotFoundError('User', `id:${userId}`);
+    }
+
+    return user;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update user profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
