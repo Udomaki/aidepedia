@@ -1,0 +1,214 @@
+---
+import { getAdminStats, getPendingReviews, getFlaggedContent, getAllUsers } from '@aidepedia/db';
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+
+// Fetch admin data
+const stats = await getAdminStats();
+const pendingReviews = await getPendingReviews({ limit: 5 });
+const flaggedContent = await getFlaggedContent({ limit: 5 });
+const recentUsers = await getAllUsers({ limit: 5 });
+---
+
+<Layout title="Admin Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+      <p class="text-gray-600">
+        Manage users, moderate content, and monitor system health.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-8 flex gap-4">
+      <a
+        href="/admin/users"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Manage Users
+      </a>
+      <a
+        href="/admin/moderation"
+        class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+      >
+        Moderation Queue ({stats.pendingReview})
+      </a>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Users</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.totalUsers}</p>
+        <p class="text-sm text-gray-500 mt-1">{stats.activeUsers} active</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Articles</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.totalArticles}</p>
+        <p class="text-sm text-gray-500 mt-1">{stats.published} published</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Pending Review</h3>
+          <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.pendingReview}</p>
+        <a href="/admin/moderation" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          Review now →
+        </a>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Flagged Content</h3>
+          <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{stats.flagged}</p>
+        <a href="/admin/moderation?tab=flagged" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          View flagged →
+        </a>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">System Health</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-3xl font-bold text-green-600">Healthy</p>
+        <p class="text-sm text-gray-500 mt-1">All systems operational</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Quick Stats</h3>
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <p class="text-lg font-bold text-gray-900">{stats.activeUsers} active</p>
+        <p class="text-sm text-gray-500 mt-1">editors this week</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Recent Users -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-900">Recent Users</h2>
+          <a href="/admin/users" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            View all →
+          </a>
+        </div>
+
+        {recentUsers.data.length > 0 ? (
+          <div class="space-y-4">
+            {recentUsers.data.map(user => (
+              <div class="bg-white rounded-lg shadow border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 mb-1">{user.name}</h3>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                      <span class={`px-2 py-0.5 rounded text-xs font-medium ${
+                        user.tier === 'admin' ? 'bg-red-100 text-red-700' :
+                        user.tier === 'senior_editor' ? 'bg-purple-100 text-purple-700' :
+                        user.tier === 'editor' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {user.tier?.replace('_', ' ') || 'contributor'}
+                      </span>
+                      <span>•</span>
+                      <span class={user.isActive ? 'text-green-600' : 'text-red-600'}>
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">
+                      Rep: {user.reputationScore} • Created: {new Date(user.createdAt || '').toLocaleDateString()}
+                    </p>
+                  </div>
+                  <a
+                    href={`/admin/users?id=${user.id}`}
+                    class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium"
+                  >
+                    Manage
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
+            <p class="text-gray-500">No users found</p>
+          </div>
+        )}
+      </div>
+
+      <!-- Flagged Content -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-900">Flagged Content</h2>
+          <a href="/admin/moderation?tab=flagged" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            View all →
+          </a>
+        </div>
+
+        {flaggedContent.data.length > 0 ? (
+          <div class="space-y-4">
+            {flaggedContent.data.map(article => (
+              <div class="bg-white rounded-lg shadow border border-red-200 p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 mb-1">
+                      <a href={`/articles/${article.slug}`} class="hover:text-blue-600">
+                        {article.title}
+                      </a>
+                    </h3>
+                    <p class="text-sm text-red-600 font-medium mb-2">
+                      ⚠️ {article.reportReason}
+                    </p>
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                      <span>Quality: {article.qualityScore}</span>
+                      <span>•</span>
+                      <span>↓ {article.downvotes} / ↑ {article.upvotes}</span>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 ml-4">
+                    <a
+                      href={`/admin/moderation?article=${article.id}`}
+                      class="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm font-medium"
+                    >
+                      Review
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
+            <p class="text-gray-500">No flagged content</p>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>
