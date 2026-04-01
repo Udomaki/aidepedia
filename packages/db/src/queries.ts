@@ -1,4 +1,4 @@
-import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
+import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
 import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users } from './schema/index';
 import type {
@@ -142,6 +142,10 @@ export async function listArticles(
 
     if (params.dateTo) {
       conditions.push(lte(articles.createdAt, new Date(params.dateTo)));
+    }
+
+    if (params.excludeAuthorIds && params.excludeAuthorIds.length > 0) {
+      conditions.push(not(inArray(articles.authorId, params.excludeAuthorIds)));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -1545,10 +1549,22 @@ export async function getAdminStats(): Promise<{
 
 /**
  * Get comments for an article, organized as threaded tree
+ * @param articleId Article ID
+ * @param excludeUserIds Optional array of user IDs to exclude (e.g., blocked users)
  */
-export async function getCommentsByArticle(articleId: number): Promise<ThreadedComment[]> {
+export async function getCommentsByArticle(
+  articleId: number, 
+  excludeUserIds?: number[]
+): Promise<ThreadedComment[]> {
   try {
     const { comments, users } = await import('./schema/index');
+    
+    // Build where clause
+    const conditions = [eq(comments.articleId, articleId)];
+    
+    if (excludeUserIds && excludeUserIds.length > 0) {
+      conditions.push(not(inArray(comments.userId, excludeUserIds)));
+    }
     
     // Get all comments for the article
     const allComments = await db
@@ -1566,7 +1582,7 @@ export async function getCommentsByArticle(articleId: number): Promise<ThreadedC
       })
       .from(comments)
       .leftJoin(users, eq(comments.userId, users.id))
-      .where(eq(comments.articleId, articleId))
+      .where(and(...conditions))
       .orderBy(desc(comments.createdAt));
 
     // Build threaded structure
@@ -4172,5 +4188,247 @@ export async function updateContentReportStatus(
       throw error;
     }
     throw new DatabaseError(`Failed to update content report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============================================
+// User Block Queries
+// ============================================
+
+/**
+ * Block a user
+ * @throws {ValidationError} If trying to block self or already blocked
+ */
+export async function blockUser(blockerId: number, blockedId: number): Promise<void> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    // Can't block yourself
+    if (blockerId === blockedId) {
+      throw new ValidationError('Cannot block yourself');
+    }
+
+    // Check if already blocked
+    const [existing] = await db
+      .select()
+      .from(user_blocks)
+      .where(
+        and(
+          eq(user_blocks.blockerId, blockerId),
+          eq(user_blocks.blockedId, blockedId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new ValidationError('Already blocked this user');
+    }
+
+    // Create block relationship
+    await db.insert(user_blocks).values({
+      blockerId,
+      blockedId,
+    });
+
+    // Remove any existing follow relationships between the users
+    const { follows } = await import('./schema/index');
+    
+    // Remove follower relationship if exists
+    await db
+      .delete(follows)
+      .where(
+        or(
+          and(
+            eq(follows.followerId, blockerId),
+            eq(follows.followingId, blockedId)
+          ),
+          and(
+            eq(follows.followerId, blockedId),
+            eq(follows.followingId, blockerId)
+          )
+        )
+      );
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to block user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Unblock a user
+ * @throws {ValidationError} If not blocking the user
+ */
+export async function unblockUser(blockerId: number, blockedId: number): Promise<void> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    const [existing] = await db
+      .delete(user_blocks)
+      .where(
+        and(
+          eq(user_blocks.blockerId, blockerId),
+          eq(user_blocks.blockedId, blockedId)
+        )
+      )
+      .returning();
+
+    if (!existing) {
+      throw new ValidationError('Not blocking this user');
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to unblock user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Check if a user has blocked another user
+ */
+export async function isBlocking(blockerId: number, blockedId: number): Promise<boolean> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    const [block] = await db
+      .select()
+      .from(user_blocks)
+      .where(
+        and(
+          eq(user_blocks.blockerId, blockerId),
+          eq(user_blocks.blockedId, blockedId)
+        )
+      )
+      .limit(1);
+
+    return !!block;
+  } catch (error) {
+    throw new DatabaseError(`Failed to check block status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Check if either user has blocked the other (mutual block check)
+ */
+export async function hasBlockBetween(userId1: number, userId2: number): Promise<boolean> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    const [block] = await db
+      .select()
+      .from(user_blocks)
+      .where(
+        or(
+          and(
+            eq(user_blocks.blockerId, userId1),
+            eq(user_blocks.blockedId, userId2)
+          ),
+          and(
+            eq(user_blocks.blockerId, userId2),
+            eq(user_blocks.blockedId, userId1)
+          )
+        )
+      )
+      .limit(1);
+
+    return !!block;
+  } catch (error) {
+    throw new DatabaseError(`Failed to check mutual block status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get list of users blocked by a user
+ */
+export async function getBlockedUsers(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<{
+  id: number;
+  name: string | null;
+  image: string | null;
+  bio: string | null;
+  blockedAt: Date;
+}>> {
+  try {
+    const { user_blocks, users } = await import('./schema/index');
+    
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: users.id,
+          name: users.name,
+          image: users.image,
+          bio: users.bio,
+          blockedAt: user_blocks.createdAt,
+        })
+        .from(user_blocks)
+        .innerJoin(users, eq(user_blocks.blockedId, users.id))
+        .where(eq(user_blocks.blockerId, userId))
+        .orderBy(desc(user_blocks.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(user_blocks)
+        .where(eq(user_blocks.blockerId, userId)),
+    ]);
+
+    return {
+      data: data.map(d => ({
+        ...d,
+        blockedAt: d.blockedAt || new Date(),
+      })),
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch blocked users: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get list of blocked user IDs for a user (for filtering queries)
+ */
+export async function getBlockedUserIds(userId: number): Promise<number[]> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    const blocked = await db
+      .select({ blockedId: user_blocks.blockedId })
+      .from(user_blocks)
+      .where(eq(user_blocks.blockerId, userId));
+
+    return blocked.map(b => b.blockedId);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch blocked user IDs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get list of user IDs who have blocked a user (for filtering queries)
+ */
+export async function getBlockedByUserIds(userId: number): Promise<number[]> {
+  try {
+    const { user_blocks } = await import('./schema/index');
+    
+    const blockedBy = await db
+      .select({ blockerId: user_blocks.blockerId })
+      .from(user_blocks)
+      .where(eq(user_blocks.blockedId, userId));
+
+    return blockedBy.map(b => b.blockerId);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch blocked-by user IDs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

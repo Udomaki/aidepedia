@@ -97,6 +97,7 @@ export interface ArticleQueryParams extends PaginationParams {
   maxQualityScore?: number;
   dateFrom?: string;
   dateTo?: string;
+  excludeAuthorIds?: number[]; // For filtering blocked users
 }
 
 // Notification types

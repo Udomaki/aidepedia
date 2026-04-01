@@ -121,14 +121,25 @@ if (user.showBadges !== false) {
         </div>
         
         {currentUser && currentUser.id !== user.id && (
-          <button 
-            id="follow-btn"
-            data-user-id={user.id}
-            data-username={username}
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Follow
-          </button>
+          <div class="flex gap-2">
+            <button 
+              id="follow-btn"
+              data-user-id={user.id}
+              data-username={username}
+              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Follow
+            </button>
+            <button 
+              id="block-btn"
+              data-user-id={user.id}
+              data-username={username}
+              class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
+              title="Block this user"
+            >
+              Block
+            </button>
+          </div>
         )}
         
         {currentUser && currentUser.id === user.id && (
@@ -232,6 +243,7 @@ if (user.showBadges !== false) {
 
 <script>
   const followBtn = document.getElementById('follow-btn');
+  const blockBtn = document.getElementById('block-btn');
   
   if (followBtn) {
     let isFollowing = false;
@@ -283,6 +295,74 @@ if (user.showBadges !== false) {
       } catch (error) {
         console.error('Error updating follow status:', error);
         alert('Failed to update follow status');
+      }
+    });
+  }
+
+  // Block button handling
+  if (blockBtn) {
+    let isBlocking = false;
+    const username = blockBtn.dataset.username;
+    
+    // Check initial block status
+    fetch(`/api/v1/users/${username}/block`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data.blocking) {
+          isBlocking = true;
+          blockBtn.textContent = 'Unblock';
+          blockBtn.classList.remove('border-red-300', 'text-red-600', 'hover:bg-red-50');
+          blockBtn.classList.add('border-gray-300', 'text-gray-600', 'hover:bg-gray-50');
+        }
+      })
+      .catch(err => console.error('Error checking block status:', err));
+    
+    blockBtn.addEventListener('click', async () => {
+      const confirmMsg = isBlocking 
+        ? 'Are you sure you want to unblock this user?' 
+        : 'Are you sure you want to block this user? They will not be able to see your content or contact you.';
+      
+      if (!confirm(confirmMsg)) return;
+      
+      try {
+        const method = isBlocking ? 'DELETE' : 'POST';
+        const response = await fetch(`/api/v1/users/${username}/block`, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          isBlocking = !isBlocking;
+          
+          if (isBlocking) {
+            blockBtn.textContent = 'Unblock';
+            blockBtn.classList.remove('border-red-300', 'text-red-600', 'hover:bg-red-50');
+            blockBtn.classList.add('border-gray-300', 'text-gray-600', 'hover:bg-gray-50');
+            
+            // Hide follow button when blocking
+            if (followBtn) {
+              followBtn.style.display = 'none';
+            }
+          } else {
+            blockBtn.textContent = 'Block';
+            blockBtn.classList.remove('border-gray-300', 'text-gray-600', 'hover:bg-gray-50');
+            blockBtn.classList.add('border-red-300', 'text-red-600', 'hover:bg-red-50');
+            
+            // Show follow button when unblocking
+            if (followBtn) {
+              followBtn.style.display = 'block';
+            }
+          }
+        } else {
+          alert(data.error?.message || 'Failed to update block status');
+        }
+      } catch (error) {
+        console.error('Error updating block status:', error);
+        alert('Failed to update block status');
       }
     });
   }

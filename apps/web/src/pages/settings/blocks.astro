@@ -1,0 +1,195 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getSession } from '../../lib/auth';
+import { getBlockedUsers } from '@aidepedia/db';
+
+const session = await getSession(Astro.request);
+const currentUser = session?.user;
+
+if (!currentUser) {
+  return Astro.redirect('/login');
+}
+
+// Get blocked users
+let blockedUsers: any[] = [];
+let total = 0;
+let page = 1;
+let totalPages = 1;
+
+try {
+  const result = await getBlockedUsers(currentUser.id, { limit: 50 });
+  blockedUsers = result.data;
+  total = result.meta.total;
+  page = result.meta.page;
+  totalPages = result.meta.totalPages;
+} catch (error) {
+  console.error('Error fetching blocked users:', error);
+}
+
+function formatDate(dateStr: string | Date): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+---
+
+<Layout title="Blocked Users - Settings">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Breadcrumb -->
+    <div class="mb-6">
+      <nav class="flex" aria-label="Breadcrumb">
+        <ol class="flex items-center space-x-4">
+          <li>
+            <a href="/settings/profile" class="text-gray-500 hover:text-gray-700">Settings</a>
+          </li>
+          <li>
+            <span class="text-gray-400">/</span>
+          </li>
+          <li>
+            <span class="text-gray-900 font-medium">Blocked Users</span>
+          </li>
+        </ol>
+      </nav>
+    </div>
+
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Blocked Users</h1>
+      <p class="text-gray-600 mt-2">Manage users you've blocked. Blocked users cannot see your content or interact with you.</p>
+    </div>
+
+    <!-- Settings Navigation -->
+    <div class="flex space-x-1 mb-8 bg-gray-100 rounded-lg p-1">
+      <a href="/settings/profile" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Profile
+      </a>
+      <a href="/settings/notifications" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Notifications
+      </a>
+      <a href="/settings/security" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Security
+      </a>
+      <a href="/settings/blocks" class="flex-1 px-4 py-2 text-sm font-medium bg-white text-gray-900 rounded-md shadow">
+        Blocked Users
+      </a>
+    </div>
+
+    <!-- Blocked Users List -->
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      {blockedUsers.length === 0 ? (
+        <div class="p-12 text-center">
+          <span class="text-6xl mb-4 block">🚫</span>
+          <h3 class="text-lg font-medium text-gray-900 mb-2">No Blocked Users</h3>
+          <p class="text-gray-500">You haven't blocked any users yet.</p>
+        </div>
+      ) : (
+        <div class="divide-y divide-gray-100">
+          {blockedUsers.map((user) => (
+            <div class="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
+              <div class="flex items-center space-x-4">
+                {user.image ? (
+                  <img 
+                    src={user.image} 
+                    alt={user.name || 'User'} 
+                    class="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div class="w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+                    <span class="text-lg text-white font-bold">
+                      {user.name?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <a 
+                    href={`/users/${user.name}`} 
+                    class="font-medium text-gray-900 hover:text-blue-600"
+                  >
+                    {user.name || 'Unknown User'}
+                  </a>
+                  {user.bio && (
+                    <p class="text-sm text-gray-500 mt-1 line-clamp-1">{user.bio}</p>
+                  )}
+                  <p class="text-xs text-gray-400 mt-1">
+                    Blocked on {formatDate(user.blockedAt)}
+                  </p>
+                </div>
+              </div>
+              <button 
+                class="unblock-btn px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                data-username={user.name}
+                data-user-id={user.id}
+              >
+                Unblock
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {total > 50 && (
+      <div class="mt-6 text-center text-sm text-gray-500">
+        Showing {blockedUsers.length} of {total} blocked users
+      </div>
+    )}
+  </div>
+</Layout>
+
+<script>
+  const unblockBtns = document.querySelectorAll('.unblock-btn');
+  
+  unblockBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const username = btn.dataset.username;
+      const userId = btn.dataset.userId;
+      
+      if (!confirm(`Are you sure you want to unblock ${username}?`)) return;
+      
+      try {
+        btn.disabled = true;
+        btn.textContent = 'Unblocking...';
+        
+        const response = await fetch(`/api/v1/users/${username}/block`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Remove the row with animation
+          const row = btn.closest('.divide-y > div');
+          if (row) {
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(20px)';
+            row.style.transition = 'all 0.3s ease';
+            setTimeout(() => row.remove(), 300);
+          }
+          
+          // Check if list is now empty
+          setTimeout(() => {
+            const remaining = document.querySelectorAll('.divide-y > div');
+            if (remaining.length === 0) {
+              window.location.reload();
+            }
+          }, 350);
+        } else {
+          alert(data.error?.message || 'Failed to unblock user');
+          btn.disabled = false;
+          btn.textContent = 'Unblock';
+        }
+      } catch (error) {
+        console.error('Error unblocking user:', error);
+        alert('Failed to unblock user');
+        btn.disabled = false;
+        btn.textContent = 'Unblock';
+      }
+    });
+  });
+</script>
