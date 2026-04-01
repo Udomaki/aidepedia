@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, articleVotes } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -1042,5 +1042,123 @@ export async function getRevisionUserVote(
     return vote?.voteType || null;
   } catch (error) {
     throw new DatabaseError(`Failed to get revision vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Submit editorial vote on an article (approve/reject/neutral with quality rating and comment)
+ * @throws {NotFoundError} If article or editor is not found
+ */
+export async function submitEditorialVote(
+  articleId: number,
+  editorId: number,
+  vote: 'approve' | 'reject' | 'neutral',
+  qualityRating?: number,
+  comment?: string
+): Promise<{ success: boolean }> {
+  try {
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if editor exists
+    await getEditorById(editorId);
+
+    // Check if editor has already voted
+    const [existingVote] = await db
+      .select()
+      .from(articleVotes)
+      .where(
+        and(
+          eq(articleVotes.articleId, articleId),
+          eq(articleVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    if (existingVote) {
+      // Update existing vote
+      await db
+        .update(articleVotes)
+        .set({ vote, qualityRating, comment })
+        .where(eq(articleVotes.id, existingVote.id));
+    } else {
+      // Create new vote
+      await db
+        .insert(articleVotes)
+        .values({
+          articleId,
+          editorId,
+          vote,
+          qualityRating,
+          comment,
+        });
+    }
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to submit editorial vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get editorial vote summary for an article
+ */
+export async function getArticleEditorialVotes(
+  articleId: number
+): Promise<{ approve: number; reject: number; neutral: number; averageQuality: number }> {
+  try {
+    const votes = await db
+      .select()
+      .from(articleVotes)
+      .where(eq(articleVotes.articleId, articleId));
+
+    const approve = votes.filter(v => v.vote === 'approve').length;
+    const reject = votes.filter(v => v.vote === 'reject').length;
+    const neutral = votes.filter(v => v.vote === 'neutral').length;
+
+    const votesWithQuality = votes.filter(v => v.qualityRating !== null && v.qualityRating !== undefined);
+    const averageQuality = votesWithQuality.length > 0
+      ? votesWithQuality.reduce((sum, v) => sum + (v.qualityRating || 0), 0) / votesWithQuality.length
+      : 0;
+
+    return { approve, reject, neutral, averageQuality };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get editorial votes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get an editor's vote on an article
+ */
+export async function getEditorArticleVote(
+  articleId: number,
+  editorId: number
+): Promise<{ vote: 'approve' | 'reject' | 'neutral'; qualityRating?: number; comment?: string } | null> {
+  try {
+    const [voteRecord] = await db
+      .select()
+      .from(articleVotes)
+      .where(
+        and(
+          eq(articleVotes.articleId, articleId),
+          eq(articleVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    if (!voteRecord) {
+      return null;
+    }
+
+    return {
+      vote: voteRecord.vote as 'approve' | 'reject' | 'neutral',
+      qualityRating: voteRecord.qualityRating || undefined,
+      comment: voteRecord.comment || undefined,
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get editorial vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

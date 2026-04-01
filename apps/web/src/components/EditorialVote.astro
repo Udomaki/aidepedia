@@ -1,0 +1,403 @@
+---
+interface Props {
+  articleId: number;
+  editorId?: number;
+  initialVote?: {
+    vote: 'approve' | 'reject' | 'neutral';
+    qualityRating?: number;
+    comment?: string;
+  };
+  initialSummary?: {
+    approve: number;
+    reject: number;
+    neutral: number;
+    averageQuality: number;
+  };
+}
+
+const { articleId, editorId, initialVote, initialSummary } = Astro.props;
+
+const canVote = editorId !== undefined;
+const summary = initialSummary || { approve: 0, reject: 0, neutral: 0, averageQuality: 0 };
+const userVote = initialVote;
+---
+
+<div class="editorial-voting-panel bg-gray-50 rounded-lg p-6 border border-gray-200">
+  <h3 class="text-lg font-semibold text-gray-900 mb-4">Editorial Review</h3>
+
+  <!-- Vote Summary -->
+  <div class="mb-6 grid grid-cols-4 gap-4">
+    <div class="bg-green-50 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-green-600" id={`approve-count-${articleId}`}>{summary.approve}</div>
+      <div class="text-sm text-green-700">Approve</div>
+    </div>
+    <div class="bg-red-50 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-red-600" id={`reject-count-${articleId}`}>{summary.reject}</div>
+      <div class="text-sm text-red-700">Reject</div>
+    </div>
+    <div class="bg-gray-50 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-gray-600" id={`neutral-count-${articleId}`}>{summary.neutral}</div>
+      <div class="text-sm text-gray-700">Neutral</div>
+    </div>
+    <div class="bg-yellow-50 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-yellow-600" id={`quality-score-${articleId}`}>
+        {summary.averageQuality > 0 ? summary.averageQuality.toFixed(1) : '-'}
+      </div>
+      <div class="text-sm text-yellow-700">Avg Quality</div>
+    </div>
+  </div>
+
+  {canVote ? (
+    <div id={`vote-form-${articleId}`}>
+      <!-- Vote Type Selection -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Your Vote</label>
+        <div class="flex gap-3">
+          <button
+            class:list={[
+              "flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200",
+              "border-2",
+              !userVote && "border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:bg-green-50",
+              userVote?.vote === 'approve' && "border-green-500 bg-green-100 text-green-700",
+              userVote && userVote.vote !== 'approve' && "border-gray-200 bg-white text-gray-400"
+            ]}
+            data-vote-type="approve"
+            data-article-id={articleId}
+            disabled={!!userVote}
+          >
+            ✓ Approve
+          </button>
+          <button
+            class:list={[
+              "flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200",
+              "border-2",
+              !userVote && "border-gray-200 bg-white text-gray-600 hover:border-red-300 hover:bg-red-50",
+              userVote?.vote === 'reject' && "border-red-500 bg-red-100 text-red-700",
+              userVote && userVote.vote !== 'reject' && "border-gray-200 bg-white text-gray-400"
+            ]}
+            data-vote-type="reject"
+            data-article-id={articleId}
+            disabled={!!userVote}
+          >
+            ✗ Reject
+          </button>
+          <button
+            class:list={[
+              "flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200",
+              "border-2",
+              !userVote && "border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50",
+              userVote?.vote === 'neutral' && "border-gray-500 bg-gray-100 text-gray-700",
+              userVote && userVote.vote !== 'neutral' && "border-gray-200 bg-white text-gray-400"
+            ]}
+            data-vote-type="neutral"
+            data-article-id={articleId}
+            disabled={!!userVote}
+          >
+            ○ Neutral
+          </button>
+        </div>
+      </div>
+
+      <!-- Quality Rating -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          Quality Rating (Optional): <span id={`rating-value-${articleId}`} class="font-bold text-blue-600">
+            {userVote?.qualityRating || 'Not rated'}
+          </span>
+        </label>
+        <input
+          type="range"
+          min="1"
+          max="5"
+          step="1"
+          value={userVote?.qualityRating || 3}
+          id={`quality-rating-${articleId}`}
+          class:list={[
+            "w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
+          ]}
+          disabled={!!userVote}
+        />
+        <div class="flex justify-between text-xs text-gray-500 mt-1">
+          <span>Poor</span>
+          <span>Fair</span>
+          <span>Good</span>
+          <span>Very Good</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <!-- Comment -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Comment (Optional)</label>
+        <textarea
+          id={`vote-comment-${articleId}`}
+          rows="3"
+          class:list={[
+            "w-full px-3 py-2 border border-gray-300 rounded-lg",
+            "focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+            "disabled:bg-gray-100 disabled:text-gray-500"
+          ]}
+          placeholder="Provide feedback on this article..."
+          disabled={!!userVote}
+        >{userVote?.comment || ''}</textarea>
+      </div>
+
+      <!-- Submit Button -->
+      {!userVote && (
+        <button
+          id={`submit-vote-${articleId}`}
+          class="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          data-article-id={articleId}
+          data-editor-id={editorId}
+        >
+          Submit Vote
+        </button>
+      )}
+
+      {userVote && (
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+          <p class="text-sm text-blue-800">
+            You voted <strong class="capitalize">{userVote.vote}</strong>
+            {userVote.qualityRating && ` with a quality rating of ${userVote.qualityRating}/5`}
+          </p>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div class="text-center py-6 text-gray-500">
+      <p class="text-sm">Please log in as an editor to vote on this article.</p>
+    </div>
+  )}
+</div>
+
+{canVote && (
+  <script define:vars={{ articleId, editorId, userVote }}>
+    const qualitySlider = document.getElementById(`quality-rating-${articleId}`);
+    const ratingValue = document.getElementById(`rating-value-${articleId}`);
+    const submitButton = document.getElementById(`submit-vote-${articleId}`);
+    const commentTextarea = document.getElementById(`vote-comment-${articleId}`);
+    const voteButtons = document.querySelectorAll(`[data-vote-type][data-article-id="${articleId}"]`);
+    let selectedVote = userVote ? userVote.vote : null;
+
+    // Fetch vote summary on load
+    async function fetchVoteSummary() {
+      try {
+        const response = await fetch(`/api/articles/${articleId}/editorial-vote?summary=true`);
+        if (response.ok) {
+          const summary = await response.json();
+
+          const approveCount = document.getElementById(`approve-count-${articleId}`);
+          const rejectCount = document.getElementById(`reject-count-${articleId}`);
+          const neutralCount = document.getElementById(`neutral-count-${articleId}`);
+          const qualityScore = document.getElementById(`quality-score-${articleId}`);
+
+          if (approveCount) approveCount.textContent = summary.approve;
+          if (rejectCount) rejectCount.textContent = summary.reject;
+          if (neutralCount) neutralCount.textContent = summary.neutral;
+          if (qualityScore) {
+            qualityScore.textContent = summary.averageQuality > 0
+              ? summary.averageQuality.toFixed(1)
+              : '-';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch vote summary:', error);
+      }
+    }
+
+    // Fetch initial data on page load
+    fetchVoteSummary();
+
+    // Fetch user's existing vote if editorId is provided
+    async function fetchUserVote() {
+      if (!editorId) return;
+
+      try {
+        const response = await fetch(`/api/articles/${articleId}/editorial-vote?editorId=${editorId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.vote) {
+            // User has already voted - update UI to show existing vote
+            selectedVote = data.vote.vote;
+
+            // Update button styles
+            voteButtons.forEach(btn => {
+              const btnVoteType = btn.dataset.voteType;
+              btn.classList.remove('border-gray-200', 'bg-white', 'text-gray-600',
+                                    'hover:border-green-300', 'hover:bg-green-50',
+                                    'hover:border-red-300', 'hover:bg-red-50',
+                                    'hover:border-gray-400', 'hover:bg-gray-50');
+              btn.disabled = true;
+
+              if (btnVoteType === selectedVote) {
+                if (selectedVote === 'approve') {
+                  btn.classList.add('border-green-500', 'bg-green-100', 'text-green-700');
+                } else if (selectedVote === 'reject') {
+                  btn.classList.add('border-red-500', 'bg-red-100', 'text-red-700');
+                } else {
+                  btn.classList.add('border-gray-500', 'bg-gray-100', 'text-gray-700');
+                }
+              } else {
+                btn.classList.add('border-gray-200', 'bg-white', 'text-gray-400');
+              }
+            });
+
+            // Update quality rating and comment
+            if (data.vote.qualityRating && qualitySlider) {
+              qualitySlider.value = data.vote.qualityRating;
+              if (ratingValue) ratingValue.textContent = data.vote.qualityRating;
+              qualitySlider.disabled = true;
+            }
+
+            if (data.vote.comment && commentTextarea) {
+              commentTextarea.value = data.vote.comment;
+              commentTextarea.disabled = true;
+            }
+
+            // Remove submit button and show success message
+            if (submitButton) {
+              submitButton.remove();
+              const formContainer = document.getElementById(`vote-form-${articleId}`);
+              if (formContainer) {
+                const successDiv = document.createElement('div');
+                successDiv.className = 'bg-blue-50 border border-blue-200 rounded-lg p-3 text-center';
+                successDiv.innerHTML = `
+                  <p class="text-sm text-blue-800">
+                    You voted <strong class="capitalize">${data.vote.vote}</strong>
+                    ${data.vote.qualityRating ? ` with a quality rating of ${data.vote.qualityRating}/5` : ''}
+                  </p>
+                `;
+                formContainer.appendChild(successDiv);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch user vote:', error);
+      }
+    }
+
+    fetchUserVote();
+
+    // Update rating display when slider moves
+    if (qualitySlider && ratingValue) {
+      qualitySlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        ratingValue.textContent = value;
+      });
+    }
+
+    // Handle vote button selection
+    voteButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        if (userVote) return; // Already voted
+
+        selectedVote = button.dataset.voteType;
+
+        // Update button styles
+        voteButtons.forEach(btn => {
+          btn.classList.remove('border-green-500', 'bg-green-100', 'text-green-700',
+                                'border-red-500', 'bg-red-100', 'text-red-700',
+                                'border-gray-500', 'bg-gray-100', 'text-gray-700');
+          btn.classList.add('border-gray-200', 'bg-white', 'text-gray-600');
+        });
+
+        button.classList.remove('border-gray-200', 'bg-white', 'text-gray-600');
+        if (selectedVote === 'approve') {
+          button.classList.add('border-green-500', 'bg-green-100', 'text-green-700');
+        } else if (selectedVote === 'reject') {
+          button.classList.add('border-red-500', 'bg-red-100', 'text-red-700');
+        } else {
+          button.classList.add('border-gray-500', 'bg-gray-100', 'text-gray-700');
+        }
+      });
+    });
+
+    // Handle form submission
+    if (submitButton) {
+      submitButton.addEventListener('click', async () => {
+        if (!selectedVote) {
+          alert('Please select a vote type (Approve, Reject, or Neutral)');
+          return;
+        }
+
+        const qualityRating = qualitySlider ? parseInt(qualitySlider.value) : undefined;
+        const comment = commentTextarea ? commentTextarea.value.trim() : undefined;
+        if (comment === '') {
+          comment = undefined;
+        }
+
+        submitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+
+        try {
+          const response = await fetch(`/api/articles/${articleId}/editorial-vote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              editorId,
+              vote: selectedVote,
+              qualityRating,
+              comment
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to submit vote');
+          }
+
+          const data = await response.json();
+
+          // Update UI with new vote summary
+          const approveCount = document.getElementById(`approve-count-${articleId}`);
+          const rejectCount = document.getElementById(`reject-count-${articleId}`);
+          const neutralCount = document.getElementById(`neutral-count-${articleId}`);
+          const qualityScore = document.getElementById(`quality-score-${articleId}`);
+
+          if (approveCount) approveCount.textContent = data.summary.approve;
+          if (rejectCount) rejectCount.textContent = data.summary.reject;
+          if (neutralCount) neutralCount.textContent = data.summary.neutral;
+          if (qualityScore) {
+            qualityScore.textContent = data.summary.averageQuality > 0
+              ? data.summary.averageQuality.toFixed(1)
+              : '-';
+          }
+
+          // Show success message and disable form
+          const formContainer = document.getElementById(`vote-form-${articleId}`);
+          if (formContainer) {
+            // Disable all inputs
+            voteButtons.forEach(btn => {
+              btn.disabled = true;
+              btn.classList.remove('hover:border-green-300', 'hover:bg-green-50',
+                                  'hover:border-red-300', 'hover:bg-red-50',
+                                  'hover:border-gray-400', 'hover:bg-gray-50');
+            });
+
+            if (qualitySlider) qualitySlider.disabled = true;
+            if (commentTextarea) commentTextarea.disabled = true;
+
+            // Replace submit button with success message
+            submitButton.remove();
+            const successDiv = document.createElement('div');
+            successDiv.className = 'bg-blue-50 border border-blue-200 rounded-lg p-3 text-center';
+            successDiv.innerHTML = `
+              <p class="text-sm text-blue-800">
+                You voted <strong class="capitalize">${selectedVote}</strong>
+                ${qualityRating ? ` with a quality rating of ${qualityRating}/5` : ''}
+              </p>
+            `;
+            formContainer.appendChild(successDiv);
+          }
+        } catch (error) {
+          console.error('Vote submission error:', error);
+          alert(error.message || 'Failed to submit vote. Please try again.');
+          submitButton.disabled = false;
+          submitButton.textContent = 'Submit Vote';
+        }
+      });
+    }
+  </script>
+)}

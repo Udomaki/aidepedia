@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getArticleBySlug, listArticles } from '@aidepedia/db';
+import EditorialVote from '../../components/EditorialVote.astro';
 
 export async function getStaticPaths() {
   // Try to fetch all published articles for static generation
@@ -114,6 +115,15 @@ function getCategoryColor(category: string): string {
         {article.content.split('\n\n').map((paragraph: string) => (
           <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
         ))}
+      </div>
+
+      <!-- Editorial Voting Section -->
+      <div class="p-8 bg-gray-50 border-t border-gray-200">
+        <EditorialVote
+          articleId={article.id}
+          editorId={undefined}
+          initialSummary={{ approve: 0, reject: 0, neutral: 0, averageQuality: 0 }}
+        />
       </div>
 
       <!-- Footer -->
