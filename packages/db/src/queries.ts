@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -3798,5 +3798,98 @@ export async function getAuditResourceTypes(): Promise<string[]> {
     return result.map(r => r.resourceType);
   } catch (error) {
     throw new DatabaseError(`Failed to fetch audit resource types: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============================================
+// System Settings Queries
+// ============================================
+
+import { system_settings } from './schema/index';
+import type { SystemSetting, MaintenanceModeSettings, NewSystemSetting } from './types';
+
+/**
+ * Get a system setting by key
+ */
+export async function getSystemSetting<T = Record<string, unknown>>(key: string): Promise<T | null> {
+  try {
+    const [setting] = await db
+      .select()
+      .from(system_settings)
+      .where(eq(system_settings.key, key))
+      .limit(1);
+
+    return setting ? (setting.value as T) : null;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch system setting: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Set a system setting
+ */
+export async function setSystemSetting(
+  key: string, 
+  value: Record<string, unknown>,
+  updatedBy?: number
+): Promise<SystemSetting> {
+  try {
+    // Use upsert pattern
+    const [setting] = await db
+      .insert(system_settings)
+      .values({ key, value, updatedBy: updatedBy ?? null })
+      .onConflictDoUpdate({
+        target: system_settings.key,
+        set: {
+          value,
+          updatedAt: new Date(),
+          updatedBy: updatedBy ?? null,
+        },
+      })
+      .returning();
+
+    return setting;
+  } catch (error) {
+    throw new DatabaseError(`Failed to set system setting: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get maintenance mode settings
+ */
+export async function getMaintenanceModeSettings(): Promise<MaintenanceModeSettings> {
+  const defaultSettings: MaintenanceModeSettings = {
+    enabled: false,
+    message: 'We are currently performing scheduled maintenance. Please check back soon.',
+    estimatedTime: '',
+    contactEmail: '',
+  };
+
+  try {
+    const settings = await getSystemSetting<MaintenanceModeSettings>('maintenance_mode');
+    return settings ? { ...defaultSettings, ...settings } : defaultSettings;
+  } catch (error) {
+    // If table doesn't exist or other error, return defaults
+    console.error('Error fetching maintenance settings:', error);
+    return defaultSettings;
+  }
+}
+
+/**
+ * Update maintenance mode settings
+ */
+export async function setMaintenanceModeSettings(
+  settings: Partial<MaintenanceModeSettings>,
+  updatedBy?: number
+): Promise<MaintenanceModeSettings> {
+  try {
+    const currentSettings = await getMaintenanceModeSettings();
+    const newSettings = { ...currentSettings, ...settings };
+    
+    await setSystemSetting('maintenance_mode', newSettings as unknown as Record<string, unknown>, updatedBy);
+    
+    return newSettings;
+  } catch (error) {
+    throw new DatabaseError(`Failed to update maintenance settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

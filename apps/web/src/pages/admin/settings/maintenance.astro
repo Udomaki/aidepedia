@@ -1,0 +1,399 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Maintenance Mode - Admin Settings">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center gap-4 mb-4">
+        <a
+          href="/admin"
+          class="text-gray-600 hover:text-gray-900 flex items-center gap-1"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Dashboard
+        </a>
+      </div>
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Maintenance Mode</h1>
+      <p class="text-gray-600">
+        Enable maintenance mode to temporarily restrict access to the site while performing updates.
+      </p>
+    </div>
+
+    <!-- Status Banner -->
+    <div id="statusBanner" class="mb-6 p-4 rounded-lg hidden">
+      <!-- Dynamically filled -->
+    </div>
+
+    <!-- Main Settings Card -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">Maintenance Settings</h2>
+      
+      <!-- Enable/Disable Toggle -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <label for="maintenanceToggle" class="text-lg font-medium text-gray-900">
+              Enable Maintenance Mode
+            </label>
+            <p class="text-sm text-gray-500 mt-1">
+              When enabled, only administrators can access the site.
+            </p>
+          </div>
+          <button
+            type="button"
+            id="maintenanceToggle"
+            class="relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-gray-200"
+            role="switch"
+            aria-checked="false"
+          >
+            <span class="pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Message -->
+      <div class="mb-6">
+        <label for="maintenanceMessage" class="block text-sm font-medium text-gray-700 mb-2">
+          Maintenance Message
+        </label>
+        <textarea
+          id="maintenanceMessage"
+          rows="3"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="We are currently performing scheduled maintenance. Please check back soon."
+        ></textarea>
+        <p class="text-sm text-gray-500 mt-1">
+          This message will be displayed to users on the maintenance page.
+        </p>
+      </div>
+
+      <!-- Estimated Time -->
+      <div class="mb-6">
+        <label for="estimatedTime" class="block text-sm font-medium text-gray-700 mb-2">
+          Estimated Time
+        </label>
+        <input
+          type="text"
+          id="estimatedTime"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., 30 minutes, 2 hours, end of day"
+        />
+        <p class="text-sm text-gray-500 mt-1">
+          Provide an estimated time for when the site will be back online.
+        </p>
+      </div>
+
+      <!-- Contact Email -->
+      <div class="mb-6">
+        <label for="contactEmail" class="block text-sm font-medium text-gray-700 mb-2">
+          Contact Email
+        </label>
+        <input
+          type="email"
+          id="contactEmail"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="support@example.com"
+        />
+        <p class="text-sm text-gray-500 mt-1">
+          Users can contact this email if they need immediate assistance.
+        </p>
+      </div>
+
+      <!-- Save Button -->
+      <div class="flex items-center gap-4">
+        <button
+          id="saveBtn"
+          class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save Settings
+        </button>
+        <span id="saveStatus" class="text-sm text-gray-500 hidden"></span>
+      </div>
+    </div>
+
+    <!-- Preview Card -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Maintenance Page Preview</h2>
+      <div class="border border-gray-200 rounded-lg p-6 bg-gray-50">
+        <div class="text-center">
+          <!-- Maintenance Icon -->
+          <div class="mb-4">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100">
+              <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+          </div>
+          
+          <h3 class="text-xl font-bold text-gray-900 mb-2">We'll Be Right Back</h3>
+          
+          <p id="previewMessage" class="text-gray-700 mb-4">
+            We are currently performing scheduled maintenance. Please check back soon.
+          </p>
+          
+          <div id="previewTime" class="text-gray-600 text-sm mb-2 hidden">
+            <span>Estimated time: <strong id="previewTimeValue"></strong></span>
+          </div>
+          
+          <div id="previewContact" class="text-gray-600 text-sm hidden">
+            <span>Contact: <a href="#" id="previewContactValue" class="text-blue-600"></a></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Warning Card -->
+    <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-yellow-800">Important Notes</h3>
+          <div class="mt-2 text-sm text-yellow-700">
+            <ul class="list-disc list-inside space-y-1">
+              <li>Administrators can still access the site during maintenance mode</li>
+              <li>API requests will return a 503 Service Unavailable response</li>
+              <li>Users will be redirected to the maintenance page</li>
+              <li>The maintenance page auto-refreshes every 60 seconds</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  interface MaintenanceSettings {
+    enabled: boolean;
+    message: string;
+    estimatedTime: string;
+    contactEmail: string;
+  }
+
+  let currentSettings: MaintenanceSettings = {
+    enabled: false,
+    message: '',
+    estimatedTime: '',
+    contactEmail: '',
+  };
+
+  const toggle = document.getElementById('maintenanceToggle') as HTMLButtonElement;
+  const messageInput = document.getElementById('maintenanceMessage') as HTMLTextAreaElement;
+  const estimatedTimeInput = document.getElementById('estimatedTime') as HTMLInputElement;
+  const contactEmailInput = document.getElementById('contactEmail') as HTMLInputElement;
+  const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+  const saveStatus = document.getElementById('saveStatus') as HTMLSpanElement;
+  const statusBanner = document.getElementById('statusBanner') as HTMLDivElement;
+  const previewMessage = document.getElementById('previewMessage') as HTMLParagraphElement;
+  const previewTime = document.getElementById('previewTime') as HTMLDivElement;
+  const previewTimeValue = document.getElementById('previewTimeValue') as HTMLElement;
+  const previewContact = document.getElementById('previewContact') as HTMLDivElement;
+  const previewContactValue = document.getElementById('previewContactValue') as HTMLAnchorElement;
+
+  // Fetch current settings
+  async function fetchSettings() {
+    try {
+      const response = await fetch('/api/v1/admin/maintenance');
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings');
+      }
+      const data = await response.json();
+      currentSettings = data.data;
+      updateUI();
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      showError('Failed to load settings. Are you logged in as admin?');
+    }
+  }
+
+  // Update UI with current settings
+  function updateUI() {
+    // Update toggle
+    updateToggle(currentSettings.enabled);
+    
+    // Update inputs
+    messageInput.value = currentSettings.message || '';
+    estimatedTimeInput.value = currentSettings.estimatedTime || '';
+    contactEmailInput.value = currentSettings.contactEmail || '';
+    
+    // Update preview
+    updatePreview();
+    
+    // Update status banner
+    updateStatusBanner();
+  }
+
+  // Update toggle state
+  function updateToggle(enabled: boolean) {
+    const span = toggle.querySelector('span') as HTMLElement;
+    
+    if (enabled) {
+      toggle.classList.remove('bg-gray-200');
+      toggle.classList.add('bg-blue-600');
+      toggle.setAttribute('aria-checked', 'true');
+      span.classList.remove('translate-x-0');
+      span.classList.add('translate-x-6');
+    } else {
+      toggle.classList.remove('bg-blue-600');
+      toggle.classList.add('bg-gray-200');
+      toggle.setAttribute('aria-checked', 'false');
+      span.classList.remove('translate-x-6');
+      span.classList.add('translate-x-0');
+    }
+  }
+
+  // Update preview
+  function updatePreview() {
+    // Message
+    previewMessage.textContent = messageInput.value || 
+      'We are currently performing scheduled maintenance. Please check back soon.';
+    
+    // Estimated time
+    if (estimatedTimeInput.value) {
+      previewTime.classList.remove('hidden');
+      previewTimeValue.textContent = estimatedTimeInput.value;
+    } else {
+      previewTime.classList.add('hidden');
+    }
+    
+    // Contact email
+    if (contactEmailInput.value) {
+      previewContact.classList.remove('hidden');
+      previewContactValue.textContent = contactEmailInput.value;
+      previewContactValue.href = `mailto:${contactEmailInput.value}`;
+    } else {
+      previewContact.classList.add('hidden');
+    }
+  }
+
+  // Update status banner
+  function updateStatusBanner() {
+    if (currentSettings.enabled) {
+      statusBanner.classList.remove('hidden', 'bg-green-100', 'border-green-200');
+      statusBanner.classList.add('bg-yellow-100', 'border', 'border-yellow-200');
+      statusBanner.innerHTML = `
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm font-medium text-yellow-800">
+              Maintenance mode is currently <strong>ENABLED</strong>. Only administrators can access the site.
+            </p>
+          </div>
+        </div>
+      `;
+    } else {
+      statusBanner.classList.remove('hidden', 'bg-yellow-100', 'border-yellow-200');
+      statusBanner.classList.add('bg-green-100', 'border', 'border-green-200');
+      statusBanner.innerHTML = `
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm font-medium text-green-800">
+              The site is operating normally. Maintenance mode is disabled.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Save settings
+  async function saveSettings() {
+    saveBtn.disabled = true;
+    saveStatus.textContent = 'Saving...';
+    saveStatus.classList.remove('hidden', 'text-green-600', 'text-red-600');
+    saveStatus.classList.add('text-gray-500');
+
+    try {
+      const settings: Partial<MaintenanceSettings> = {
+        enabled: currentSettings.enabled,
+        message: messageInput.value,
+        estimatedTime: estimatedTimeInput.value,
+        contactEmail: contactEmailInput.value,
+      };
+
+      const response = await fetch('/api/v1/admin/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        currentSettings = data.data;
+        updateUI();
+        saveStatus.textContent = 'Settings saved successfully!';
+        saveStatus.classList.remove('text-gray-500', 'text-red-600');
+        saveStatus.classList.add('text-green-600');
+      } else {
+        throw new Error(data.error || 'Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      saveStatus.textContent = 'Failed to save settings';
+      saveStatus.classList.remove('text-gray-500', 'text-green-600');
+      saveStatus.classList.add('text-red-600');
+    } finally {
+      saveBtn.disabled = false;
+      setTimeout(() => {
+        saveStatus.classList.add('hidden');
+      }, 3000);
+    }
+  }
+
+  // Show error message
+  function showError(message: string) {
+    statusBanner.classList.remove('hidden', 'bg-yellow-100', 'border-yellow-200', 'bg-green-100', 'border-green-200');
+    statusBanner.classList.add('bg-red-100', 'border', 'border-red-200');
+    statusBanner.innerHTML = `
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm font-medium text-red-800">${message}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Toggle click handler
+  toggle.addEventListener('click', () => {
+    currentSettings.enabled = !currentSettings.enabled;
+    updateToggle(currentSettings.enabled);
+    updateStatusBanner();
+  });
+
+  // Input change handlers for live preview
+  messageInput.addEventListener('input', updatePreview);
+  estimatedTimeInput.addEventListener('input', updatePreview);
+  contactEmailInput.addEventListener('input', updatePreview);
+
+  // Save button click handler
+  saveBtn.addEventListener('click', saveSettings);
+
+  // Initial load
+  fetchSettings();
+</script>

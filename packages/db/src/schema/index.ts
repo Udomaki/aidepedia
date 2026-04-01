@@ -423,6 +423,16 @@ export const webhook_deliveries = pgTable('webhook_deliveries', {
   createdAtIdx: index('webhook_delivery_created_at_idx').on(table.createdAt),
 }));
 
+// System settings for admin configuration
+export const system_settings = pgTable('system_settings', {
+  key: varchar('key', { length: 100 }).notNull().primaryKey(),
+  value: jsonb('value').notNull().$type<Record<string, unknown>>(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => ({
+  keyIdx: index('system_settings_key_idx').on(table.key),
+}));
+
 // Audit logs for admin actions
 export const audit_logs = pgTable('audit_logs', {
   id: serial('id').primaryKey(),
