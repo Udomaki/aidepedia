@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import ReportButton from '../../components/ReportButton.astro';
+import ReactionPicker from '../../components/ReactionPicker.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
@@ -233,6 +234,9 @@ const totalComments = countAllComments(comments);
           <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
         ))}
       </div>
+
+      <!-- Reaction Picker -->
+      <ReactionPicker articleId={article.id} articleSlug={article.slug} isLoggedIn={isUserLoggedIn} />
 
       <!-- Footer -->
       <footer class="p-8 bg-gray-50 border-t border-gray-200">
