@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -459,6 +459,7 @@ export async function deleteArticle(articleId: number): Promise<Article> {
 }
 
 /**
+<<<<<<< HEAD
  * Get all categories
  */
 export async function getCategories(): Promise<Category[]> {
@@ -741,5 +742,300 @@ export async function updateEditorStats(
       throw error;
     }
     throw new DatabaseError(`Failed to update editor stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+ * @throws {NotFoundError} If article is not found
+ * @throws {ValidationError} If validation fails
+ */
+export async function voteOnArticle(
+  articleId: number,
+  editorId: number,
+  voteType: 'upvote' | 'downvote'
+): Promise<{ vote: 'upvote' | 'downvote', netScore: number }> {
+  try {
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if user has already voted
+    const [existingVote] = await db
+      .select()
+      .from(articleUserVotes)
+      .where(
+        and(
+          eq(articleUserVotes.articleId, articleId),
+          eq(articleUserVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    let voteDelta = 0;
+
+    if (existingVote) {
+      // If same vote, remove it (toggle off)
+      if (existingVote.voteType === voteType) {
+        await db
+          .delete(articleUserVotes)
+          .where(
+            and(
+              eq(articleUserVotes.articleId, articleId),
+              eq(articleUserVotes.editorId, editorId)
+            )
+          );
+
+        // Decrement the appropriate counter
+        if (voteType === 'upvote') {
+          await db
+            .update(articles)
+            .set({ upvotes: sql`${articles.upvotes} - 1` })
+            .where(eq(articles.id, articleId));
+          voteDelta = -1;
+        } else {
+          await db
+            .update(articles)
+            .set({ downvotes: sql`${articles.downvotes} - 1` })
+            .where(eq(articles.id, articleId));
+          voteDelta = 1;
+        }
+      } else {
+        // Change vote (remove old, add new)
+        await db
+          .update(articleUserVotes)
+          .set({ voteType, updatedAt: new Date() })
+          .where(
+            and(
+              eq(articleUserVotes.articleId, articleId),
+              eq(articleUserVotes.editorId, editorId)
+            )
+          );
+
+        // Update counters
+        if (voteType === 'upvote') {
+          await db
+            .update(articles)
+            .set({
+              upvotes: sql`${articles.upvotes} + 1`,
+              downvotes: sql`${articles.downvotes} - 1`,
+            })
+            .where(eq(articles.id, articleId));
+          voteDelta = 2; // -1 to +1 = +2
+        } else {
+          await db
+            .update(articles)
+            .set({
+              upvotes: sql`${articles.upvotes} - 1`,
+              downvotes: sql`${articles.downvotes} + 1`,
+            })
+            .where(eq(articles.id, articleId));
+          voteDelta = -2; // +1 to -1 = -2
+        }
+      }
+    } else {
+      // New vote
+      await db
+        .insert(articleUserVotes)
+        .values({
+          articleId,
+          editorId,
+          voteType,
+        });
+
+      // Increment the appropriate counter
+      if (voteType === 'upvote') {
+        await db
+          .update(articles)
+          .set({ upvotes: sql`${articles.upvotes} + 1` })
+          .where(eq(articles.id, articleId));
+        voteDelta = 1;
+      } else {
+        await db
+          .update(articles)
+          .set({ downvotes: sql`${articles.downvotes} + 1` })
+          .where(eq(articles.id, articleId));
+        voteDelta = -1;
+      }
+    }
+
+    // Get updated article
+    const article = await getArticleById(articleId);
+    const netScore = (article.upvotes || 0) - (article.downvotes || 0);
+
+    // Update editor's vote count
+    await db
+      .update(require('./schema/index').editors)
+      .set({ votesCast: sql`${require('./schema/index').editors.votesCast} + 1` })
+      .where(eq(require('./schema/index').editors.id, editorId));
+
+    return { vote: voteType, netScore };
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to vote on article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a user's vote on an article
+ */
+export async function getArticleUserVote(
+  articleId: number,
+  editorId: number
+): Promise<'upvote' | 'downvote' | null> {
+  try {
+    const [vote] = await db
+      .select()
+      .from(articleUserVotes)
+      .where(
+        and(
+          eq(articleUserVotes.articleId, articleId),
+          eq(articleUserVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    return vote?.voteType || null;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get article vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Vote on a revision (upvote or downvote)
+ * @throws {NotFoundError} If revision is not found
+ * @throws {ValidationError} If validation fails
+ */
+export async function voteOnRevision(
+  revisionId: number,
+  editorId: number,
+  voteType: 'upvote' | 'downvote'
+): Promise<{ vote: 'upvote' | 'downvote', netScore: number }> {
+  try {
+    // Check if revision exists
+    await getRevisionById(revisionId);
+
+    // Check if user has already voted
+    const [existingVote] = await db
+      .select()
+      .from(revisionUserVotes)
+      .where(
+        and(
+          eq(revisionUserVotes.revisionId, revisionId),
+          eq(revisionUserVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    if (existingVote) {
+      // If same vote, remove it (toggle off)
+      if (existingVote.voteType === voteType) {
+        await db
+          .delete(revisionUserVotes)
+          .where(
+            and(
+              eq(revisionUserVotes.revisionId, revisionId),
+              eq(revisionUserVotes.editorId, editorId)
+            )
+          );
+
+        // Decrement the appropriate counter
+        if (voteType === 'upvote') {
+          await db
+            .update(articleRevisions)
+            .set({ upvotes: sql`${articleRevisions.upvotes} - 1` })
+            .where(eq(articleRevisions.id, revisionId));
+        } else {
+          await db
+            .update(articleRevisions)
+            .set({ downvotes: sql`${articleRevisions.downvotes} - 1` })
+            .where(eq(articleRevisions.id, revisionId));
+        }
+      } else {
+        // Change vote (remove old, add new)
+        await db
+          .update(revisionUserVotes)
+          .set({ voteType, updatedAt: new Date() })
+          .where(
+            and(
+              eq(revisionUserVotes.revisionId, revisionId),
+              eq(revisionUserVotes.editorId, editorId)
+            )
+          );
+
+        // Update counters
+        if (voteType === 'upvote') {
+          await db
+            .update(articleRevisions)
+            .set({
+              upvotes: sql`${articleRevisions.upvotes} + 1`,
+              downvotes: sql`${articleRevisions.downvotes} - 1`,
+            })
+            .where(eq(articleRevisions.id, revisionId));
+        } else {
+          await db
+            .update(articleRevisions)
+            .set({
+              upvotes: sql`${articleRevisions.upvotes} - 1`,
+              downvotes: sql`${articleRevisions.downvotes} + 1`,
+            })
+            .where(eq(articleRevisions.id, revisionId));
+        }
+      }
+    } else {
+      // New vote
+      await db
+        .insert(revisionUserVotes)
+        .values({
+          revisionId,
+          editorId,
+          voteType,
+        });
+
+      // Increment the appropriate counter
+      if (voteType === 'upvote') {
+        await db
+          .update(articleRevisions)
+          .set({ upvotes: sql`${articleRevisions.upvotes} + 1` })
+          .where(eq(articleRevisions.id, revisionId));
+      } else {
+        await db
+          .update(articleRevisions)
+          .set({ downvotes: sql`${articleRevisions.downvotes} + 1` })
+          .where(eq(articleRevisions.id, revisionId));
+      }
+    }
+
+    // Get updated revision
+    const revision = await getRevisionById(revisionId);
+    const netScore = (revision.upvotes || 0) - (revision.downvotes || 0);
+
+    return { vote: voteType, netScore };
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to vote on revision: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a user's vote on a revision
+ */
+export async function getRevisionUserVote(
+  revisionId: number,
+  editorId: number
+): Promise<'upvote' | 'downvote' | null> {
+  try {
+    const [vote] = await db
+      .select()
+      .from(revisionUserVotes)
+      .where(
+        and(
+          eq(revisionUserVotes.revisionId, revisionId),
+          eq(revisionUserVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    return vote?.voteType || null;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get revision vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

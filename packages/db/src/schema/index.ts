@@ -17,7 +17,9 @@ export const articles = pgTable('articles', {
   authorId: integer('author_id'),
   qualityScore: integer('quality_score').default(0),
   viewCount: integer('view_count').default(0),
-  
+  upvotes: integer('upvotes').default(0),
+  downvotes: integer('downvotes').default(0),
+
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   publishedAt: timestamp('published_at'),
@@ -111,6 +113,22 @@ export const reputationEvents = pgTable('reputation_events', {
   editorIdx: index('rep_editor_idx').on(table.editorId),
 }));
 
+export const articleUserVotes = pgTable('article_user_votes', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull(),
+  editorId: integer('editor_id').notNull(),
+
+  voteType: varchar('vote_type', {
+    enum: ['upvote', 'downvote'],
+    length: 10
+  }).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleEditorIdx: index('article_editor_idx').on(table.articleId, table.editorId),
+}));
+
 export const articleRevisions = pgTable('article_revisions', {
   id: serial('id').primaryKey(),
   articleId: integer('article_id').notNull(),
@@ -127,9 +145,28 @@ export const articleRevisions = pgTable('article_revisions', {
     enum: ['created', 'updated', 'published', 'reverted'],
     length: 20
   }).notNull(),
-  
+
+  upvotes: integer('upvotes').default(0),
+  downvotes: integer('downvotes').default(0),
+
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
   articleIdx: index('revision_article_idx').on(table.articleId),
   editorIdx: index('revision_editor_idx').on(table.editorId),
+}));
+
+export const revisionUserVotes = pgTable('revision_user_votes', {
+  id: serial('id').primaryKey(),
+  revisionId: integer('revision_id').notNull(),
+  editorId: integer('editor_id').notNull(),
+
+  voteType: varchar('vote_type', {
+    enum: ['upvote', 'downvote'],
+    length: 10
+  }).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  revisionEditorIdx: index('revision_editor_idx').on(table.revisionId, table.editorId),
 }));
