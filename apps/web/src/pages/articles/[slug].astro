@@ -4,6 +4,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import ReportButton from '../../components/ReportButton.astro';
 import ReactionPicker from '../../components/ReactionPicker.astro';
 import ArticleStatsCard from '../../components/ArticleStatsCard.astro';
+import VotingWorkflow from '../../components/VotingWorkflow.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
@@ -238,6 +239,11 @@ const totalComments = countAllComments(comments);
 
       <!-- Article Stats Card (visible to author only) -->
       <ArticleStatsCard articleId={article.id} slug={article.slug} isAuthor={isAuthor} />
+
+      <!-- Voting Workflow -->
+      <div class="p-8 border-b border-gray-200">
+        <VotingWorkflow articleSlug={article.slug} articleId={article.id} isLoggedIn={isUserLoggedIn} />
+      </div>
 
       <!-- Content -->
       <div class="p-8 prose prose-lg max-w-none">

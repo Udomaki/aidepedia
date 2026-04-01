@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -31,6 +31,8 @@ import type {
   ContentReportWithDetails,
   ContentReportQueryParams,
   ReportStatus,
+  ArticleVote,
+  NewArticleVote,
 } from './types';
 import {
   NotFoundError,
@@ -954,6 +956,148 @@ export async function getArticleUserVote(
     return vote?.voteType || null;
   } catch (error) {
     throw new DatabaseError(`Failed to get article vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Submit or update an article workflow vote (approve/reject/neutral with rating and comment)
+ * @throws {NotFoundError} If article is not found
+ * @throws {ValidationError} If validation fails
+ */
+export async function submitArticleWorkflowVote(
+  articleId: number,
+  editorId: number,
+  vote: 'approve' | 'reject' | 'neutral',
+  qualityRating?: number,
+  comment?: string
+): Promise<ArticleVote> {
+  try {
+    // Validate quality rating
+    if (qualityRating !== undefined && (qualityRating < 1 || qualityRating > 5)) {
+      throw new ValidationError('Quality rating must be between 1 and 5');
+    }
+
+    // Check if article exists
+    await getArticleById(articleId);
+
+    // Check if user has already voted
+    const [existingVote] = await db
+      .select()
+      .from(articleVotes)
+      .where(
+        and(
+          eq(articleVotes.articleId, articleId),
+          eq(articleVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    if (existingVote) {
+      // Update existing vote
+      const [updated] = await db
+        .update(articleVotes)
+        .set({
+          vote,
+          qualityRating: qualityRating || null,
+          comment: comment || null,
+        })
+        .where(eq(articleVotes.id, existingVote.id))
+        .returning();
+
+      return updated;
+    } else {
+      // Create new vote
+      const [newVote] = await db
+        .insert(articleVotes)
+        .values({
+          articleId,
+          editorId,
+          vote,
+          qualityRating: qualityRating || null,
+          comment: comment || null,
+        })
+        .returning();
+
+      return newVote;
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to submit article vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a user's workflow vote on an article
+ */
+export async function getArticleWorkflowVote(
+  articleId: number,
+  editorId: number
+): Promise<ArticleVote | null> {
+  try {
+    const [vote] = await db
+      .select()
+      .from(articleVotes)
+      .where(
+        and(
+          eq(articleVotes.articleId, articleId),
+          eq(articleVotes.editorId, editorId)
+        )
+      )
+      .limit(1);
+
+    return vote || null;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get article workflow vote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get vote statistics for an article
+ */
+export async function getArticleVoteStats(articleId: number): Promise<{
+  approve: number;
+  reject: number;
+  neutral: number;
+  total: number;
+  avgQualityRating: number | null;
+}> {
+  try {
+    const votes = await db
+      .select()
+      .from(articleVotes)
+      .where(eq(articleVotes.articleId, articleId));
+
+    const stats = {
+      approve: 0,
+      reject: 0,
+      neutral: 0,
+      total: votes.length,
+      avgQualityRating: null as number | null,
+    };
+
+    let ratingSum = 0;
+    let ratingCount = 0;
+
+    for (const vote of votes) {
+      if (vote.vote === 'approve') stats.approve++;
+      else if (vote.vote === 'reject') stats.reject++;
+      else if (vote.vote === 'neutral') stats.neutral++;
+
+      if (vote.qualityRating) {
+        ratingSum += vote.qualityRating;
+        ratingCount++;
+      }
+    }
+
+    if (ratingCount > 0) {
+      stats.avgQualityRating = Math.round((ratingSum / ratingCount) * 10) / 10;
+    }
+
+    return stats;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get article vote stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
