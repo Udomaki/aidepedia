@@ -93,3 +93,26 @@ export const reputationEvents = pgTable('reputation_events', {
 }, (table) => ({
   editorIdx: index('rep_editor_idx').on(table.editorId),
 }));
+
+export const articleRevisions = pgTable('article_revisions', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull(),
+  editorId: integer('editor_id').notNull(),
+  
+  title: varchar('title', { length: 500 }).notNull(),
+  content: text('content').notNull(),
+  excerpt: text('excerpt'),
+  category: varchar('category', { length: 100 }).notNull(),
+  tags: text('tags').array().default([]),
+  
+  changeReason: text('change_reason'),
+  changeType: varchar('change_type', {
+    enum: ['created', 'updated', 'published', 'reverted'],
+    length: 20
+  }).notNull(),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('revision_article_idx').on(table.articleId),
+  editorIdx: index('revision_editor_idx').on(table.editorId),
+}));
