@@ -1,9 +1,13 @@
 ---
+import { getSession } from '../lib/auth';
+
 interface Props {
   title: string;
 }
 
 const { title } = Astro.props;
+const session = await getSession(Astro.request);
+const user = session?.user;
 ---
 
 <!doctype html>
@@ -32,6 +36,19 @@ const { title } = Astro.props;
             <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
             <a href="/about" class="text-gray-600 hover:text-gray-900">About</a>
             <a href="https://github.com/Udomaki/aidepedia" class="text-gray-600 hover:text-gray-900">GitHub</a>
+            {user ? (
+              <div class="flex items-center space-x-3">
+                {user.image && (
+                  <img src={user.image} alt={user.name || 'User'} class="w-8 h-8 rounded-full" />
+                )}
+                <span class="text-gray-700 hidden sm:inline">{user.name}</span>
+                <a href="/logout" class="text-gray-600 hover:text-gray-900">Sign out</a>
+              </div>
+            ) : (
+              <a href="/login" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                Sign in
+              </a>
+            )}
           </div>
         </div>
       </div>
