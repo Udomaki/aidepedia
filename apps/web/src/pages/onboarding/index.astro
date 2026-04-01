@@ -1,0 +1,326 @@
+---
+import { getSession } from 'auth-astro/server';
+import { db } from '@aidepedia/db';
+import { users } from '@aidepedia/db/schema';
+import { eq } from '@aidepedia/db';
+import Layout from '../../layouts/Layout.astro';
+import { getCategories } from '@aidepedia/db/queries';
+
+export const prerender = false;
+
+// Check authentication
+const session = await getSession(Astro.request);
+if (!session?.user?.id) {
+  return Astro.redirect('/login?callbackUrl=/onboarding');
+}
+
+// Get user data
+const [user] = await db
+  .select()
+  .from(users)
+  .where(eq(users.id, parseInt(session.user.id)))
+  .limit(1);
+
+// If onboarding is already complete, redirect to dashboard
+if (user?.onboardingCompletedAt) {
+  return Astro.redirect('/dashboard');
+}
+
+// Get categories for interest selection
+const categories = await getCategories();
+
+// Determine current step
+const currentStep = user?.onboardingStep || 'welcome';
+const steps = ['welcome', 'profile', 'interests', 'complete'];
+const stepIndex = steps.indexOf(currentStep);
+---
+
+<Layout title="Welcome to AIdepedia">
+  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4" data-step={currentStep}>
+    <div class="max-w-2xl w-full">
+      <!-- Progress Bar -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between mb-2">
+          {steps.map((step, index) => (
+            <div class="flex items-center">
+              <div class={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                index < stepIndex ? 'bg-green-500 text-white' : 
+                index === stepIndex ? 'bg-blue-600 text-white' : 
+                'bg-gray-300 text-gray-600'
+              }`}>
+                {index < stepIndex ? '✓' : index + 1}
+              </div>
+              {index < steps.length - 1 && (
+                <div class={`w-16 md:w-24 h-1 mx-2 ${
+                  index < stepIndex ? 'bg-green-500' : 'bg-gray-300'
+                }`}></div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div class="flex justify-between text-sm text-gray-600">
+          <span>Welcome</span>
+          <span>Profile</span>
+          <span>Interests</span>
+          <span>Complete</span>
+        </div>
+      </div>
+
+      <!-- Onboarding Content -->
+      <div class="bg-white rounded-2xl shadow-xl p-8">
+        <!-- Welcome Step -->
+        {currentStep === 'welcome' && (
+          <div class="text-center">
+            <div class="text-6xl mb-6">🎉</div>
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Welcome to AIdepedia!</h1>
+            <p class="text-lg text-gray-600 mb-8">
+              Let's get you set up. This will only take a minute.
+            </p>
+            <div class="space-y-4">
+              <button
+                id="startBtn"
+                class="w-full px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg"
+              >
+                Get Started
+              </button>
+              <button
+                id="skipBtn"
+                class="w-full px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        <!-- Profile Setup Step -->
+        {currentStep === 'profile' && (
+          <div>
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Set Up Your Profile</h2>
+            <form id="profileForm" class="space-y-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={user?.name || ''}
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="How should we call you?"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  Bio
+                </label>
+                <textarea
+                  id="bio"
+                  rows="4"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Tell us a bit about yourself..."
+                >{user?.bio || ''}</textarea>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  Avatar URL
+                </label>
+                <input
+                  type="url"
+                  id="avatar"
+                  value={user?.image || ''}
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="https://example.com/avatar.jpg"
+                />
+              </div>
+
+              <div class="flex gap-4">
+                <button
+                  type="button"
+                  id="backBtn"
+                  class="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <!-- Interests Step -->
+        {currentStep === 'interests' && (
+          <div>
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">Choose Your Interests</h2>
+            <p class="text-gray-600 mb-6">Select topics you're interested in (you can change these later)</p>
+            
+            <form id="interestsForm" class="space-y-6">
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {categories.map(category => (
+                  <label class="cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="interests"
+                      value={category.id}
+                      class="hidden peer"
+                    />
+                    <div class="px-4 py-3 border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-gray-300 transition-colors text-center">
+                      <span class="font-medium text-gray-900">{category.name}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div class="flex gap-4">
+                <button
+                  type="button"
+                  id="backBtn"
+                  class="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <!-- Complete Step -->
+        {currentStep === 'complete' && (
+          <div class="text-center">
+            <div class="text-6xl mb-6">🎊</div>
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">You're All Set!</h2>
+            <p class="text-lg text-gray-600 mb-8">
+              Ready to start exploring? Here are some things you can do:
+            </p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <a
+                href="/articles/new"
+                class="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
+              >
+                <div class="text-3xl mb-2">📝</div>
+                <div class="font-semibold text-gray-900">Write an Article</div>
+              </a>
+              <a
+                href="/articles"
+                class="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
+              >
+                <div class="text-3xl mb-2">📚</div>
+                <div class="font-semibold text-gray-900">Browse Articles</div>
+              </a>
+              <a
+                href="/dashboard"
+                class="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
+              >
+                <div class="text-3xl mb-2">📊</div>
+                <div class="font-semibold text-gray-900">Go to Dashboard</div>
+              </a>
+            </div>
+
+            <button
+              id="completeBtn"
+              class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-lg"
+            >
+              Start Exploring
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script define:vars={{ currentStep }}>
+  // Welcome step handlers
+  document.getElementById('startBtn')?.addEventListener('click', async () => {
+    await updateStep('profile');
+    window.location.reload();
+  });
+
+  document.getElementById('skipBtn')?.addEventListener('click', async () => {
+    await completeOnboarding();
+    window.location.href = '/dashboard';
+  });
+
+  // Profile form handler
+  document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const name = (document.getElementById('name') as HTMLInputElement).value;
+    const bio = (document.getElementById('bio') as HTMLTextAreaElement).value;
+    const avatar = (document.getElementById('avatar') as HTMLInputElement).value;
+
+    await fetch('/api/onboarding/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, bio, image: avatar }),
+    });
+
+    await updateStep('interests');
+    window.location.reload();
+  });
+
+  // Interests form handler
+  document.getElementById('interestsForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const checkboxes = document.querySelectorAll('input[name="interests"]:checked') as NodeListOf<HTMLInputElement>;
+    const interests = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+    await fetch('/api/onboarding/interests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interests }),
+    });
+
+    await updateStep('complete');
+    window.location.reload();
+  });
+
+  // Back buttons
+  document.querySelectorAll('#backBtn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const steps = ['welcome', 'profile', 'interests', 'complete'];
+      const currentIndex = steps.indexOf(currentStep || 'profile');
+      
+      if (currentIndex > 0) {
+        await updateStep(steps[currentIndex - 1]);
+        window.location.reload();
+      }
+    });
+  });
+
+  // Complete button
+  document.getElementById('completeBtn')?.addEventListener('click', async () => {
+    await completeOnboarding();
+    window.location.href = '/dashboard';
+  });
+
+  async function updateStep(step: string) {
+    await fetch('/api/onboarding/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step }),
+    });
+  }
+
+  async function completeOnboarding() {
+    await fetch('/api/onboarding/complete', {
+      method: 'POST',
+    });
+  }
+</script>

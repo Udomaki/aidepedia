@@ -15,6 +15,10 @@ export const users = pgTable('users', {
   twoFactorSecret: varchar('two_factor_secret', { length: 255 }),
   recoveryCodes: text('recovery_codes'),
   twoFactorVerifiedAt: timestamp('two_factor_verified_at'),
+  // Onboarding fields
+  onboardingStep: varchar('onboarding_step', { length: 20 }).default('welcome'),
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
+  interests: integer('interests').array().default([]),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
