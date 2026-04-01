@@ -82,6 +82,12 @@ const recentUsers = await getAllUsers({ limit: 5 });
       >
         Backups
       </a>
+      <a
+        href="/admin/health"
+        class="px-6 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium"
+      >
+        Health Dashboard
+      </a>
     </div>
 
     <!-- Stats Grid -->
@@ -142,7 +148,9 @@ const recentUsers = await getAllUsers({ limit: 5 });
           </svg>
         </div>
         <p class="text-3xl font-bold text-green-600">Healthy</p>
-        <p class="text-sm text-gray-500 mt-1">All systems operational</p>
+        <a href="/admin/health" class="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
+          View details →
+        </a>
       </div>
 
       <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">

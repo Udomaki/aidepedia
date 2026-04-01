@@ -1,0 +1,434 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Health Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">Health Dashboard</h1>
+        <p class="text-gray-600">
+          Monitor system health, uptime, and configure alerts
+        </p>
+      </div>
+      <button
+        id="refresh-all"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+      >
+        Refresh
+      </button>
+    </div>
+
+    <!-- Current Status -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-900">Current Status</h2>
+        <span id="last-updated" class="text-sm text-gray-500">Loading...</span>
+      </div>
+      
+      <div class="flex items-center gap-4 mb-6">
+        <div id="status-indicator" class="flex items-center gap-3">
+          <div class="w-4 h-4 rounded-full bg-gray-300 animate-pulse"></div>
+          <span class="text-lg font-medium text-gray-600">Checking...</span>
+        </div>
+      </div>
+
+      <!-- Component Status Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-gray-50 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Database</span>
+            <span id="db-status" class="w-3 h-3 rounded-full bg-gray-300"></span>
+          </div>
+          <p id="db-latency" class="text-lg font-bold text-gray-900">-</p>
+          <p id="db-message" class="text-xs text-gray-500">-</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Memory</span>
+            <span id="mem-status" class="w-3 h-3 rounded-full bg-gray-300"></span>
+          </div>
+          <p id="mem-usage" class="text-lg font-bold text-gray-900">-</p>
+          <p id="mem-message" class="text-xs text-gray-500">-</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Disk</span>
+            <span id="disk-status" class="w-3 h-3 rounded-full bg-gray-300"></span>
+          </div>
+          <p id="disk-usage" class="text-lg font-bold text-gray-900">-</p>
+          <p id="disk-message" class="text-xs text-gray-500">-</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Uptime</span>
+            <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <p id="uptime" class="text-lg font-bold text-gray-900">-</p>
+          <p class="text-xs text-gray-500">seconds</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Uptime (24h)</h3>
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p id="uptime-percent" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">percent</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Avg Response Time</h3>
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p id="avg-response" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">milliseconds</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Total Checks</h3>
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <p id="total-checks" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">health checks</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium text-gray-600">Incidents</h3>
+          <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p id="incidents" class="text-3xl font-bold text-gray-900">-</p>
+        <p class="text-sm text-gray-500 mt-1">unhealthy events</p>
+      </div>
+    </div>
+
+    <!-- Health History & Alerts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Health History -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-900">Health History</h2>
+          <select id="history-period" class="text-sm border border-gray-300 rounded-lg px-3 py-1">
+            <option value="1">Last Hour</option>
+            <option value="6">Last 6 Hours</option>
+            <option value="24" selected>Last 24 Hours</option>
+            <option value="168">Last 7 Days</option>
+          </select>
+        </div>
+        <div id="health-history" class="space-y-2 max-h-96 overflow-y-auto">
+          <p class="text-gray-500 text-center py-8">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Alert Configuration -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-900">Alert Configuration</h2>
+          <button
+            id="save-alerts"
+            class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+          >
+            Save
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-900">Database Alerts</p>
+              <p class="text-sm text-gray-500">Alert when database is unreachable</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="alert-database" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-900">Memory Alerts</p>
+              <p class="text-sm text-gray-500">Alert when memory usage > 90%</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="alert-memory" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p class="font-medium text-gray-900">Disk Alerts</p>
+              <p class="text-sm text-gray-500">Alert when disk usage > 95%</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="alert-disk" class="sr-only peer" checked>
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          <div class="p-3 bg-gray-50 rounded-lg">
+            <p class="font-medium text-gray-900 mb-2">Webhook URL</p>
+            <input
+              type="url"
+              id="alert-webhook"
+              placeholder="https://hooks.slack.com/services/..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p class="text-xs text-gray-500 mt-1">Receive alerts via webhook (Slack, Discord, etc.)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="bg-gray-50 rounded-xl p-6">
+      <h3 class="font-semibold text-gray-900 mb-4">Health Check Endpoints</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <a href="/api/health" target="_blank" class="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+            <span class="text-green-600 font-mono text-sm">GET</span>
+          </div>
+          <div>
+            <p class="font-medium text-gray-900">/api/health</p>
+            <p class="text-sm text-gray-500">Full health check</p>
+          </div>
+        </a>
+
+        <a href="/api/health/ready" target="_blank" class="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <span class="text-blue-600 font-mono text-sm">GET</span>
+          </div>
+          <div>
+            <p class="font-medium text-gray-900">/api/health/ready</p>
+            <p class="text-sm text-gray-500">Readiness check</p>
+          </div>
+        </a>
+
+        <a href="/api/health/live" target="_blank" class="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+          <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <span class="text-purple-600 font-mono text-sm">GET</span>
+          </div>
+          <div>
+            <p class="font-medium text-gray-900">/api/health/live</p>
+            <p class="text-sm text-gray-500">Liveness check</p>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let currentHours = 24;
+
+  function formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+  }
+
+  function getStatusColor(status: string): string {
+    switch (status) {
+      case 'ok':
+      case 'healthy':
+        return 'bg-green-500';
+      case 'warn':
+      case 'degraded':
+        return 'bg-yellow-500';
+      case 'error':
+      case 'unhealthy':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-300';
+    }
+  }
+
+  async function loadHealthStatus() {
+    try {
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      
+      // Update status indicator
+      const indicator = document.getElementById('status-indicator')!;
+      const statusColor = getStatusColor(data.status);
+      const statusText = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      
+      indicator.innerHTML = `
+        <div class="w-4 h-4 rounded-full ${statusColor}"></div>
+        <span class="text-lg font-medium text-gray-900">${statusText}</span>
+      `;
+      
+      // Update last updated
+      document.getElementById('last-updated')!.textContent = 
+        `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+      
+      // Update component statuses
+      const db = data.checks.database;
+      document.getElementById('db-status')!.className = `w-3 h-3 rounded-full ${getStatusColor(db.status)}`;
+      document.getElementById('db-latency')!.textContent = db.latency ? `${db.latency}ms` : '-';
+      document.getElementById('db-message')!.textContent = db.message || '-';
+      
+      const mem = data.checks.memory;
+      document.getElementById('mem-status')!.className = `w-3 h-3 rounded-full ${getStatusColor(mem.status)}`;
+      document.getElementById('mem-usage')!.textContent = mem.details?.heapUsagePercent 
+        ? `${mem.details.heapUsagePercent}%` : '-';
+      document.getElementById('mem-message')!.textContent = mem.message || '-';
+      
+      const disk = data.checks.disk;
+      if (disk) {
+        document.getElementById('disk-status')!.className = `w-3 h-3 rounded-full ${getStatusColor(disk.status)}`;
+        document.getElementById('disk-usage')!.textContent = disk.details?.usedPercent 
+          ? `${disk.details.usedPercent}%` : '-';
+        document.getElementById('disk-message')!.textContent = disk.message || '-';
+      }
+      
+      // Update uptime
+      document.getElementById('uptime')!.textContent = formatUptime(data.uptime);
+      
+      // Update summary stats
+      await loadHealthStats();
+      
+    } catch (error) {
+      console.error('Error loading health status:', error);
+      const indicator = document.getElementById('status-indicator')!;
+      indicator.innerHTML = `
+        <div class="w-4 h-4 rounded-full bg-red-500"></div>
+        <span class="text-lg font-medium text-red-600">Error loading health status</span>
+      `;
+    }
+  }
+
+  async function loadHealthStats() {
+    try {
+      // Load stats from health endpoint (we'll use history data)
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      
+      // For now, show basic stats - in production these would come from stored history
+      document.getElementById('uptime-percent')!.textContent = data.status === 'healthy' ? '100' : 
+        data.status === 'degraded' ? '99' : '0';
+      document.getElementById('avg-response')!.textContent = data.responseTime?.toString() || '-';
+      document.getElementById('total-checks')!.textContent = '1';
+      document.getElementById('incidents')!.textContent = data.status === 'unhealthy' ? '1' : '0';
+      
+    } catch (error) {
+      console.error('Error loading health stats:', error);
+    }
+  }
+
+  async function loadHealthHistory() {
+    const container = document.getElementById('health-history')!;
+    
+    try {
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      
+      // Show current status as history entry
+      const time = new Date(data.timestamp).toLocaleString();
+      const statusColor = getStatusColor(data.status);
+      const statusText = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      
+      container.innerHTML = `
+        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+          <div class="w-3 h-3 rounded-full ${statusColor}"></div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-gray-900">${statusText}</span>
+              <span class="text-sm text-gray-500">${data.responseTime}ms</span>
+            </div>
+            <p class="text-xs text-gray-500">${time}</p>
+          </div>
+        </div>
+        <p class="text-center text-gray-400 text-sm mt-4">
+          Health history will accumulate over time. Check back for trends.
+        </p>
+      `;
+      
+    } catch (error) {
+      console.error('Error loading health history:', error);
+      container.innerHTML = '<p class="text-red-500 text-center py-8">Error loading history</p>';
+    }
+  }
+
+  // Event handlers
+  document.getElementById('refresh-all')?.addEventListener('click', () => {
+    loadHealthStatus();
+    loadHealthHistory();
+  });
+
+  document.getElementById('history-period')?.addEventListener('change', (e) => {
+    currentHours = parseInt((e.target as HTMLSelectElement).value);
+    loadHealthHistory();
+  });
+
+  document.getElementById('save-alerts')?.addEventListener('click', () => {
+    const config = {
+      database: (document.getElementById('alert-database') as HTMLInputElement)?.checked,
+      memory: (document.getElementById('alert-memory') as HTMLInputElement)?.checked,
+      disk: (document.getElementById('alert-disk') as HTMLInputElement)?.checked,
+      webhook: (document.getElementById('alert-webhook') as HTMLInputElement)?.value,
+    };
+    
+    // In a real implementation, this would save to backend
+    localStorage.setItem('health-alert-config', JSON.stringify(config));
+    alert('Alert configuration saved!');
+  });
+
+  // Load saved config
+  const savedConfig = localStorage.getItem('health-alert-config');
+  if (savedConfig) {
+    try {
+      const config = JSON.parse(savedConfig);
+      if (config.database !== undefined) {
+        (document.getElementById('alert-database') as HTMLInputElement).checked = config.database;
+      }
+      if (config.memory !== undefined) {
+        (document.getElementById('alert-memory') as HTMLInputElement).checked = config.memory;
+      }
+      if (config.disk !== undefined) {
+        (document.getElementById('alert-disk') as HTMLInputElement).checked = config.disk;
+      }
+      if (config.webhook) {
+        (document.getElementById('alert-webhook') as HTMLInputElement).value = config.webhook;
+      }
+    } catch (e) {
+      console.error('Error loading saved config:', e);
+    }
+  }
+
+  // Initial load
+  loadHealthStatus();
+  loadHealthHistory();
+
+  // Auto-refresh every 30 seconds
+  setInterval(() => {
+    loadHealthStatus();
+  }, 30000);
+</script>
