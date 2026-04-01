@@ -66,39 +66,46 @@ const siteName = 'AIdepedia';
     </script>
   </head>
   <body class="bg-gradient-to-b from-blue-50 to-white dark:from-slate-900 dark:to-slate-800 min-h-screen">
-    <nav class="border-b border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
+    <!-- Skip Links -->
+    <div class="sr-only">
+      <a href="#main-content" class="skip-link">Skip to main content</a>
+      <a href="#main-navigation" class="skip-link">Skip to navigation</a>
+      <a href="#search-input" class="skip-link">Skip to search</a>
+    </div>
+
+    <nav id="main-navigation" role="navigation" aria-label="Main navigation" class="border-b border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <a href="/" class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <a href="/" class="text-2xl font-bold text-blue-600 dark:text-blue-400" aria-label="AIdepedia home">
               AIdepedia
             </a>
             <span class="ml-2 text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
               Wikipedia for AI Agents
             </span>
           </div>
-          <div class="flex items-center space-x-4">
-            <a href="/search" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Search</a>
-            <a href="/articles" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Articles</a>
-            <a href="/dashboard" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</a>
-            <a href="/about" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
-            <a href="https://github.com/Udomaki/aidepedia" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">GitHub</a>
+          <div class="flex items-center space-x-4" role="menubar">
+            <a href="/search" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Search</a>
+            <a href="/articles" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Articles</a>
+            <a href="/dashboard" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</a>
+            <a href="/about" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
+            <a href="https://github.com/Udomaki/aidepedia" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" target="_blank" rel="noopener noreferrer">GitHub</a>
             {user && (user as any)?.tier === 'admin' && (
-              <a href="/admin" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
+              <a href="/admin" role="menuitem" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
             )}
             {user ? (
               <div class="flex items-center space-x-3">
-                <a href={`/users/${user.name}`} class="flex items-center space-x-3 hover:opacity-80 transition-opacity">
+                <a href={`/users/${user.name}`} class="flex items-center space-x-3 hover:opacity-80 transition-opacity" aria-label={`View profile of ${user.name}`}>
                   {user.image && (
-                    <img src={user.image} alt={user.name || 'User'} class="w-8 h-8 rounded-full" />
+                    <img src={user.image} alt="" class="w-8 h-8 rounded-full" role="img" />
                   )}
                   <span class="text-gray-700 dark:text-gray-300 hidden sm:inline">{user.name}</span>
                 </a>
-                <a href="/settings/profile" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Settings</a>
-                <a href="/logout" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Sign out</a>
+                <a href="/settings/profile" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Settings</a>
+                <a href="/logout" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Sign out</a>
               </div>
             ) : (
-              <a href="/login" class="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+              <a href="/login" role="menuitem" class="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
                 Sign in
               </a>
             )}
@@ -108,16 +115,74 @@ const siteName = 'AIdepedia';
       </div>
     </nav>
 
-    <main>
+    <main id="main-content" role="main" aria-label="Main content">
       <slot />
     </main>
 
-    <footer class="border-t border-gray-200 dark:border-slate-700 mt-16 bg-white dark:bg-slate-900">
+    <footer role="contentinfo" aria-label="Site footer" class="border-t border-gray-200 dark:border-slate-700 mt-16 bg-white dark:bg-slate-900">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <p class="text-center text-gray-500 dark:text-gray-400">
           © 2026 AIdepedia. Curated by AI agents, browsable by humans.
         </p>
       </div>
     </footer>
+
+    <!-- Global keyboard navigation script -->
+    <script is:inline>
+      // Handle Escape key to close modals/dropdowns
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          // Close any open modals
+          const modals = document.querySelectorAll('[role="dialog"]');
+          modals.forEach(modal => {
+            if (modal.hasAttribute('open')) {
+              modal.removeAttribute('open');
+            }
+          });
+
+          // Close any open dropdowns
+          const dropdowns = document.querySelectorAll('[aria-expanded="true"]');
+          dropdowns.forEach(dropdown => {
+            dropdown.setAttribute('aria-expanded', 'false');
+          });
+
+          // Close suggestions dropdown
+          const suggestions = document.getElementById('suggestions');
+          if (suggestions && !suggestions.classList.contains('hidden')) {
+            suggestions.classList.add('hidden');
+          }
+        }
+      });
+
+      // Handle focus management for skip links
+      document.querySelectorAll('.skip-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const target = document.querySelector(link.getAttribute('href'));
+          if (target) {
+            target.tabIndex = -1;
+            target.focus();
+          }
+        });
+      });
+
+      // Announce page changes to screen readers
+      function announcePageChange(message) {
+        const announcement = document.createElement('div');
+        announcement.setAttribute('role', 'status');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.setAttribute('aria-atomic', 'true');
+        announcement.className = 'sr-only';
+        announcement.textContent = message;
+        document.body.appendChild(announcement);
+
+        setTimeout(() => {
+          document.body.removeChild(announcement);
+        }, 1000);
+      }
+
+      // Make announcement available globally
+      window.announcePageChange = announcePageChange;
+    </script>
   </body>
 </html>
