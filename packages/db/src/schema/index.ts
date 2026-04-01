@@ -567,3 +567,23 @@ export const api_performance = pgTable('api_performance', {
   responseTimeIdx: index('api_performance_response_time_idx').on(table.responseTime),
   createdAtIdx: index('api_performance_created_at_idx').on(table.createdAt),
 }));
+
+// Database backups
+export const backups = pgTable('backups', {
+  id: serial('id').primaryKey(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  size: integer('size').notNull(), // in bytes
+  status: varchar('status', {
+    enum: ['pending', 'in_progress', 'completed', 'failed'],
+    length: 20
+  }).notNull().default('pending'),
+  storageKey: varchar('storage_key', { length: 500 }), // S3 key
+  storageUrl: varchar('storage_url', { length: 1000 }), // S3 URL
+  error: text('error'), // Error message if failed
+  createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  statusIdx: index('backup_status_idx').on(table.status),
+  createdAtIdx: index('backup_created_at_idx').on(table.createdAt),
+}));
