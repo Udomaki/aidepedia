@@ -1292,3 +1292,209 @@ export async function rejectArticle(
     throw new DatabaseError(`Failed to reject article: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+// ========== ADMIN QUERIES ==========
+
+/**
+ * Get all users with pagination
+ */
+export async function getAllUsers(
+  params: { page?: number; limit?: number; search?: string } = {}
+): Promise<PaginatedResult<Editor>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    if (params.search) {
+      conditions.push(like(editors.name, `%${params.search}%`));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(editors)
+        .where(whereClause)
+        .orderBy(desc(editors.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(editors)
+        .where(whereClause),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch users: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update user tier/role
+ */
+export async function updateUserTier(
+  editorId: number,
+  tier: 'contributor' | 'editor' | 'senior_editor' | 'admin'
+): Promise<Editor> {
+  try {
+    const [editor] = await db
+      .update(editors)
+      .set({ tier })
+      .where(eq(editors.id, editorId))
+      .returning();
+
+    if (!editor) {
+      throw new NotFoundError('Editor', `id:${editorId}`);
+    }
+
+    return editor;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update user tier: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Ban/suspend a user (set isActive to false)
+ */
+export async function setUserActiveStatus(
+  editorId: number,
+  isActive: boolean
+): Promise<Editor> {
+  try {
+    const [editor] = await db
+      .update(editors)
+      .set({ isActive })
+      .where(eq(editors.id, editorId))
+      .returning();
+
+    if (!editor) {
+      throw new NotFoundError('Editor', `id:${editorId}`);
+    }
+
+    return editor;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get flagged/reported content (articles with low quality score or high downvotes)
+ */
+export async function getFlaggedContent(
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<Article & { reportReason?: string }>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Get articles with quality score < 50 or downvotes > upvotes
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(articles)
+        .where(
+          or(
+            sql`${articles.qualityScore} < 50`,
+            sql`${articles.downvotes} > ${articles.upvotes}`
+          )
+        )
+        .orderBy(desc(articles.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(articles)
+        .where(
+          or(
+            sql`${articles.qualityScore} < 50`,
+            sql`${articles.downvotes} > ${articles.upvotes}`
+          )
+        ),
+    ]);
+
+    // Add report reason
+    const flaggedData = data.map(article => ({
+      ...article,
+      reportReason: article.qualityScore && article.qualityScore < 50
+        ? 'Low quality score'
+        : 'High downvote ratio',
+    }));
+
+    return {
+      data: flaggedData,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch flagged content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get admin dashboard stats
+ */
+export async function getAdminStats(): Promise<{
+  totalUsers: number;
+  activeUsers: number;
+  totalArticles: number;
+  pendingReview: number;
+  flagged: number;
+  published: number;
+}> {
+  try {
+    const [
+      [{ totalUsers }],
+      [{ activeUsers }],
+      [{ totalArticles }],
+      [{ pendingReview }],
+      [{ flagged }],
+      [{ published }],
+    ] = await Promise.all([
+      db.select({ totalUsers: count() }).from(editors),
+      db.select({ activeUsers: count() }).from(editors).where(eq(editors.isActive, true)),
+      db.select({ totalArticles: count() }).from(articles),
+      db.select({ pendingReview: count() }).from(articles).where(eq(articles.status, 'pending_review')),
+      db.select({ flagged: count() }).from(articles).where(
+        or(
+          sql`${articles.qualityScore} < 50`,
+          sql`${articles.downvotes} > ${articles.upvotes}`
+        )
+      ),
+      db.select({ published: count() }).from(articles).where(eq(articles.status, 'published')),
+    ]);
+
+    return {
+      totalUsers: Number(totalUsers),
+      activeUsers: Number(activeUsers),
+      totalArticles: Number(totalArticles),
+      pendingReview: Number(pendingReview),
+      flagged: Number(flagged),
+      published: Number(published),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch admin stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
