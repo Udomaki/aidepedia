@@ -1,6 +1,7 @@
 import { defineMiddleware, sequence } from 'astro/middleware';
 import { getSession } from 'auth-astro/server';
 import { rateLimitMiddleware } from './rate-limit';
+import { getMaintenanceModeSettings } from '@aidepedia/db/queries';
 
 // Routes that require authentication
 const protectedPaths = [
@@ -27,11 +28,21 @@ const publicPaths = [
   '/badges',
   '/notifications',
   '/sitemap.xml',
+  '/maintenance',
 ];
 
 // Admin-only routes
 const adminPaths = [
   '/admin',
+];
+
+// Paths that should bypass maintenance mode
+const maintenanceBypassPaths = [
+  '/api/v1/admin/maintenance',
+  '/api/auth',
+  '/auth',
+  '/login',
+  '/logout',
 ];
 
 function isProtectedPath(pathname: string): boolean {
@@ -53,6 +64,66 @@ function isProtectedPath(pathname: string): boolean {
 function isAdminPath(pathname: string): boolean {
   return adminPaths.some(path => pathname.startsWith(path));
 }
+
+function shouldBypassMaintenance(pathname: string): boolean {
+  return maintenanceBypassPaths.some(path => pathname.startsWith(path));
+}
+
+// Maintenance mode middleware
+const maintenanceMiddleware = defineMiddleware(async (context, next) => {
+  const { pathname } = context.url;
+  
+  // Skip maintenance check for bypass paths
+  if (shouldBypassMaintenance(pathname)) {
+    return next();
+  }
+  
+  // Check if maintenance mode is enabled
+  try {
+    const maintenanceSettings = await getMaintenanceModeSettings();
+    
+    if (maintenanceSettings.enabled) {
+      // Check if user is admin
+      const session = await getSession(context.request);
+      const isAdmin = session && (
+        (session.user as any)?.role === 'admin' || 
+        (session.user as any)?.tier === 'admin'
+      );
+      
+      // Allow admin users to bypass maintenance mode
+      if (isAdmin) {
+        return next();
+      }
+      
+      // Redirect all other users to maintenance page
+      // For API routes, return 503 Service Unavailable
+      if (pathname.startsWith('/api/')) {
+        return new Response(JSON.stringify({
+          error: 'Service Unavailable',
+          message: maintenanceSettings.message,
+          retryAfter: maintenanceSettings.estimatedTime || '30 minutes',
+        }), {
+          status: 503,
+          headers: { 
+            'Content-Type': 'application/json',
+            'Retry-After': '300', // 5 minutes
+          },
+        });
+      }
+      
+      // For page routes, redirect to maintenance page
+      // Don't redirect if already on maintenance page
+      if (pathname !== '/maintenance') {
+        return context.redirect('/maintenance');
+      }
+    }
+  } catch (error) {
+    // If we can't check maintenance mode (e.g., DB error), continue normally
+    console.error('Error checking maintenance mode:', error);
+  }
+  
+  return next();
+});
 
 const authMiddleware = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
@@ -130,4 +201,4 @@ const authMiddleware = defineMiddleware(async (context, next) => {
   return next();
 });
 
-export const onRequest = sequence(rateLimitMiddleware, authMiddleware);
+export const onRequest = sequence(rateLimitMiddleware, maintenanceMiddleware, authMiddleware);

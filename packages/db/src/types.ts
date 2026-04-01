@@ -305,3 +305,24 @@ export interface AuditLogQueryParams extends PaginationParams {
   dateFrom?: string;
   dateTo?: string;
 }
+
+// System settings types
+export type SystemSetting = {
+  key: string;
+  value: Record<string, unknown>;
+  updatedAt: Date;
+  updatedBy: number | null;
+};
+
+export interface MaintenanceModeSettings {
+  enabled: boolean;
+  message: string;
+  estimatedTime: string;
+  contactEmail: string;
+}
+
+export interface NewSystemSetting {
+  key: string;
+  value: Record<string, unknown>;
+  updatedBy?: number | null;
+}
