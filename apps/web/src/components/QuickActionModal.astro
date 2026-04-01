@@ -1,0 +1,259 @@
+---
+/**
+ * QuickActionModal.astro
+ * Command palette style quick action menu (Cmd+K)
+ */
+
+interface Props {
+  isLoggedIn?: boolean;
+  canEdit?: boolean;
+  articleSlug?: string;
+}
+
+const { isLoggedIn = false, canEdit = false, articleSlug } = Astro.props;
+
+// Define quick actions
+const quickActions = [
+  { id: 'home', label: 'Go to Home', shortcut: 'g h', href: '/', icon: 'home', category: 'Navigation' },
+  { id: 'articles', label: 'Go to Articles', shortcut: 'g a', href: '/articles', icon: 'articles', category: 'Navigation' },
+  { id: 'search', label: 'Search Articles', shortcut: '/', href: '/search', icon: 'search', category: 'Search' },
+  { id: 'dashboard', label: 'Dashboard', shortcut: '', href: '/dashboard', icon: 'dashboard', category: 'Navigation', requiresAuth: true },
+  { id: 'new-article', label: 'New Article', shortcut: 'g n', href: '/articles/new', icon: 'new', category: 'Actions', requiresAuth: true },
+  { id: 'settings', label: 'Settings', shortcut: '', href: '/settings/profile', icon: 'settings', category: 'Navigation', requiresAuth: true },
+  { id: 'bookmarks', label: 'Bookmarks', shortcut: '', href: '/bookmarks', icon: 'bookmark', category: 'Navigation', requiresAuth: true },
+  { id: 'about', label: 'About', shortcut: '', href: '/about', icon: 'info', category: 'Navigation' },
+];
+
+// Filter actions based on auth state
+const availableActions = quickActions.filter(action => !action.requiresAuth || isLoggedIn);
+---
+
+<!-- Quick Action Modal -->
+<div 
+  id="quick-action-modal" 
+  class="fixed inset-0 z-[100] hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="quick-action-title"
+  aria-hidden="true"
+>
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" data-close-quick-action></div>
+  
+  <!-- Modal Content -->
+  <div class="absolute inset-0 flex items-start justify-center pt-[15vh] p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-xl w-full overflow-hidden">
+      <!-- Search Input -->
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+        </svg>
+        <input 
+          type="text" 
+          id="quick-action-search"
+          placeholder="Search actions, pages, articles..."
+          class="flex-1 bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
+          autocomplete="off"
+          aria-label="Search quick actions"
+        />
+        <kbd class="px-2 py-0.5 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-xs font-mono text-gray-500 dark:text-gray-400">
+          Esc
+        </kbd>
+      </div>
+      
+      <!-- Actions List -->
+      <div 
+        id="quick-action-list" 
+        class="max-h-[50vh] overflow-y-auto py-2"
+        role="listbox"
+        data-selected-index="0"
+      >
+        {availableActions.map((action, index) => (
+          <a 
+            href={action.href}
+            class="flex items-center justify-between px-4 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+            role="option"
+            aria-selected={index === 0 ? 'true' : 'false'}
+            data-action-id={action.id}
+            data-category={action.category}
+          >
+            <div class="flex items-center gap-3">
+              <ActionIcon type={action.icon} />
+              <span class="text-gray-900 dark:text-gray-100">{action.label}</span>
+            </div>
+            {action.shortcut && (
+              <div class="flex items-center gap-1 text-gray-400 text-sm">
+                {action.shortcut.split(' ').map((key, i) => (
+                  <>
+                    <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded text-xs font-mono">
+                      {key}
+                    </kbd>
+                    {i < action.shortcut.split(' ').length - 1 && <span class="mx-0.5">then</span>}
+                  </>
+                ))}
+              </div>
+            )}
+          </a>
+        ))}
+        
+        <!-- No results message -->
+        <div id="quick-action-no-results" class="hidden px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+          No actions found
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="px-4 py-2 bg-gray-50 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div class="flex items-center gap-4">
+          <span class="flex items-center gap-1">
+            <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-600 rounded">↑</kbd>
+            <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-600 rounded">↓</kbd>
+            to navigate
+          </span>
+          <span class="flex items-center gap-1">
+            <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-600 rounded">Enter</kbd>
+            to select
+          </span>
+        </div>
+        <span>
+          <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-600 rounded">⌘</kbd>
+          +
+          <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-600 rounded">K</kbd>
+          to open
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Icon Component -->
+<div define:var={ActionIcon}>
+  {type === 'home' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+    </svg>
+  )}
+  {type === 'articles' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+    </svg>
+  )}
+  {type === 'search' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+    </svg>
+  )}
+  {type === 'dashboard' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+      <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+    </svg>
+  )}
+  {type === 'new' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+    </svg>
+  )}
+  {type === 'settings' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+    </svg>
+  )}
+  {type === 'bookmark' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M5 4a2 2 0 00-2 2v12l7-4 7 4V6a2 2 0 00-2-2H5z" />
+    </svg>
+  )}
+  {type === 'info' && (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+    </svg>
+  )}
+</div>
+
+<script>
+  const quickActionModal = document.getElementById('quick-action-modal');
+  const quickActionSearch = document.getElementById('quick-action-search') as HTMLInputElement;
+  const quickActionList = document.getElementById('quick-action-list');
+  const quickActionNoResults = document.getElementById('quick-action-no-results');
+  const allActionItems = quickActionList?.querySelectorAll<HTMLElement>('[role="option"]');
+  const closeButtons = document.querySelectorAll('[data-close-quick-action]');
+
+  // Close modal
+  function closeModal() {
+    if (quickActionModal) {
+      quickActionModal.classList.add('hidden');
+      quickActionModal.setAttribute('aria-hidden', 'true');
+      if (quickActionSearch) {
+        quickActionSearch.value = '';
+      }
+      // Reset visibility
+      allActionItems?.forEach(item => {
+        item.classList.remove('hidden');
+      });
+      if (quickActionNoResults) {
+        quickActionNoResults.classList.add('hidden');
+      }
+    }
+  }
+
+  // Close on backdrop click
+  closeButtons.forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
+
+  // Search/filter actions
+  if (quickActionSearch && quickActionList && allActionItems && quickActionNoResults) {
+    quickActionSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
+      let visibleCount = 0;
+
+      allActionItems.forEach(item => {
+        const label = item.textContent?.toLowerCase() || '';
+        const category = item.dataset.category?.toLowerCase() || '';
+        const matches = label.includes(query) || category.includes(query);
+        
+        if (matches) {
+          item.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          item.classList.add('hidden');
+        }
+      });
+
+      // Show/hide no results message
+      if (visibleCount === 0) {
+        quickActionNoResults.classList.remove('hidden');
+      } else {
+        quickActionNoResults.classList.add('hidden');
+      }
+
+      // Reset selection to first visible item
+      if (quickActionList) {
+        quickActionList.dataset.selectedIndex = '0';
+        updateQuickActionSelection();
+      }
+    });
+  }
+
+  // Update selection visual
+  function updateQuickActionSelection() {
+    if (!quickActionList || !allActionItems) return;
+    
+    const selectedIndex = parseInt(quickActionList.dataset.selectedIndex || '0');
+    const visibleItems = Array.from(allActionItems).filter(item => !item.classList.contains('hidden'));
+    
+    visibleItems.forEach((item, index) => {
+      if (index === selectedIndex) {
+        item.classList.add('bg-blue-50', 'dark:bg-blue-900/30');
+        item.setAttribute('aria-selected', 'true');
+      } else {
+        item.classList.remove('bg-blue-50', 'dark:bg-blue-900/30');
+        item.setAttribute('aria-selected', 'false');
+      }
+    });
+  }
+
+  // Make function globally available
+  (window as any).updateQuickActionSelection = updateQuickActionSelection;
+</script>
