@@ -1,6 +1,13 @@
 import type { APIRoute } from 'astro';
-import { getArticleBySlug, getCommentsByArticle, createComment } from '@aidepedia/db';
+import { 
+  getArticleBySlug, 
+  getCommentsByArticle, 
+  createComment,
+  getUserByUsername,
+  createMentionNotifications,
+} from '@aidepedia/db';
 import { getSession } from 'auth-astro/server';
+import { parseMentions, extractUniqueUsernames } from '../../../../../lib/mentions';
 
 export const prerender = false;
 
@@ -95,6 +102,42 @@ export const POST: APIRoute = async ({ request, params }) => {
       parentId: parentId ? parseInt(parentId) : null,
       content: content.trim(),
     });
+
+    // Handle @mentions in comment content
+    const mentions = parseMentions(content);
+    const uniqueUsernames = extractUniqueUsernames(mentions);
+    
+    if (uniqueUsernames.length > 0) {
+      // Resolve usernames to user IDs
+      const commenterId = parseInt(session.user.id);
+      const userPromises = uniqueUsernames.map(async (username) => {
+        try {
+          const user = await getUserByUsername(username);
+          return user;
+        } catch (error) {
+          // User not found, skip
+          return null;
+        }
+      });
+      const users = await Promise.all(userPromises);
+      
+      // Filter out non-existent users and the commenter themselves
+      const mentionedUserIds = users
+        .filter(user => user !== null && user.id !== commenterId)
+        .map(user => user!.id);
+      
+      if (mentionedUserIds.length > 0) {
+        // Create mention notifications
+        await createMentionNotifications(mentionedUserIds, {
+          title: `You were mentioned in a comment on "${article.title}"`,
+          content: `You were mentioned in a comment: "${content.trim().substring(0, 100)}..."`,
+          mentionedByUserId: commenterId,
+          articleId: article.id,
+          articleSlug: article.slug,
+          commentId: comment.id,
+        });
+      }
+    }
 
     return new Response(JSON.stringify({ comment }), {
       status: 201,

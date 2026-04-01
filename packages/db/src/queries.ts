@@ -2595,6 +2595,118 @@ export async function markAllNotificationsRead(userId: number): Promise<number> 
   }
 }
 
+// ============ Mention Queries ============
+
+/**
+ * Get mentions for a user (notifications of type 'mention')
+ */
+export async function getMentions(
+  userId: number,
+  params: { page?: number; limit?: number; unreadOnly?: boolean } = {}
+): Promise<PaginatedResult<Notification>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [
+      eq(notifications.userId, userId),
+      eq(notifications.type, 'mention')
+    ];
+    if (params.unreadOnly) {
+      conditions.push(eq(notifications.read, false));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [data, [{ total }]] = await Promise.all([
+      db.select().from(notifications).where(whereClause)
+        .orderBy(desc(notifications.createdAt)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(notifications).where(whereClause),
+    ]);
+
+    return {
+      data,
+      meta: { total: Number(total), page, limit, totalPages: Math.ceil(Number(total) / limit) },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch mentions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get unread mention count for a user
+ */
+export async function getUnreadMentionCount(userId: number): Promise<number> {
+  try {
+    const [{ count: unreadCount }] = await db.select({ count: count() })
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.type, 'mention'),
+        eq(notifications.read, false)
+      ));
+    return Number(unreadCount);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch unread mention count: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Mark a mention as read
+ */
+export async function markMentionRead(id: number, userId: number): Promise<Notification> {
+  try {
+    const [notification] = await db.update(notifications).set({ read: true })
+      .where(and(
+        eq(notifications.id, id),
+        eq(notifications.userId, userId),
+        eq(notifications.type, 'mention')
+      ))
+      .returning();
+    if (!notification) throw new NotFoundError('Mention', `id:${id}`);
+    return notification;
+  } catch (error) {
+    if (error instanceof NotFoundError) throw error;
+    throw new DatabaseError(`Failed to mark mention read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create mention notifications for multiple users
+ */
+export async function createMentionNotifications(
+  mentionedUserIds: number[],
+  data: {
+    title: string;
+    content: string;
+    mentionedByUserId: number;
+    articleId?: number;
+    commentId?: number;
+    articleSlug?: string;
+  }
+): Promise<Notification[]> {
+  try {
+    const notifications_data = mentionedUserIds.map(userId => ({
+      userId,
+      type: 'mention' as const,
+      title: data.title,
+      content: data.content,
+      data: {
+        mentionedByUserId: data.mentionedByUserId,
+        articleId: data.articleId,
+        commentId: data.commentId,
+        articleSlug: data.articleSlug,
+      },
+    }));
+
+    const created = await db.insert(notifications).values(notifications_data).returning();
+    return created;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create mention notifications: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 // ============ Tag Queries ============
 
 /**

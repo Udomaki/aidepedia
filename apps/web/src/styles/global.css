@@ -139,3 +139,25 @@ textarea:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* Mention styles */
+.mention-link {
+  @apply text-blue-600 font-medium hover:underline;
+  background-color: rgba(59, 130, 246, 0.1);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s ease;
+}
+
+.mention-link:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .mention-link {
+  @apply text-blue-400;
+  background-color: rgba(96, 165, 250, 0.1);
+}
+
+.dark .mention-link:hover {
+  background-color: rgba(96, 165, 250, 0.2);
+}

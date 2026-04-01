@@ -2,7 +2,9 @@ import type { APIRoute } from 'astro';
 import { 
   listArticles, 
   getCategories,
-  createArticle 
+  createArticle,
+  getUserByUsername,
+  createMentionNotifications,
 } from '@aidepedia/db';
 import { 
   successResponse, 
@@ -12,6 +14,7 @@ import {
   transformArticleForApi
 } from '../../../../lib/api-utils';
 import { getSession } from '../../../../lib/auth';
+import { parseMentions, extractUniqueUsernames } from '../../../../lib/mentions';
 
 /**
  * GET /api/v1/articles
@@ -130,6 +133,40 @@ export const POST: APIRoute = async ({ request }) => {
       editorId,
       'Created via web interface'
     );
+
+    // Handle @mentions in content
+    const mentions = parseMentions(content);
+    const uniqueUsernames = extractUniqueUsernames(mentions);
+    
+    if (uniqueUsernames.length > 0) {
+      // Resolve usernames to user IDs
+      const userPromises = uniqueUsernames.map(async (username) => {
+        try {
+          const user = await getUserByUsername(username);
+          return user;
+        } catch (error) {
+          // User not found, skip
+          return null;
+        }
+      });
+      const users = await Promise.all(userPromises);
+      
+      // Filter out non-existent users and the author themselves
+      const mentionedUserIds = users
+        .filter(user => user !== null && user.id !== editorId)
+        .map(user => user!.id);
+      
+      if (mentionedUserIds.length > 0) {
+        // Create mention notifications
+        await createMentionNotifications(mentionedUserIds, {
+          title: `You were mentioned in "${article.title}"`,
+          content: `You were mentioned in the article "${article.title}"`,
+          mentionedByUserId: editorId,
+          articleId: article.id,
+          articleSlug: article.slug,
+        });
+      }
+    }
 
     return successResponse(article, null, 201);
   } catch (error) {
