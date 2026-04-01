@@ -1,0 +1,155 @@
+---
+import Layout from '../../../../../layouts/Layout.astro';
+import { getArticleBySlug, getRevisionById } from '@aidepedia/db';
+
+export async function getStaticPaths() {
+  return [];
+}
+
+const { slug, revisionId } = Astro.params;
+
+let article = null;
+let revision = null;
+
+if (slug && revisionId) {
+  try {
+    article = await getArticleBySlug(slug);
+    revision = await getRevisionById(parseInt(revisionId, 10));
+    
+    if (revision.articleId !== article.id) {
+      revision = null;
+    }
+  } catch (e) {
+    // Article or revision not found
+  }
+}
+
+if (!article || !revision) {
+  return Astro.redirect('/articles');
+}
+
+const pageTitle = `Restore Revision ${revision.id}? - AIdepedia`;
+
+function formatDate(date: Date | null): string {
+  if (!date) return 'Unknown date';
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(date));
+}
+---
+
+<Layout title={pageTitle}>
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}`} class="text-blue-600 hover:text-blue-700">{article.title}</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}/revisions`} class="text-blue-600 hover:text-blue-700">Revisions</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Restore #{revision.id}</span>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-sm border border-purple-200 overflow-hidden">
+      <!-- Header -->
+      <header class="p-8 border-b border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-4xl">⚠️</span>
+          <h1 class="text-3xl font-bold text-gray-900">Restore This Revision?</h1>
+        </div>
+        
+        <p class="text-lg text-gray-700 mb-4">
+          You are about to restore the article to a previous version from <strong>{formatDate(revision.createdAt)}</strong>.
+        </p>
+
+        <div class="p-4 bg-white rounded-lg border border-purple-200">
+          <h3 class="font-semibold text-gray-900 mb-2">Revision #{revision.id}</h3>
+          <p class="text-gray-700 font-medium">{revision.title}</p>
+          {revision.changeReason && (
+            <p class="text-sm text-gray-600 mt-2">
+              <span class="font-semibold">Change reason:</span> {revision.changeReason}
+            </p>
+          )}
+        </div>
+      </header>
+
+      <!-- Warning -->
+      <div class="p-6 bg-yellow-50 border-b border-yellow-200">
+        <div class="flex gap-3">
+          <span class="text-2xl">⚡</span>
+          <div>
+            <h3 class="font-semibold text-yellow-900 mb-1">What happens when you restore:</h3>
+            <ul class="text-sm text-yellow-800 space-y-1">
+              <li>• The article will be updated to match this revision's content</li>
+              <li>• A new revision will be created to track this restore action</li>
+              <li>• The current version will still be available in the revision history</li>
+              <li>• This action can be undone by restoring to the current version</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="p-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Content Preview:</h3>
+        <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 prose prose-sm max-w-none">
+          {revision.excerpt && (
+            <p class="text-gray-700 font-medium mb-4">{revision.excerpt}</p>
+          )}
+          {revision.content.split('\n\n').slice(0, 3).map((paragraph: string) => (
+            <p class="mb-3 text-gray-700">{paragraph}</p>
+          ))}
+          {revision.content.split('\n\n').length > 3 && (
+            <p class="text-gray-500 italic">... (preview truncated)</p>
+          )}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <footer class="p-8 bg-gray-50 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+          <a
+            href={`/articles/${article.slug}/revisions`}
+            class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+          >
+            ← Cancel
+          </a>
+          
+          <div class="flex gap-3">
+            <a
+              href={`/articles/${article.slug}/revisions/${revision.id}`}
+              class="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+            >
+              View Full Revision
+            </a>
+            
+            <!-- Note: This would need to be wired to an API endpoint in a real implementation -->
+            <button
+              type="button"
+              class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              onclick="alert('Revert functionality requires an API endpoint. This is a UI demonstration.')"
+            >
+              ✓ Confirm Restore
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Info Box -->
+    <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <p class="text-sm text-blue-800">
+        <span class="font-semibold">💡 Note:</span> This restore functionality is a UI demonstration. 
+        In a production environment, this would be connected to an API endpoint that calls the 
+        <code class="bg-blue-100 px-2 py-1 rounded">revertToRevision()</code> database function.
+      </p>
+    </div>
+  </main>
+</Layout>

@@ -1,0 +1,156 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import { getArticleBySlug, getRevisionById } from '@aidepedia/db';
+
+export async function getStaticPaths() {
+  // For static generation, we'd need to fetch all revisions
+  // For now, we'll rely on SSR
+  return [];
+}
+
+const { slug, revisionId } = Astro.params;
+
+let article = null;
+let revision = null;
+
+if (slug && revisionId) {
+  try {
+    article = await getArticleBySlug(slug);
+    revision = await getRevisionById(parseInt(revisionId, 10));
+    
+    // Verify this revision belongs to this article
+    if (revision.articleId !== article.id) {
+      revision = null;
+    }
+  } catch (e) {
+    // Article or revision not found, will redirect below
+  }
+}
+
+if (!article || !revision) {
+  return Astro.redirect('/articles');
+}
+
+const pageTitle = `Revision ${revision.id}: ${revision.title} - AIdepedia`;
+
+function formatDate(date: Date | null): string {
+  if (!date) return 'Unknown date';
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(date));
+}
+
+function getChangeTypeLabel(changeType: string): string {
+  const labels: Record<string, string> = {
+    'created': '📝 Created',
+    'updated': '✏️ Updated',
+    'published': '✅ Published',
+    'reverted': '↩️ Reverted'
+  };
+  return labels[changeType] || changeType;
+}
+
+function getChangeTypeColor(changeType: string): string {
+  const colors: Record<string, string> = {
+    'created': 'bg-blue-600',
+    'updated': 'bg-yellow-600',
+    'published': 'bg-green-600',
+    'reverted': 'bg-purple-600'
+  };
+  return colors[changeType] || 'bg-gray-600';
+}
+---
+
+<Layout title={pageTitle} description={revision.excerpt || revision.content.substring(0, 160)}>
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}`} class="text-blue-600 hover:text-blue-700">{article.title}</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}/revisions`} class="text-blue-600 hover:text-blue-700">Revisions</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Revision {revision.id}</span>
+    </nav>
+
+    <article class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <!-- Header -->
+      <header class="p-8 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+        <div class="flex items-center gap-3 mb-4">
+          <span class={`px-3 py-1 text-white text-sm font-medium rounded-full ${getChangeTypeColor(revision.changeType)}`}>
+            {getChangeTypeLabel(revision.changeType)}
+          </span>
+          <span class="text-gray-600 text-sm">
+            Revision #{revision.id}
+          </span>
+        </div>
+        
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">{revision.title}</h1>
+        
+        {revision.excerpt && (
+          <p class="text-xl text-gray-600 mb-4">{revision.excerpt}</p>
+        )}
+        
+        <div class="flex items-center gap-4 text-sm text-gray-600">
+          <span>📅 {formatDate(revision.createdAt)}</span>
+          <span>👤 Editor ID: {revision.editorId}</span>
+        </div>
+
+        {revision.changeReason && (
+          <div class="mt-4 p-3 bg-white rounded-lg border border-gray-200">
+            <p class="text-sm text-gray-700">
+              <span class="font-semibold">Change reason:</span> {revision.changeReason}
+            </p>
+          </div>
+        )}
+
+        {revision.tags && revision.tags.length > 0 && (
+          <div class="flex flex-wrap gap-2 mt-4">
+            {revision.tags.map((tag: string) => (
+              <span class="px-3 py-1 bg-white text-gray-700 text-sm rounded-full border border-gray-200">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <!-- Content -->
+      <div class="p-8 prose prose-lg max-w-none">
+        {revision.content.split('\n\n').map((paragraph: string) => (
+          <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
+        ))}
+      </div>
+
+      <!-- Footer -->
+      <footer class="p-8 bg-gray-50 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-500">
+            <p>This is a historical version of the article</p>
+          </div>
+          <div class="flex gap-2">
+            <a
+              href={`/articles/${article.slug}/revisions`}
+              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              ← All Revisions
+            </a>
+            <a
+              href={`/articles/${article.slug}`}
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Current Version →
+            </a>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </main>
+</Layout>
