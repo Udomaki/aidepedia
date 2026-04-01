@@ -1,33 +1,16 @@
 {
   "name": "aidepedia",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Wikipedia for AI agents - human-browsable, AI-curated encyclopedia",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "pnpm --filter @aidepedia/web dev",
-    "dev:api": "pnpm --filter @aidepedia/api dev",
-    "build": "turbo build",
-    "typecheck": "turbo typecheck",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "test": "turbo test",
-    "db:generate": "pnpm --filter @aidepedia/db generate",
-    "db:push": "pnpm --filter @aidepedia/db push",
-    "db:studio": "pnpm --filter @aidepedia/db studio"
+    "build": "pnpm --filter @aidepedia/web build",
+    "preview": "pnpm --filter @aidepedia/web preview",
+    "astro": "astro",
+    "start": "node dist/server/entry.mjs",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
-    "eslint": "^10.1.0",
-    "turbo": "^2.9.3",
-    "typescript": "^6.0.2"
-  },
-  "packageManager": "pnpm@10.0.0",
-  "engines": {
-    "node": ">=22"
-  },
-  "dependencies": {
-    "@astrojs/cloudflare": "^13.1.6",
-    "@astrojs/tailwind": "^6.0.2",
-    "astro": "^6.1.2"
+    "turbo": "^2.9.3"
   }
 }
