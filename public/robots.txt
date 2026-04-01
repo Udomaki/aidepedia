@@ -1,0 +1,9 @@
+# robots.txt for AIdepedia
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://aidepedia.com/sitemap.xml
+
+# Crawl delay (optional, be nice to servers)
+Crawl-delay: 1

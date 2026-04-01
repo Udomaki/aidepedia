@@ -1,11 +1,11 @@
 name = "aidepedia"
-main = "./dist/_worker.js/index.js"
+main = "./apps/web/dist/_worker.js/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 
 [assets]
 binding = "ASSETS"
-directory = "./dist"
+directory = "./apps/web/dist"
 
 [observability]
 enabled = true
