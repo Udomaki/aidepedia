@@ -18,6 +18,13 @@ export default defineConfig({
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        // Include 2FA status in session
+        if (token.twoFactorEnabled !== undefined) {
+          (session.user as any).twoFactorEnabled = token.twoFactorEnabled;
+        }
+        if (token.twoFactorVerified) {
+          (session.user as any).twoFactorVerified = token.twoFactorVerified;
+        }
       }
       return session;
     },
