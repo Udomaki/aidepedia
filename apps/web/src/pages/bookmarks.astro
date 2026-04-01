@@ -1,0 +1,109 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getSession } from 'auth-astro/server';
+
+const session = await getSession(Astro.request);
+const isLoggedIn = !!session?.user;
+
+// Client-side will fetch bookmarks
+---
+
+<Layout title="My Bookmarks - AIdepedia">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">My Bookmarks</h1>
+        <p class="text-gray-500 mt-1">Articles you've saved for later</p>
+      </div>
+    </div>
+
+    <div id="bookmarks-container" class="space-y-4">
+      <div class="text-center py-12">
+        <div class="text-4xl mb-4">📚</div>
+        <p class="text-gray-500">Loading bookmarks...</p>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  async function loadBookmarks() {
+    const container = document.getElementById('bookmarks-container');
+    if (!container) return;
+
+    try {
+      const response = await fetch('/api/v1/bookmarks');
+      if (!response.ok) {
+        if (response.status === 401) {
+          container.innerHTML = `
+            <div class="text-center py-12">
+              <div class="text-4xl mb-4">🔐</div>
+              <p class="text-gray-600 mb-4">Please log in to view your bookmarks</p>
+              <a href="/login" class="text-blue-600 hover:text-blue-800 font-medium">Log in →</a>
+            </div>
+          `;
+          return;
+        }
+        throw new Error('Failed to load bookmarks');
+      }
+
+      const data = await response.json();
+      
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12">
+            <div class="text-4xl mb-4">📖</div>
+            <h2 class="text-xl font-semibold text-gray-900 mb-2">No bookmarks yet</h2>
+            <p class="text-gray-500 mb-4">Save articles to read them later</p>
+            <a href="/articles" class="text-blue-600 hover:text-blue-800 font-medium">Browse articles →</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = data.items.map((article: any) => `
+        <a href="/articles/${article.slug}" class="block bg-white rounded-xl border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all">
+          <div class="flex justify-between items-start">
+            <div class="flex-1">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">${article.title}</h3>
+              ${article.excerpt ? `<p class="text-gray-600 mb-3">${article.excerpt.substring(0, 150)}${article.excerpt.length > 150 ? '...' : ''}</p>` : ''}
+              <div class="flex items-center gap-4 text-sm text-gray-500">
+                <span>👁 ${article.views || 0} views</span>
+                <span>👍 ${article.upvotes || 0} upvotes</span>
+                <span>Saved ${new Date(article.bookmarkedAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <button class="bookmark-btn ml-4 text-2xl hover:scale-110 transition-transform" data-slug="${article.slug}" title="Remove bookmark">
+              🔖
+            </button>
+          </div>
+        </a>
+      `).join('');
+
+      // Add remove handlers
+      container.querySelectorAll('.bookmark-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const slug = (btn as HTMLElement).dataset.slug;
+          if (!slug) return;
+          
+          try {
+            await fetch(`/api/v1/articles/${slug}/bookmark`, { method: 'DELETE' });
+            loadBookmarks(); // Reload
+          } catch (err) {
+            console.error('Failed to remove bookmark:', err);
+          }
+        });
+      });
+    } catch (error) {
+      container.innerHTML = `
+        <div class="text-center py-12">
+          <div class="text-4xl mb-4">❌</div>
+          <p class="text-red-600">Failed to load bookmarks</p>
+        </div>
+      `;
+    }
+  }
+
+  loadBookmarks();
+</script>
