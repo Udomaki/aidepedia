@@ -489,3 +489,20 @@ export const user_blocks = pgTable('user_blocks', {
   blockerIdx: index('user_block_blocker_idx').on(table.blockerId),
   blockedIdx: index('user_block_blocked_idx').on(table.blockedId),
 }));
+
+// Article drafts for auto-save functionality
+export const article_drafts = pgTable('article_drafts', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 500 }),
+  content: text('content'),
+  excerpt: text('excerpt'),
+  tags: text('tags').array().default([]),
+  lastSaved: timestamp('last_saved').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('draft_article_idx').on(table.articleId),
+  userIdx: index('draft_user_idx').on(table.userId),
+  articleUserIdx: index('draft_article_user_idx').on(table.articleId, table.userId),
+}));
