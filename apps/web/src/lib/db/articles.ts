@@ -6,6 +6,8 @@ export {
   createArticle,
   updateArticle,
   deleteArticle,
+  getCategories,
+  getTags,
 } from '@aidepedia/db';
 
 export type { Article, ArticleQueryParams, PaginatedResult } from '@aidepedia/db';

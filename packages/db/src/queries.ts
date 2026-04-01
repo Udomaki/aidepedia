@@ -1,4 +1,4 @@
-import { eq, desc, and, or, like, inArray, sql, count } from 'drizzle-orm';
+import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
 import { articles, articleRevisions } from './schema/index';
 import type {
@@ -100,7 +100,47 @@ export async function listArticles(
       );
     }
 
+    if (params.authorId) {
+      conditions.push(eq(articles.authorId, params.authorId));
+    }
+
+    if (params.minQualityScore !== undefined) {
+      conditions.push(gte(articles.qualityScore, params.minQualityScore));
+    }
+
+    if (params.maxQualityScore !== undefined) {
+      conditions.push(lte(articles.qualityScore, params.maxQualityScore));
+    }
+
+    if (params.dateFrom) {
+      conditions.push(gte(articles.createdAt, new Date(params.dateFrom)));
+    }
+
+    if (params.dateTo) {
+      conditions.push(lte(articles.createdAt, new Date(params.dateTo)));
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Build order by
+    let orderByClause;
+    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
+    
+    switch (params.sortBy) {
+      case 'title':
+        orderByClause = sortOrder === 'asc' ? sql`${articles.title} ASC` : sql`${articles.title} DESC`;
+        break;
+      case 'views':
+        orderByClause = sortOrder === 'asc' ? sql`${articles.viewCount} ASC` : sql`${articles.viewCount} DESC`;
+        break;
+      case 'quality':
+        orderByClause = sortOrder === 'asc' ? sql`${articles.qualityScore} ASC` : sql`${articles.qualityScore} DESC`;
+        break;
+      case 'date':
+      default:
+        orderByClause = sortOrder === 'asc' ? sql`${articles.createdAt} ASC` : sql`${articles.createdAt} DESC`;
+        break;
+    }
 
     // Fetch data and total count in parallel
     const [data, [{ total }]] = await Promise.all([
@@ -108,7 +148,7 @@ export async function listArticles(
         .select()
         .from(articles)
         .where(whereClause)
-        .orderBy(desc(articles.createdAt))
+        .orderBy(orderByClause)
         .limit(limit)
         .offset(offset),
       db
@@ -410,5 +450,42 @@ export async function deleteArticle(articleId: number): Promise<Article> {
       throw error;
     }
     throw new DatabaseError(`Failed to delete article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get distinct categories from articles
+ */
+export async function getCategories(): Promise<string[]> {
+  try {
+    const result = await db
+      .selectDistinct({ category: articles.category })
+      .from(articles)
+      .where(eq(articles.status, 'published'))
+      .orderBy(articles.category);
+
+    return result.map(r => r.category);
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get distinct tags from articles
+ */
+export async function getTags(): Promise<string[]> {
+  try {
+    const result = await db
+      .select({ tags: articles.tags })
+      .from(articles)
+      .where(eq(articles.status, 'published'));
+
+    // Flatten and deduplicate tags
+    const allTags = result.flatMap(r => r.tags || []);
+    const uniqueTags = [...new Set(allTags)].sort();
+    
+    return uniqueTags;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch tags: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
