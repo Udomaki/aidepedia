@@ -1,0 +1,231 @@
+---
+/**
+ * OptimisticButton - Button with optimistic update UI
+ * Shows loading/success/error states for async actions
+ */
+
+interface Props {
+  id?: string;
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  loadingText?: string;
+  successText?: string;
+  errorText?: string;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  class?: string;
+}
+
+const { 
+  id,
+  variant = 'primary',
+  size = 'md',
+  loadingText = 'Loading...',
+  successText = 'Done!',
+  errorText = 'Error',
+  disabled = false,
+  type = 'button',
+  class: className = ''
+} = Astro.props;
+
+const variants = {
+  primary: 'bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 focus:ring-blue-200 dark:focus:ring-blue-900',
+  secondary: 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-slate-600 focus:ring-gray-200 dark:focus:ring-slate-600',
+  ghost: 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 focus:ring-gray-200 dark:focus:ring-slate-600',
+  danger: 'bg-red-600 dark:bg-red-500 text-white hover:bg-red-700 dark:hover:bg-red-600 focus:ring-red-200 dark:focus:ring-red-900',
+};
+
+const sizes = {
+  sm: 'px-3 py-1.5 text-sm gap-1.5',
+  md: 'px-4 py-2 text-base gap-2',
+  lg: 'px-6 py-3 text-lg gap-2.5',
+};
+---
+
+<button
+  id={id}
+  type={type}
+  disabled={disabled}
+  class={`
+    optimistic-button
+    inline-flex items-center justify-center font-medium rounded-lg
+    transition-all duration-200 transform
+    focus:outline-none focus:ring-2 focus:ring-offset-2
+    disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
+    ${variants[variant]}
+    ${sizes[size]}
+    ${className}
+  `.trim().replace(/\s+/g, ' ')}
+  data-loading-text={loadingText}
+  data-success-text={successText}
+  data-error-text={errorText}
+>
+  <slot name="icon" />
+  <span class="button-text"><slot /></span>
+  <svg class="loading-icon w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+  <svg class="success-icon w-5 h-5 hidden text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+  </svg>
+  <svg class="error-icon w-5 h-5 hidden text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+</button>
+
+<script define:vars={{ id }}>
+  // Optimistic button state management
+  class OptimisticButton {
+    constructor(button) {
+      this.button = button;
+      this.originalText = button.querySelector('.button-text')?.textContent || '';
+      this.isLoading = false;
+      this.isSuccess = false;
+      this.isError = false;
+    }
+    
+    setLoading(loading) {
+      this.isLoading = loading;
+      this.updateUI();
+    }
+    
+    setSuccess(success) {
+      this.isSuccess = success;
+      this.updateUI();
+      if (success) {
+        setTimeout(() => this.reset(), 2000);
+      }
+    }
+    
+    setError(error) {
+      this.isError = error;
+      this.updateUI();
+      if (error) {
+        setTimeout(() => this.reset(), 3000);
+      }
+    }
+    
+    reset() {
+      this.isLoading = false;
+      this.isSuccess = false;
+      this.isError = false;
+      this.updateUI();
+    }
+    
+    updateUI() {
+      const textEl = this.button.querySelector('.button-text');
+      const loadingIcon = this.button.querySelector('.loading-icon');
+      const successIcon = this.button.querySelector('.success-icon');
+      const errorIcon = this.button.querySelector('.error-icon');
+      
+      // Reset classes
+      this.button.classList.remove('optimistic-loading', 'optimistic-success', 'optimistic-error');
+      loadingIcon?.classList.add('hidden');
+      successIcon?.classList.add('hidden');
+      errorIcon?.classList.add('hidden');
+      
+      if (this.isLoading) {
+        this.button.classList.add('optimistic-loading');
+        this.button.disabled = true;
+        loadingIcon?.classList.remove('hidden');
+        if (textEl) textEl.textContent = this.button.dataset.loadingText || 'Loading...';
+      } else if (this.isSuccess) {
+        this.button.classList.add('optimistic-success');
+        successIcon?.classList.remove('hidden');
+        if (textEl) textEl.textContent = this.button.dataset.successText || 'Done!';
+      } else if (this.isError) {
+        this.button.classList.add('optimistic-error');
+        errorIcon?.classList.remove('hidden');
+        if (textEl) textEl.textContent = this.button.dataset.errorText || 'Error';
+      } else {
+        this.button.disabled = false;
+        if (textEl) textEl.textContent = this.originalText;
+      }
+    }
+  }
+  
+  // Register global helper
+  window.OptimisticButton = OptimisticButton;
+  
+  // Auto-initialize buttons with data-optimize attribute
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.optimistic-button[data-optimize]').forEach(btn => {
+      btn._optimisticController = new OptimisticButton(btn);
+    });
+  });
+</script>
+
+<style>
+  .optimistic-button {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .optimistic-button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  
+  .optimistic-button:hover:not(:disabled)::after {
+    opacity: 0.1;
+  }
+  
+  .optimistic-button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  
+  .optimistic-button.optimistic-loading {
+    pointer-events: none;
+  }
+  
+  .optimistic-button.optimistic-success {
+    animation: successPulse 0.5s ease;
+  }
+  
+  .optimistic-button.optimistic-error {
+    animation: errorShake 0.5s ease;
+  }
+  
+  @keyframes successPulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+  
+  @keyframes errorShake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-5px);
+    }
+    75% {
+      transform: translateX(5px);
+    }
+  }
+  
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .optimistic-button,
+    .optimistic-button::after {
+      transition: none;
+    }
+    
+    .optimistic-button:active:not(:disabled) {
+      transform: none;
+    }
+    
+    .optimistic-button.optimistic-success,
+    .optimistic-button.optimistic-error {
+      animation: none;
+    }
+  }
+</style>

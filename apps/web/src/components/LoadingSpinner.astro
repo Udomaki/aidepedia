@@ -1,0 +1,128 @@
+---
+/**
+ * LoadingSpinner - Various loading spinner styles
+ * Provides visual feedback during async operations
+ */
+
+interface Props {
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'spinner' | 'dots' | 'pulse' | 'bars' | 'ring';
+  color?: 'blue' | 'gray' | 'white';
+  label?: string;
+  class?: string;
+  center?: boolean;
+}
+
+const { 
+  size = 'md', 
+  variant = 'spinner', 
+  color = 'blue',
+  label = 'Loading...',
+  class: className = '',
+  center = false
+} = Astro.props;
+
+// Size mappings
+const sizes = {
+  sm: { spinner: 'w-4 h-4', text: 'text-xs', gap: 'gap-1' },
+  md: { spinner: 'w-6 h-6', text: 'text-sm', gap: 'gap-2' },
+  lg: { spinner: 'w-8 h-8', text: 'text-base', gap: 'gap-3' },
+  xl: { spinner: 'w-12 h-12', text: 'text-lg', gap: 'gap-4' },
+};
+
+// Color mappings
+const colors = {
+  blue: {
+    spinner: 'text-blue-600 dark:text-blue-400',
+    dots: 'bg-blue-600 dark:bg-blue-400',
+    bars: 'bg-blue-600 dark:bg-blue-400',
+    ring: 'border-blue-600 dark:border-blue-400',
+  },
+  gray: {
+    spinner: 'text-gray-600 dark:text-gray-400',
+    dots: 'bg-gray-600 dark:bg-gray-400',
+    bars: 'bg-gray-600 dark:bg-gray-400',
+    ring: 'border-gray-600 dark:border-gray-400',
+  },
+  white: {
+    spinner: 'text-white',
+    dots: 'bg-white',
+    bars: 'bg-white',
+    ring: 'border-white',
+  },
+};
+---
+
+<div 
+  class={`loading-spinner ${center ? 'flex items-center justify-center' : 'inline-flex items-center'} ${sizes[size].gap} ${className}`}
+  role="status"
+  aria-label={label}
+  aria-live="polite"
+>
+  {variant === 'spinner' && (
+    <svg 
+      class={`animate-spin ${sizes[size].spinner} ${colors[color].spinner}`} 
+      fill="none" 
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle 
+        class="opacity-25" 
+        cx="12" 
+        cy="12" 
+        r="10" 
+        stroke="currentColor" 
+        stroke-width="4"
+      ></circle>
+      <path 
+        class="opacity-75" 
+        fill="currentColor" 
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+  )}
+  
+  {variant === 'dots' && (
+    <div class="flex items-center gap-1" aria-hidden="true">
+      <span class={`w-2 h-2 ${colors[color].dots} rounded-full animate-bounce`} style="animation-delay: 0ms;"></span>
+      <span class={`w-2 h-2 ${colors[color].dots} rounded-full animate-bounce`} style="animation-delay: 150ms;"></span>
+      <span class={`w-2 h-2 ${colors[color].dots} rounded-full animate-bounce`} style="animation-delay: 300ms;"></span>
+    </div>
+  )}
+  
+  {variant === 'pulse' && (
+    <div class={`${sizes[size].spinner} ${colors[color].dots} rounded-full animate-pulse`} aria-hidden="true"></div>
+  )}
+  
+  {variant === 'bars' && (
+    <div class="flex items-end gap-1 h-6" aria-hidden="true">
+      <span class={`w-1 h-full ${colors[color].bars} rounded animate-pulse`}></span>
+      <span class={`w-1 h-3/4 ${colors[color].bars} rounded animate-pulse`} style="animation-delay: 100ms;"></span>
+      <span class={`w-1 h-full ${colors[color].bars} rounded animate-pulse`} style="animation-delay: 200ms;"></span>
+    </div>
+  )}
+  
+  {variant === 'ring' && (
+    <div 
+      class={`${sizes[size].spinner} border-4 ${colors[color].ring} border-t-transparent rounded-full animate-spin`}
+      aria-hidden="true"
+    ></div>
+  )}
+  
+  <span class={`sr-only ${sizes[size].text}`}>{label}</span>
+</div>
+
+<style>
+  /* Respect reduced motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spin,
+    .animate-bounce,
+    .animate-pulse {
+      animation: none;
+    }
+    
+    .loading-spinner {
+      opacity: 0.6;
+    }
+  }
+</style>
