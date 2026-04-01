@@ -1,0 +1,247 @@
+---
+/**
+ * ToastNotification - Non-intrusive notification system
+ * Displays success, error, warning, and info messages
+ */
+
+interface Props {
+  position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+  maxVisible?: number;
+}
+
+const { position = 'bottom-right', maxVisible = 3 } = Astro.props;
+
+const positionClasses = {
+  'top-right': 'top-4 right-4',
+  'top-left': 'top-4 left-4',
+  'bottom-right': 'bottom-4 right-4',
+  'bottom-left': 'bottom-4 left-4',
+  'top-center': 'top-4 left-1/2 -translate-x-1/2',
+  'bottom-center': 'bottom-4 left-1/2 -translate-x-1/2',
+};
+---
+
+<div 
+  id="toast-container"
+  class={`fixed ${positionClasses[position]} z-50 flex flex-col gap-3 pointer-events-none`}
+  role="region"
+  aria-label="Notifications"
+  aria-live="polite"
+  data-max-visible={maxVisible}
+>
+  <!-- Toasts will be injected here -->
+</div>
+
+<!-- Toast template -->
+<template id="toast-template">
+  <div class="toast pointer-events-auto max-w-sm w-full bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden transform transition-all duration-300 ease-out translate-x-full opacity-0">
+    <div class="flex items-start p-4">
+      <div class="toast-icon flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3"></div>
+      <div class="flex-1 min-w-0">
+        <p class="toast-title font-semibold text-gray-900 dark:text-gray-100"></p>
+        <p class="toast-message text-sm text-gray-600 dark:text-gray-400 mt-1"></p>
+      </div>
+      <button class="toast-close flex-shrink-0 ml-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" aria-label="Close notification">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="toast-progress h-1 bg-gray-200 dark:bg-slate-700">
+      <div class="toast-progress-bar h-full transition-all duration-100 ease-linear"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  interface ToastOptions {
+    type?: 'success' | 'error' | 'warning' | 'info';
+    title?: string;
+    message: string;
+    duration?: number;
+    action?: {
+      label: string;
+      onClick: () => void;
+    };
+  }
+
+  class ToastManager {
+    private container: HTMLElement;
+    private template: HTMLTemplateElement;
+    private maxVisible: number;
+    private toasts: HTMLElement[] = [];
+
+    constructor() {
+      this.container = document.getElementById('toast-container')!;
+      this.template = document.getElementById('toast-template') as HTMLTemplateElement;
+      this.maxVisible = parseInt(this.container.dataset.maxVisible || '3', 10);
+    }
+
+    show(options: ToastOptions) {
+      const { type = 'info', title, message, duration = 5000, action } = options;
+
+      // Create toast from template
+      const clone = this.template.content.cloneNode(true) as DocumentFragment;
+      const toast = clone.querySelector('.toast') as HTMLElement;
+
+      // Set content
+      const titleEl = toast.querySelector('.toast-title') as HTMLElement;
+      const messageEl = toast.querySelector('.toast-message') as HTMLElement;
+      if (title) {
+        titleEl.textContent = title;
+      } else {
+        titleEl.remove();
+      }
+      messageEl.textContent = message;
+
+      // Set type-specific styling
+      const iconEl = toast.querySelector('.toast-icon') as HTMLElement;
+      const progressBar = toast.querySelector('.toast-progress-bar') as HTMLElement;
+
+      const typeConfig = {
+        success: {
+          bg: 'bg-green-100 dark:bg-green-900/30',
+          icon: '<svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>',
+          progressColor: 'bg-green-500',
+        },
+        error: {
+          bg: 'bg-red-100 dark:bg-red-900/30',
+          icon: '<svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>',
+          progressColor: 'bg-red-500',
+        },
+        warning: {
+          bg: 'bg-amber-100 dark:bg-amber-900/30',
+          icon: '<svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>',
+          progressColor: 'bg-amber-500',
+        },
+        info: {
+          bg: 'bg-blue-100 dark:bg-blue-900/30',
+          icon: '<svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+          progressColor: 'bg-blue-500',
+        },
+      };
+
+      const config = typeConfig[type];
+      iconEl.className = `toast-icon flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3 ${config.bg}`;
+      iconEl.innerHTML = config.icon;
+      progressBar.className = `toast-progress-bar h-full transition-all duration-100 ease-linear ${config.progressColor}`;
+
+      // Add close button handler
+      const closeBtn = toast.querySelector('.toast-close') as HTMLButtonElement;
+      closeBtn.addEventListener('click', () => this.dismiss(toast));
+
+      // Add action button if provided
+      if (action) {
+        const actionBtn = document.createElement('button');
+        actionBtn.className = 'mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline';
+        actionBtn.textContent = action.label;
+        actionBtn.addEventListener('click', () => {
+          action.onClick();
+          this.dismiss(toast);
+        });
+        toast.querySelector('.flex-1')?.appendChild(actionBtn);
+      }
+
+      // Add to container
+      this.container.appendChild(clone);
+      const insertedToast = this.container.lastElementChild as HTMLElement;
+      this.toasts.push(insertedToast);
+
+      // Animate in
+      requestAnimationFrame(() => {
+        insertedToast.classList.remove('translate-x-full', 'opacity-0');
+      });
+
+      // Limit visible toasts
+      while (this.toasts.length > this.maxVisible) {
+        this.dismiss(this.toasts[0]);
+      }
+
+      // Auto-dismiss with progress
+      if (duration > 0) {
+        let remaining = duration;
+        const interval = 100;
+        const progressUpdate = setInterval(() => {
+          remaining -= interval;
+          const percent = (remaining / duration) * 100;
+          progressBar.style.width = `${percent}%`;
+
+          if (remaining <= 0) {
+            clearInterval(progressUpdate);
+            this.dismiss(insertedToast);
+          }
+        }, interval);
+
+        // Pause on hover
+        insertedToast.addEventListener('mouseenter', () => {
+          clearInterval(progressUpdate);
+          progressBar.style.width = '100%';
+        });
+
+        insertedToast.addEventListener('mouseleave', () => {
+          remaining = duration;
+          const newInterval = setInterval(() => {
+            remaining -= interval;
+            const percent = (remaining / duration) * 100;
+            progressBar.style.width = `${percent}%`;
+
+            if (remaining <= 0) {
+              clearInterval(newInterval);
+              this.dismiss(insertedToast);
+            }
+          }, interval);
+        });
+      }
+
+      return insertedToast;
+    }
+
+    dismiss(toast: HTMLElement) {
+      toast.classList.add('translate-x-full', 'opacity-0');
+      setTimeout(() => {
+        toast.remove();
+        this.toasts = this.toasts.filter(t => t !== toast);
+      }, 300);
+    }
+
+    success(message: string, title?: string) {
+      return this.show({ type: 'success', message, title });
+    }
+
+    error(message: string, title?: string) {
+      return this.show({ type: 'error', message, title });
+    }
+
+    warning(message: string, title?: string) {
+      return this.show({ type: 'warning', message, title });
+    }
+
+    info(message: string, title?: string) {
+      return this.show({ type: 'info', message, title });
+    }
+  }
+
+  // Create global instance
+  const toast = new ToastManager();
+  (window as any).toast = toast;
+
+  // Export for use in other scripts
+  (window as any).ToastManager = ToastManager;
+</script>
+
+<style>
+  .toast {
+    backdrop-filter: blur(8px);
+  }
+  
+  .dark .toast {
+    backdrop-filter: blur(12px);
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      transition: opacity 0.01ms;
+      transform: none !important;
+    }
+  }
+</style>
