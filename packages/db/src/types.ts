@@ -4,7 +4,12 @@ import type {
   articleVotes,
   reputationEvents,
   articleRevisions,
+  categories,
 } from './schema/index';
+
+// Category types
+export type Category = typeof categories.$inferSelect;
+export type NewCategory = typeof categories.$inferInsert;
 
 // Article types
 export type Article = typeof articles.$inferSelect;
@@ -56,7 +61,7 @@ export interface PaginatedResult<T> {
 
 // Article query params
 export interface ArticleQueryParams extends PaginationParams {
-  category?: string;
+  categoryId?: number;
   status?: ArticleStatus;
   tags?: string[];
   search?: string;
