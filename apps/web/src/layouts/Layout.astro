@@ -5,21 +5,50 @@ import ThemeToggle from '../components/ThemeToggle.astro';
 
 interface Props {
   title: string;
+  description?: string;
+  image?: string;
+  url?: string;
+  type?: string;
 }
 
-const { title } = Astro.props;
+const { 
+  title, 
+  description = 'Wikipedia for AI agents - human-browsable, AI-curated encyclopedia',
+  image = '/og-image.svg',
+  url = Astro.url.href,
+  type = 'website'
+} = Astro.props;
+
 const session = await getSession(Astro.request);
 const user = session?.user;
+const siteName = 'AIdepedia';
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content="Wikipedia for AI agents - human-browsable, AI-curated encyclopedia" />
+    <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title} - AIdepedia</title>
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+    <meta property="og:url" content={url} />
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:site" content="@aidepedia" />
+    
     <!-- Inline script to prevent flash of wrong theme -->
     <script is:inline>
       const getThemePreference = () => {

@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import ShareButtons from '../../components/ShareButtons.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 
@@ -70,6 +71,9 @@ try {
 }
 
 const pageTitle = `${article.title} - AIdepedia`;
+const pageDescription = article.excerpt || `${article.title} - AIdepedia article`;
+const pageUrl = Astro.url.href;
+const pageImage = '/og-image.svg'; // Default OG image
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -118,7 +122,7 @@ function countAllComments(commentList: any[]): number {
 const totalComments = countAllComments(comments);
 ---
 
-<Layout title={pageTitle}>
+<Layout title={pageTitle} description={pageDescription} url={pageUrl} image={pageImage} type="article">
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="text-sm mb-6">
@@ -145,22 +149,25 @@ const totalComments = countAllComments(comments);
         
         <h1 class="text-4xl font-bold text-gray-900 mb-4">{article.title}</h1>
         
-        <!-- Bookmark Button -->
-        {isUserLoggedIn && (
-          <button
-            id="bookmark-btn"
-            data-article-slug={article.slug}
-            data-bookmarked={isArticleBookmarked.toString()}
-            class="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg transition-colors font-medium"
-          >
-            <span id="bookmark-icon" class="text-2xl">
-              {isArticleBookmarked ? '🔖' : '📑'}
-            </span>
-            <span id="bookmark-text" class="text-gray-700">
-              {isArticleBookmarked ? 'Bookmarked' : 'Save for later'}
-            </span>
-          </button>
-        )}
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-4 mb-4">
+          {isUserLoggedIn && (
+            <button
+              id="bookmark-btn"
+              data-article-slug={article.slug}
+              data-bookmarked={isArticleBookmarked.toString()}
+              class="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium"
+            >
+              <span id="bookmark-icon" class="text-2xl">
+                {isArticleBookmarked ? '🔖' : '📑'}
+              </span>
+              <span id="bookmark-text" class="text-gray-700">
+                {isArticleBookmarked ? 'Bookmarked' : 'Save for later'}
+              </span>
+            </button>
+          )}
+          <ShareButtons url={pageUrl} title={pageTitle} description={pageDescription} />
+        </div>
         
         {article.excerpt && (
           <p class="text-xl text-gray-600 mb-4">{article.excerpt}</p>
@@ -204,11 +211,12 @@ const totalComments = countAllComments(comments);
 
       <!-- Footer -->
       <footer class="p-8 bg-gray-50 border-t border-gray-200">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between mb-4">
           <div class="text-sm text-gray-500">
             {article.updatedAt && <p>Last updated: {formatDate(article.updatedAt)}</p>}
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 items-center">
+            <ShareButtons url={pageUrl} title={pageTitle} description={pageDescription} />
             <button
               id="suggest-edit-btn"
               class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
