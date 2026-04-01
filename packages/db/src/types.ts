@@ -119,6 +119,19 @@ export interface NewNotification {
   data?: Record<string, unknown>;
 }
 
+// Bookmark types
+export interface Bookmark {
+  id: number;
+  userId: number;
+  articleId: number;
+  createdAt: Date;
+}
+
+export interface NewBookmark {
+  userId: number;
+  articleId: number;
+}
+
 // Error types
 export class DatabaseError extends Error {
   constructor(message: string, public code?: string) {

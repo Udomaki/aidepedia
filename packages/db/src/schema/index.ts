@@ -262,3 +262,12 @@ export const notifications = pgTable('notifications', {
   readIdx: index('notification_read_idx').on(table.read),
   createdAtIdx: index('notification_created_at_idx').on(table.createdAt),
 }));
+
+export const bookmarks = pgTable('bookmarks', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userArticleIdx: index('bookmark_user_article_idx').on(table.userId, table.articleId),
+}));
