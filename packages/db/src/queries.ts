@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, bookmarks } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -359,6 +359,74 @@ export async function getRevisionById(revisionId: number): Promise<ArticleRevisi
       throw error;
     }
     throw new DatabaseError(`Failed to fetch revision: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get two specific revisions for comparison
+ * @throws {NotFoundError} If either revision is not found
+ */
+export async function getRevisionsForComparison(
+  articleId: number,
+  revisionId1: number,
+  revisionId2: number
+): Promise<{ revision1: ArticleRevision; revision2: ArticleRevision }> {
+  try {
+    const revisions = await db
+      .select()
+      .from(articleRevisions)
+      .where(
+        and(
+          eq(articleRevisions.articleId, articleId),
+          or(
+            eq(articleRevisions.id, revisionId1),
+            eq(articleRevisions.id, revisionId2)
+          )
+        )
+      );
+
+    if (revisions.length !== 2) {
+      throw new NotFoundError('Article revision', 'one or both revisions not found');
+    }
+
+    const revision1 = revisions.find(r => r.id === revisionId1)!;
+    const revision2 = revisions.find(r => r.id === revisionId2)!;
+
+    return { revision1, revision2 };
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch revisions for comparison: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get the previous revision before a given revision
+ */
+export async function getPreviousRevision(
+  articleId: number,
+  revisionId: number
+): Promise<ArticleRevision | null> {
+  try {
+    // Get all revisions for the article, ordered by creation date descending
+    const revisions = await db
+      .select()
+      .from(articleRevisions)
+      .where(eq(articleRevisions.articleId, articleId))
+      .orderBy(desc(articleRevisions.createdAt));
+
+    // Find the index of the current revision
+    const currentIndex = revisions.findIndex(r => r.id === revisionId);
+    
+    // Return the next revision in the list (which is the previous in time)
+    if (currentIndex >= 0 && currentIndex < revisions.length - 1) {
+      return revisions[currentIndex + 1];
+    }
+
+    return null;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch previous revision: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -2370,5 +2438,64 @@ export async function markAllNotificationsRead(userId: number): Promise<number> 
     return result.length;
   } catch (error) {
     throw new DatabaseError(`Failed to mark all read: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Bookmarks
+export async function getBookmarks(userId: number, page = 1, limit = 20): Promise<PaginatedResult<Article & { bookmarkedAt: Date }>> {
+  const offset = (page - 1) * limit;
+  try {
+    const results = await db
+      .select({ article: articles, bookmarkedAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .innerJoin(articles, eq(bookmarks.articleId, articles.id))
+      .where(eq(bookmarks.userId, userId))
+      .orderBy(desc(bookmarks.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(bookmarks)
+      .where(eq(bookmarks.userId, userId));
+
+    return {
+      items: results.map(r => ({ ...r.article, bookmarkedAt: r.bookmarkedAt })),
+      total: countResult[0]?.count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((countResult[0]?.count || 0) / limit),
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get bookmarks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function addBookmark(userId: number, articleId: number): Promise<void> {
+  try {
+    await db.insert(bookmarks).values({ userId, articleId }).onConflictDoNothing();
+  } catch (error) {
+    throw new DatabaseError(`Failed to add bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function removeBookmark(userId: number, articleId: number): Promise<void> {
+  try {
+    await db.delete(bookmarks).where(and(eq(bookmarks.userId, userId), eq(bookmarks.articleId, articleId)));
+  } catch (error) {
+    throw new DatabaseError(`Failed to remove bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function isBookmarked(userId: number, articleId: number): Promise<boolean> {
+  try {
+    const [bookmark] = await db
+      .select()
+      .from(bookmarks)
+      .where(and(eq(bookmarks.userId, userId), eq(bookmarks.articleId, articleId)))
+      .limit(1);
+    return !!bookmark;
+  } catch (error) {
+    throw new DatabaseError(`Failed to check bookmark: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

@@ -1,0 +1,5 @@
+---
+// Redirect /articles/[slug]/history to /articles/[slug]/revisions
+const { slug } = Astro.params;
+return Astro.redirect(`/articles/${slug}/revisions`);
+---

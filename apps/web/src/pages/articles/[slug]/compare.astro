@@ -1,0 +1,330 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getArticleBySlug, getArticleRevisions, getRevisionsForComparison } from '@aidepedia/db';
+
+export async function getStaticPaths() {
+  return [];
+}
+
+const { slug } = Astro.params;
+const fromId = Astro.url.searchParams.get('from');
+const toId = Astro.url.searchParams.get('to');
+
+let article = null;
+let revisions = null;
+let fromRevision = null;
+let toRevision = null;
+
+if (slug) {
+  try {
+    article = await getArticleBySlug(slug);
+    const result = await getArticleRevisions(article.id, { limit: 100 });
+    revisions = result.data;
+
+    if (fromId && toId) {
+      const comparison = await getRevisionsForComparison(
+        article.id,
+        parseInt(fromId, 10),
+        parseInt(toId, 10)
+      );
+      fromRevision = comparison.revision1;
+      toRevision = comparison.revision2;
+    }
+  } catch (e) {
+    console.error('Error loading comparison:', e);
+  }
+}
+
+if (!article) {
+  return Astro.redirect('/articles');
+}
+
+const pageTitle = `Compare Revisions - ${article.title} - AIdepedia`;
+
+function formatDate(date: Date | null): string {
+  if (!date) return 'Unknown date';
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(date));
+}
+
+function getChangeTypeLabel(changeType: string): string {
+  const labels: Record<string, string> = {
+    'created': 'Created',
+    'updated': 'Updated',
+    'published': 'Published',
+    'reverted': 'Reverted'
+  };
+  return labels[changeType] || changeType;
+}
+
+// Simple diff implementation - compute line-by-line differences
+function computeDiff(oldText: string, newText: string) {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  
+  const diff: Array<{ type: 'unchanged' | 'added' | 'removed'; oldLine?: string; newLine?: string; oldNum?: number; newNum?: number }> = [];
+  
+  // Simple LCS-based diff
+  let i = 0, j = 0;
+  
+  while (i < oldLines.length || j < newLines.length) {
+    if (i >= oldLines.length) {
+      // Remaining new lines are additions
+      diff.push({ type: 'added', newLine: newLines[j], newNum: j + 1 });
+      j++;
+    } else if (j >= newLines.length) {
+      // Remaining old lines are removals
+      diff.push({ type: 'removed', oldLine: oldLines[i], oldNum: i + 1 });
+      i++;
+    } else if (oldLines[i] === newLines[j]) {
+      // Lines match
+      diff.push({ type: 'unchanged', oldLine: oldLines[i], newLine: newLines[j], oldNum: i + 1, newNum: j + 1 });
+      i++;
+      j++;
+    } else {
+      // Look ahead to find the best match
+      let oldMatchInNew = -1;
+      let newMatchInOld = -1;
+      
+      // Check if old line appears later in new
+      for (let k = j; k < Math.min(j + 3, newLines.length); k++) {
+        if (oldLines[i] === newLines[k]) {
+          oldMatchInNew = k;
+          break;
+        }
+      }
+      
+      // Check if new line appears later in old
+      for (let k = i; k < Math.min(i + 3, oldLines.length); k++) {
+        if (newLines[j] === oldLines[k]) {
+          newMatchInOld = k;
+          break;
+        }
+      }
+      
+      if (oldMatchInNew >= 0 && (newMatchInOld < 0 || oldMatchInNew - j <= newMatchInOld - i)) {
+        // Old line found later in new, so add new lines first
+        for (let k = j; k < oldMatchInNew; k++) {
+          diff.push({ type: 'added', newLine: newLines[k], newNum: k + 1 });
+        }
+        diff.push({ type: 'unchanged', oldLine: oldLines[i], newLine: newLines[oldMatchInNew], oldNum: i + 1, newNum: oldMatchInNew + 1 });
+        i++;
+        j = oldMatchInNew + 1;
+      } else if (newMatchInOld >= 0) {
+        // New line found later in old, so remove old lines first
+        for (let k = i; k < newMatchInOld; k++) {
+          diff.push({ type: 'removed', oldLine: oldLines[k], oldNum: k + 1 });
+        }
+        diff.push({ type: 'unchanged', oldLine: oldLines[newMatchInOld], newLine: newLines[j], oldNum: newMatchInOld + 1, newNum: j + 1 });
+        i = newMatchInOld + 1;
+        j++;
+      } else {
+        // No match found, treat as modification
+        diff.push({ type: 'removed', oldLine: oldLines[i], oldNum: i + 1 });
+        diff.push({ type: 'added', newLine: newLines[j], newNum: j + 1 });
+        i++;
+        j++;
+      }
+    }
+  }
+  
+  return diff;
+}
+
+// Compute unified diff
+const unifiedDiff = (fromRevision && toRevision) 
+  ? computeDiff(fromRevision.content, toRevision.content)
+  : [];
+---
+
+<Layout title={pageTitle}>
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href={`/articles/${article.slug}`} class="text-blue-600 hover:text-blue-700">{article.title}</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Compare Revisions</span>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <!-- Header -->
+      <header class="p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Compare Revisions</h1>
+            <p class="text-gray-600">{article.title}</p>
+          </div>
+          <a
+            href={`/articles/${article.slug}/revisions`}
+            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+          >
+            ← Back to History
+          </a>
+        </div>
+      </header>
+
+      <!-- Revision Selection Form -->
+      <div class="p-6 border-b border-gray-200 bg-gray-50">
+        <form method="get" class="flex flex-wrap items-end gap-4">
+          <div class="flex-1 min-w-48">
+            <label for="from" class="block text-sm font-medium text-gray-700 mb-2">
+              From Revision
+            </label>
+            <select
+              name="from"
+              id="from"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Select revision...</option>
+              {revisions?.map((rev) => (
+                <option value={rev.id} selected={fromId === String(rev.id)}>
+                  #{rev.id} - {formatDate(rev.createdAt)} ({getChangeTypeLabel(rev.changeType)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div class="flex items-center justify-center px-4 py-2 text-gray-500 font-medium">
+            →
+          </div>
+
+          <div class="flex-1 min-w-48">
+            <label for="to" class="block text-sm font-medium text-gray-700 mb-2">
+              To Revision
+            </label>
+            <select
+              name="to"
+              id="to"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Select revision...</option>
+              {revisions?.map((rev) => (
+                <option value={rev.id} selected={toId === String(rev.id)}>
+                  #{rev.id} - {formatDate(rev.createdAt)} ({getChangeTypeLabel(rev.changeType)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+          >
+            Compare
+          </button>
+        </form>
+      </div>
+
+      <!-- Comparison Results -->
+      {fromRevision && toRevision ? (
+        <div>
+          <!-- Revision Info -->
+          <div class="grid grid-cols-2 gap-0 border-b border-gray-200">
+            <div class="p-4 border-r border-gray-200 bg-red-50">
+              <div class="text-sm text-gray-600 mb-1">From Revision</div>
+              <div class="font-semibold text-gray-900">#{fromRevision.id}</div>
+              <div class="text-sm text-gray-600">{formatDate(fromRevision.createdAt)}</div>
+              {fromRevision.changeReason && (
+                <div class="text-sm text-gray-600 mt-1 italic">"{fromRevision.changeReason}"</div>
+              )}
+            </div>
+            <div class="p-4 bg-green-50">
+              <div class="text-sm text-gray-600 mb-1">To Revision</div>
+              <div class="font-semibold text-gray-900">#{toRevision.id}</div>
+              <div class="text-sm text-gray-600">{formatDate(toRevision.createdAt)}</div>
+              {toRevision.changeReason && (
+                <div class="text-sm text-gray-600 mt-1 italic">"{toRevision.changeReason}"</div>
+              )}
+            </div>
+          </div>
+
+          <!-- Unified Diff View -->
+          <div class="p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Unified Diff</h2>
+            <div class="font-mono text-sm bg-gray-900 rounded-lg overflow-hidden">
+              <div class="flex items-center gap-4 px-4 py-2 bg-gray-800 text-gray-300 border-b border-gray-700">
+                <span class="w-12 text-center">-</span>
+                <span class="w-12 text-center">+</span>
+                <span>Content</span>
+              </div>
+              <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                {unifiedDiff.map((line) => (
+                  <div class={`flex items-center gap-4 px-4 py-1 border-b border-gray-800 ${
+                    line.type === 'removed' ? 'bg-red-900/30' :
+                    line.type === 'added' ? 'bg-green-900/30' :
+                    'bg-transparent'
+                  }`}>
+                    <span class="w-12 text-center text-gray-500">
+                      {line.oldNum || ''}
+                    </span>
+                    <span class="w-12 text-center text-gray-500">
+                      {line.newNum || ''}
+                    </span>
+                    <span class={`${
+                      line.type === 'removed' ? 'text-red-400' :
+                      line.type === 'added' ? 'text-green-400' :
+                      'text-gray-300'
+                    }`}>
+                      <span class="mr-2">
+                        {line.type === 'removed' ? '-' : line.type === 'added' ? '+' : ' '}
+                      </span>
+                      {line.oldLine || line.newLine}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="p-6 border-t border-gray-200 bg-gray-50">
+            <div class="flex items-center justify-between">
+              <div class="flex gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded bg-red-500"></span>
+                  <span class="text-gray-600">
+                    {unifiedDiff.filter(l => l.type === 'removed').length} lines removed
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded bg-green-500"></span>
+                  <span class="text-gray-600">
+                    {unifiedDiff.filter(l => l.type === 'added').length} lines added
+                  </span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <a
+                  href={`/articles/${article.slug}/revisions/${fromRevision.id}`}
+                  class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium text-sm"
+                >
+                  View From
+                </a>
+                <a
+                  href={`/articles/${article.slug}/revisions/${toRevision.id}`}
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                >
+                  View To
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div class="p-12 text-center text-gray-500">
+          <p class="text-lg mb-2">Select two revisions to compare</p>
+          <p class="text-sm">Use the dropdowns above to choose which versions to compare</p>
+        </div>
+      )}
+    </div>
+  </main>
+</Layout>

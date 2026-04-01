@@ -82,46 +82,80 @@ function getChangeTypeColor(changeType: string): string {
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Revision History</h1>
             <p class="text-gray-600">{article.title}</p>
           </div>
-          <a
-            href={`/articles/${article.slug}`}
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            ← Back to Article
-          </a>
+          <div class="flex gap-2">
+            <a
+              href={`/articles/${article.slug}/compare`}
+              class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium"
+            >
+              🔍 Compare
+            </a>
+            <a
+              href={`/articles/${article.slug}`}
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              ← Back to Article
+            </a>
+          </div>
         </div>
       </header>
+
+      <!-- Selection Actions Bar -->
+      <div id="selection-bar" class="hidden p-4 bg-indigo-50 border-b border-indigo-200">
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-indigo-700">
+            <span id="selection-count">0</span> revisions selected
+          </div>
+          <button
+            id="compare-selected-btn"
+            disabled
+            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Compare Selected
+          </button>
+        </div>
+      </div>
 
       <!-- Revisions List -->
       <div class="divide-y divide-gray-200">
         {revisions && revisions.length > 0 ? (
           revisions.map((revision, index: number) => (
-            <div class="p-6 hover:bg-gray-50 transition-colors">
+            <div class="p-6 hover:bg-gray-50 transition-colors revision-row" data-revision-id={revision.id}>
               <div class="flex items-start justify-between gap-4">
-                <div class="flex-grow">
-                  <div class="flex items-center gap-3 mb-2">
-                    <span class={`px-3 py-1 text-sm font-medium rounded-full ${getChangeTypeColor(revision.changeType)}`}>
-                      {getChangeTypeLabel(revision.changeType)}
-                    </span>
-                    {index === 0 && (
-                      <span class="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-800 rounded-full">
-                        Current Version
+                <div class="flex items-start gap-3">
+                  <!-- Selection Checkbox -->
+                  <input
+                    type="checkbox"
+                    class="mt-1 revision-checkbox"
+                    data-revision-id={revision.id}
+                  />
+                  
+                  <div class="flex-grow">
+                    <div class="flex items-center gap-3 mb-2">
+                      <span class={`px-3 py-1 text-sm font-medium rounded-full ${getChangeTypeColor(revision.changeType)}`}>
+                        {getChangeTypeLabel(revision.changeType)}
                       </span>
+                      {index === 0 && (
+                        <span class="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-800 rounded-full">
+                          Current Version
+                        </span>
+                      )}
+                      <span class="text-sm text-gray-500">#{revision.id}</span>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">
+                      {revision.title}
+                    </h3>
+                    
+                    {revision.changeReason && (
+                      <p class="text-gray-600 text-sm mb-2">
+                        {revision.changeReason}
+                      </p>
                     )}
-                  </div>
-                  
-                  <h3 class="text-lg font-semibold text-gray-900 mb-2">
-                    {revision.title}
-                  </h3>
-                  
-                  {revision.changeReason && (
-                    <p class="text-gray-600 text-sm mb-2">
-                      {revision.changeReason}
-                    </p>
-                  )}
-                  
-                  <div class="flex items-center gap-4 text-sm text-gray-500">
-                    <span>📅 {formatDate(revision.createdAt)}</span>
-                    <span>👤 Editor ID: {revision.editorId}</span>
+                    
+                    <div class="flex items-center gap-4 text-sm text-gray-500">
+                      <span>📅 {formatDate(revision.createdAt)}</span>
+                      <span>👤 Editor ID: {revision.editorId}</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -154,9 +188,64 @@ function getChangeTypeColor(changeType: string): string {
       <!-- Footer -->
       <footer class="p-6 bg-gray-50 border-t border-gray-200">
         <div class="text-sm text-gray-600">
-          <p>💡 Every change to the article is tracked here. You can view any previous version or restore it.</p>
+          <p>💡 Every change to the article is tracked here. Select two revisions and click "Compare Selected" to see the differences.</p>
         </div>
       </footer>
     </div>
   </main>
 </Layout>
+
+<script define:vars={{ slug }}>
+  const articleSlug = slug;
+  let selectedRevisions: number[] = [];
+
+  // Update selection UI
+  function updateSelectionUI() {
+    const count = selectedRevisions.length;
+    const selectionBar = document.getElementById('selection-bar');
+    const selectionCount = document.getElementById('selection-count');
+    const compareBtn = document.getElementById('compare-selected-btn');
+    
+    if (count > 0) {
+      selectionBar?.classList.remove('hidden');
+      if (selectionCount) selectionCount.textContent = String(count);
+    } else {
+      selectionBar?.classList.add('hidden');
+    }
+    
+    // Enable compare button only when exactly 2 revisions are selected
+    if (compareBtn) {
+      compareBtn.disabled = count !== 2;
+    }
+  }
+
+  // Handle checkbox changes
+  document.querySelectorAll('.revision-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      const revisionId = parseInt(target.dataset.revisionId || '0', 10);
+      
+      if (target.checked) {
+        if (selectedRevisions.length >= 2) {
+          // Deselect the oldest selection
+          const oldest = selectedRevisions.shift();
+          const oldestCheckbox = document.querySelector(`.revision-checkbox[data-revision-id="${oldest}"]`) as HTMLInputElement;
+          if (oldestCheckbox) oldestCheckbox.checked = false;
+        }
+        selectedRevisions.push(revisionId);
+      } else {
+        selectedRevisions = selectedRevisions.filter(id => id !== revisionId);
+      }
+      
+      updateSelectionUI();
+    });
+  });
+
+  // Handle compare button click
+  document.getElementById('compare-selected-btn')?.addEventListener('click', () => {
+    if (selectedRevisions.length === 2) {
+      const [from, to] = selectedRevisions.sort((a, b) => b - a);
+      window.location.href = `/articles/${articleSlug}/compare?from=${from}&to=${to}`;
+    }
+  });
+</script>

@@ -1,6 +1,6 @@
 ---
 import Layout from '../../../../layouts/Layout.astro';
-import { getArticleBySlug, getRevisionById } from '@aidepedia/db';
+import { getArticleBySlug, getRevisionById, getPreviousRevision, getEditorById } from '@aidepedia/db';
 
 export async function getStaticPaths() {
   // For static generation, we'd need to fetch all revisions
@@ -12,6 +12,8 @@ const { slug, revisionId } = Astro.params;
 
 let article = null;
 let revision = null;
+let previousRevision = null;
+let editor = null;
 
 if (slug && revisionId) {
   try {
@@ -21,6 +23,16 @@ if (slug && revisionId) {
     // Verify this revision belongs to this article
     if (revision.articleId !== article.id) {
       revision = null;
+    } else {
+      // Get the previous revision for comparison
+      previousRevision = await getPreviousRevision(article.id, revision.id);
+      
+      // Try to get editor info
+      try {
+        editor = await getEditorById(revision.editorId);
+      } catch (e) {
+        // Editor not found, continue without
+      }
     }
   } catch (e) {
     // Article or revision not found, will redirect below
@@ -63,10 +75,98 @@ function getChangeTypeColor(changeType: string): string {
   };
   return colors[changeType] || 'bg-gray-600';
 }
+
+// Simple diff implementation - compute line-by-line differences
+function computeDiff(oldText: string | null, newText: string) {
+  if (!oldText) {
+    // First revision - show all as added
+    return newText.split('\n').map((line, i) => ({
+      type: 'added' as const,
+      newLine: line,
+      newNum: i + 1
+    }));
+  }
+  
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  
+  const diff: Array<{ type: 'unchanged' | 'added' | 'removed'; oldLine?: string; newLine?: string; oldNum?: number; newNum?: number }> = [];
+  
+  // Simple LCS-based diff
+  let i = 0, j = 0;
+  
+  while (i < oldLines.length || j < newLines.length) {
+    if (i >= oldLines.length) {
+      // Remaining new lines are additions
+      diff.push({ type: 'added', newLine: newLines[j], newNum: j + 1 });
+      j++;
+    } else if (j >= newLines.length) {
+      // Remaining old lines are removals
+      diff.push({ type: 'removed', oldLine: oldLines[i], oldNum: i + 1 });
+      i++;
+    } else if (oldLines[i] === newLines[j]) {
+      // Lines match
+      diff.push({ type: 'unchanged', oldLine: oldLines[i], newLine: newLines[j], oldNum: i + 1, newNum: j + 1 });
+      i++;
+      j++;
+    } else {
+      // Look ahead to find the best match
+      let oldMatchInNew = -1;
+      let newMatchInOld = -1;
+      
+      // Check if old line appears later in new
+      for (let k = j; k < Math.min(j + 3, newLines.length); k++) {
+        if (oldLines[i] === newLines[k]) {
+          oldMatchInNew = k;
+          break;
+        }
+      }
+      
+      // Check if new line appears later in old
+      for (let k = i; k < Math.min(i + 3, oldLines.length); k++) {
+        if (newLines[j] === oldLines[k]) {
+          newMatchInOld = k;
+          break;
+        }
+      }
+      
+      if (oldMatchInNew >= 0 && (newMatchInOld < 0 || oldMatchInNew - j <= newMatchInOld - i)) {
+        // Old line found later in new, so add new lines first
+        for (let k = j; k < oldMatchInNew; k++) {
+          diff.push({ type: 'added', newLine: newLines[k], newNum: k + 1 });
+        }
+        diff.push({ type: 'unchanged', oldLine: oldLines[i], newLine: newLines[oldMatchInNew], oldNum: i + 1, newNum: oldMatchInNew + 1 });
+        i++;
+        j = oldMatchInNew + 1;
+      } else if (newMatchInOld >= 0) {
+        // New line found later in old, so remove old lines first
+        for (let k = i; k < newMatchInOld; k++) {
+          diff.push({ type: 'removed', oldLine: oldLines[k], oldNum: k + 1 });
+        }
+        diff.push({ type: 'unchanged', oldLine: oldLines[newMatchInOld], newLine: newLines[j], oldNum: newMatchInOld + 1, newNum: j + 1 });
+        i = newMatchInOld + 1;
+        j++;
+      } else {
+        // No match found, treat as modification
+        diff.push({ type: 'removed', oldLine: oldLines[i], oldNum: i + 1 });
+        diff.push({ type: 'added', newLine: newLines[j], newNum: j + 1 });
+        i++;
+        j++;
+      }
+    }
+  }
+  
+  return diff;
+}
+
+// Compute the diff
+const unifiedDiff = computeDiff(previousRevision?.content || null, revision.content);
+const addedLines = unifiedDiff.filter(l => l.type === 'added').length;
+const removedLines = unifiedDiff.filter(l => l.type === 'removed').length;
 ---
 
 <Layout title={pageTitle}>
-  <main class="container mx-auto px-4 py-8 max-w-4xl">
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
     <!-- Breadcrumb -->
     <nav class="text-sm mb-6">
       <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
@@ -100,7 +200,13 @@ function getChangeTypeColor(changeType: string): string {
         
         <div class="flex items-center gap-4 text-sm text-gray-600">
           <span>📅 {formatDate(revision.createdAt)}</span>
-          <span>👤 Editor ID: {revision.editorId}</span>
+          <span>👤 {editor?.name || `Editor #${revision.editorId}`}</span>
+          {addedLines > 0 && (
+            <span class="text-green-600">+{addedLines} lines</span>
+          )}
+          {removedLines > 0 && (
+            <span class="text-red-600">-{removedLines} lines</span>
+          )}
         </div>
 
         {revision.changeReason && (
@@ -122,11 +228,140 @@ function getChangeTypeColor(changeType: string): string {
         )}
       </header>
 
-      <!-- Content -->
-      <div class="p-8 prose prose-lg max-w-none">
-        {revision.content.split('\n\n').map((paragraph: string) => (
-          <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
-        ))}
+      <!-- Tabs -->
+      <div class="border-b border-gray-200">
+        <div class="flex">
+          <button
+            id="tab-content"
+            class="px-6 py-3 text-sm font-medium text-indigo-600 border-b-2 border-indigo-600 tab-btn"
+            data-tab="content"
+          >
+            📄 Content
+          </button>
+          <button
+            id="tab-diff"
+            class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent tab-btn"
+            data-tab="diff"
+          >
+            🔍 Diff View
+          </button>
+          <button
+            id="tab-side-by-side"
+            class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent tab-btn"
+            data-tab="side-by-side"
+          >
+            ⚖️ Side-by-Side
+          </button>
+        </div>
+      </div>
+
+      <!-- Content View -->
+      <div id="content-view" class="tab-content">
+        <div class="p-8 prose prose-lg max-w-none">
+          {revision.content.split('\n\n').map((paragraph: string) => (
+            <p class="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>
+          ))}
+        </div>
+      </div>
+
+      <!-- Diff View -->
+      <div id="diff-view" class="tab-content hidden">
+        <div class="p-6">
+          {previousRevision ? (
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-sm text-gray-600">
+                  Comparing with <a href={`/articles/${article.slug}/revisions/${previousRevision.id}`} class="text-blue-600 hover:text-blue-700">Revision #{previousRevision.id}</a>
+                </div>
+                <a
+                  href={`/articles/${article.slug}/compare?from=${previousRevision.id}&to=${revision.id}`}
+                  class="text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Full comparison →
+                </a>
+              </div>
+              
+              <div class="font-mono text-sm bg-gray-900 rounded-lg overflow-hidden">
+                <div class="flex items-center gap-4 px-4 py-2 bg-gray-800 text-gray-300 border-b border-gray-700">
+                  <span class="w-12 text-center">-</span>
+                  <span class="w-12 text-center">+</span>
+                  <span>Content</span>
+                </div>
+                <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                  {unifiedDiff.map((line) => (
+                    <div class={`flex items-center gap-4 px-4 py-1 border-b border-gray-800 ${
+                      line.type === 'removed' ? 'bg-red-900/30' :
+                      line.type === 'added' ? 'bg-green-900/30' :
+                      'bg-transparent'
+                    }`}>
+                      <span class="w-12 text-center text-gray-500">
+                        {line.oldNum || ''}
+                      </span>
+                      <span class="w-12 text-center text-gray-500">
+                        {line.newNum || ''}
+                      </span>
+                      <span class={`${
+                        line.type === 'removed' ? 'text-red-400' :
+                        line.type === 'added' ? 'text-green-400' :
+                        'text-gray-300'
+                      }`}>
+                        <span class="mr-2">
+                          {line.type === 'removed' ? '-' : line.type === 'added' ? '+' : ' '}
+                        </span>
+                        {line.oldLine || line.newLine}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div class="p-8 text-center text-gray-500">
+              <p class="text-lg mb-2">This is the first revision</p>
+              <p class="text-sm">No previous version to compare</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- Side-by-Side View -->
+      <div id="side-by-side-view" class="tab-content hidden">
+        <div class="p-6">
+          {previousRevision ? (
+            <div>
+              <div class="grid grid-cols-2 gap-0 border border-gray-200 rounded-lg overflow-hidden">
+                <!-- Previous Version -->
+                <div class="border-r border-gray-200">
+                  <div class="px-4 py-2 bg-red-50 border-b border-gray-200 font-medium text-sm text-gray-700">
+                    Previous (Revision #{previousRevision.id})
+                  </div>
+                  <div class="p-4 max-h-[500px] overflow-y-auto font-mono text-sm">
+                    {previousRevision.content.split('\n').map((line, i) => (
+                      <div class="py-0.5 px-2 hover:bg-gray-100 whitespace-pre-wrap">{line || ' '}</div>
+                    ))}
+                  </div>
+                </div>
+                
+                <!-- Current Version -->
+                <div>
+                  <div class="px-4 py-2 bg-green-50 border-b border-gray-200 font-medium text-sm text-gray-700">
+                    Current (Revision #{revision.id})
+                  </div>
+                  <div class="p-4 max-h-[500px] overflow-y-auto font-mono text-sm">
+                    {revision.content.split('\n').map((line, i) => (
+                      <div class="py-0.5 px-2 hover:bg-gray-100 whitespace-pre-wrap">{line || ' '}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div class="p-8 text-center text-gray-500">
+              <p class="text-lg mb-2">This is the first revision</p>
+              <p class="text-sm">No previous version to compare</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <!-- Footer -->
@@ -135,18 +370,32 @@ function getChangeTypeColor(changeType: string): string {
           <div class="text-sm text-gray-500">
             <p>This is a historical version of the article</p>
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
             <a
               href={`/articles/${article.slug}/revisions`}
               class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
             >
               ← All Revisions
             </a>
+            {previousRevision && (
+              <a
+                href={`/articles/${article.slug}/compare?from=${previousRevision.id}&to=${revision.id}`}
+                class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium"
+              >
+                Compare
+              </a>
+            )}
             <a
               href={`/articles/${article.slug}`}
               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
               Current Version →
+            </a>
+            <a
+              href={`/articles/${article.slug}/revisions/${revision.id}/revert`}
+              class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            >
+              ↩️ Restore
             </a>
           </div>
         </div>
@@ -154,3 +403,29 @@ function getChangeTypeColor(changeType: string): string {
     </article>
   </main>
 </Layout>
+
+<script>
+  // Tab switching functionality
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      
+      // Update tab button styles
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        if (b.dataset.tab === tab) {
+          b.classList.remove('text-gray-500', 'border-transparent');
+          b.classList.add('text-indigo-600', 'border-indigo-600');
+        } else {
+          b.classList.remove('text-indigo-600', 'border-indigo-600');
+          b.classList.add('text-gray-500', 'border-transparent');
+        }
+      });
+      
+      // Show/hide content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      document.getElementById(`${tab}-view`)?.classList.remove('hidden');
+    });
+  });
+</script>
