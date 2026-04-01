@@ -3,6 +3,7 @@ import {
   getUserByUsername,
   getUserStats,
   getUserActivity,
+  getFollowCounts,
   NotFoundError
 } from '@aidepedia/db';
 import { 
@@ -26,8 +27,11 @@ export const GET: APIRoute = async ({ params }) => {
     // Get user by username
     const user = await getUserByUsername(username);
 
-    // Get user stats
-    const stats = await getUserStats(user.id);
+    // Get user stats and follow counts
+    const [stats, followCounts] = await Promise.all([
+      getUserStats(user.id),
+      getFollowCounts(user.id),
+    ]);
 
     // Get recent activity (respecting privacy settings)
     let activity = null;
@@ -49,6 +53,8 @@ export const GET: APIRoute = async ({ params }) => {
         revisionCount: stats.revisionCount,
         commentCount: stats.commentCount,
         netVotes: stats.netVotes,
+        followersCount: followCounts.followersCount,
+        followingCount: followCounts.followingCount,
       },
       activity: activity?.data || [],
     };

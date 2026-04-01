@@ -1,0 +1,106 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getSession } from '../../../lib/auth';
+import { getUserByUsername, getFollowCounts, getFollowing } from '@aidepedia/db';
+
+export function getStaticPaths() {
+  return [];
+}
+
+const { username } = Astro.params;
+const session = await getSession(Astro.request);
+const currentUser = session?.user;
+
+// Fetch user data
+let user: any;
+let followCounts: any;
+let following: any[] = [];
+
+try {
+  user = await getUserByUsername(username || '');
+  followCounts = await getFollowCounts(user.id);
+  
+  const result = await getFollowing(user.id, { limit: 100 });
+  following = result.data;
+} catch (error) {
+  return Astro.redirect('/404');
+}
+
+function formatDate(dateStr: string | Date): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+---
+
+<Layout title={`${user.name}'s Following - User Profile`}>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Back Link -->
+    <a href={`/users/${username}`} class="inline-flex items-center text-blue-600 hover:text-blue-800 mb-6">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Back to Profile
+    </a>
+
+    <!-- Header -->
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">
+        Following
+        <span class="text-gray-400 font-normal text-xl ml-2">({followCounts.followingCount})</span>
+      </h1>
+      <p class="text-gray-600 mt-1">People {user.name} is following</p>
+    </div>
+
+    <!-- Following List -->
+    {following.length > 0 ? (
+      <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div class="space-y-4">
+          {following.map((followedUser) => (
+            <div class="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
+              <div class="flex items-center space-x-4">
+                {followedUser.image ? (
+                  <img 
+                    src={followedUser.image} 
+                    alt={followedUser.name || 'User'} 
+                    class="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span class="text-xl text-white font-bold">
+                      {followedUser.name?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <a 
+                    href={`/users/${followedUser.name}`}
+                    class="text-lg font-medium text-gray-900 hover:text-blue-600"
+                  >
+                    {followedUser.name || 'Anonymous'}
+                  </a>
+                  {followedUser.bio && (
+                    <p class="text-sm text-gray-500 line-clamp-1">{followedUser.bio}</p>
+                  )}
+                </div>
+              </div>
+              <div class="text-sm text-gray-400">
+                Since {formatDate(followedUser.followedAt)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-12 text-center">
+        <p class="text-gray-500">
+          <span class="text-4xl mb-4 block">👥</span>
+          Not following anyone yet
+        </p>
+      </div>
+    )}
+  </div>
+</Layout>
