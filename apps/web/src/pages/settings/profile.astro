@@ -20,10 +20,26 @@ try {
 ---
 
 <Layout title="Profile Settings">
-  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-gray-900">Profile Settings</h1>
       <p class="text-gray-600 mt-2">Manage your public profile information</p>
+    </div>
+
+    <!-- Settings Navigation -->
+    <div class="flex space-x-1 mb-8 bg-gray-100 rounded-lg p-1">
+      <a href="/settings/profile" class="flex-1 px-4 py-2 text-sm font-medium bg-white text-gray-900 rounded-md shadow">
+        Profile
+      </a>
+      <a href="/settings/notifications" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Notifications
+      </a>
+      <a href="/settings/security" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Security
+      </a>
+      <a href="/settings/blocks" class="flex-1 px-4 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-white hover:text-gray-900 transition-colors">
+        Blocked Users
+      </a>
     </div>
 
     <!-- Profile Form -->
