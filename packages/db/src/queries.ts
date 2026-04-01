@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -21,6 +21,11 @@ import type {
   EditSuggestion,
   NewEditSuggestion,
   EditSuggestionWithUser,
+  EmailDigest,
+  NewEmailDigest,
+  EmailDigestSettings,
+  EmailQueue,
+  NewEmailQueue,
 } from './types';
 import {
   NotFoundError,
@@ -3033,5 +3038,314 @@ export async function rejectEditSuggestion(id: number): Promise<EditSuggestion> 
       throw error;
     }
     throw new DatabaseError(`Failed to reject edit suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============ Email Digest Queries ============
+
+/**
+ * Get email digest settings for a user
+ */
+export async function getEmailDigestSettings(userId: number): Promise<EmailDigestSettings> {
+  try {
+    const digests = await db
+      .select()
+      .from(email_digests)
+      .where(eq(email_digests.userId, userId));
+
+    const dailyDigest = digests.find(d => d.type === 'daily');
+    const weeklyDigest = digests.find(d => d.type === 'weekly');
+
+    return {
+      dailyEnabled: dailyDigest?.enabled ?? false,
+      weeklyEnabled: weeklyDigest?.enabled ?? false,
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch email digest settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update email digest settings for a user
+ */
+export async function updateEmailDigestSettings(
+  userId: number,
+  settings: Partial<EmailDigestSettings>
+): Promise<EmailDigestSettings> {
+  try {
+    // Get existing settings
+    const existing = await db
+      .select()
+      .from(email_digests)
+      .where(eq(email_digests.userId, userId));
+
+    const dailyDigest = existing.find(d => d.type === 'daily');
+    const weeklyDigest = existing.find(d => d.type === 'weekly');
+
+    // Update or create daily digest
+    if (settings.dailyEnabled !== undefined) {
+      if (dailyDigest) {
+        await db
+          .update(email_digests)
+          .set({ 
+            enabled: settings.dailyEnabled,
+            updatedAt: new Date(),
+          })
+          .where(eq(email_digests.id, dailyDigest.id));
+      } else {
+        await db.insert(email_digests).values({
+          userId,
+          type: 'daily',
+          enabled: settings.dailyEnabled,
+        });
+      }
+    }
+
+    // Update or create weekly digest
+    if (settings.weeklyEnabled !== undefined) {
+      if (weeklyDigest) {
+        await db
+          .update(email_digests)
+          .set({ 
+            enabled: settings.weeklyEnabled,
+            updatedAt: new Date(),
+          })
+          .where(eq(email_digests.id, weeklyDigest.id));
+      } else {
+        await db.insert(email_digests).values({
+          userId,
+          type: 'weekly',
+          enabled: settings.weeklyEnabled,
+        });
+      }
+    }
+
+    // Return updated settings
+    return await getEmailDigestSettings(userId);
+  } catch (error) {
+    throw new DatabaseError(`Failed to update email digest settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get users who should receive digests (enabled and due for sending)
+ */
+export async function getUsersForDigest(type: 'daily' | 'weekly'): Promise<Array<{
+  userId: number;
+  email: string;
+  name: string | null;
+}>> {
+  try {
+    const { users } = await import('./schema/index');
+    
+    // Calculate the threshold for last sent
+    const now = new Date();
+    const threshold = type === 'daily'
+      ? new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+
+    // Get users with enabled digests that are due
+    const results = await db
+      .select({
+        userId: email_digests.userId,
+        email: users.email,
+        name: users.name,
+      })
+      .from(email_digests)
+      .innerJoin(users, eq(email_digests.userId, users.id))
+      .where(
+        and(
+          eq(email_digests.type, type),
+          eq(email_digests.enabled, true),
+          or(
+            sql`${email_digests.lastSent} IS NULL`,
+            lte(email_digests.lastSent, threshold)
+          )
+        )
+      );
+
+    return results;
+  } catch (error) {
+    throw new DatabaseError(`Failed to get users for digest: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Mark digest as sent for a user
+ */
+export async function markDigestSent(userId: number, type: 'daily' | 'weekly'): Promise<void> {
+  try {
+    const existing = await db
+      .select()
+      .from(email_digests)
+      .where(
+        and(
+          eq(email_digests.userId, userId),
+          eq(email_digests.type, type)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(email_digests)
+        .set({ 
+          lastSent: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(email_digests.id, existing[0].id));
+    }
+  } catch (error) {
+    throw new DatabaseError(`Failed to mark digest sent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Add email to queue
+ */
+export async function queueEmail(data: NewEmailQueue): Promise<EmailQueue> {
+  try {
+    const [email] = await db
+      .insert(email_queue)
+      .values(data)
+      .returning();
+
+    return email;
+  } catch (error) {
+    throw new DatabaseError(`Failed to queue email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get pending emails from queue
+ */
+export async function getPendingEmails(limit: number = 100): Promise<EmailQueue[]> {
+  try {
+    return await db
+      .select()
+      .from(email_queue)
+      .where(eq(email_queue.status, 'pending'))
+      .orderBy(email_queue.createdAt)
+      .limit(limit);
+  } catch (error) {
+    throw new DatabaseError(`Failed to get pending emails: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Mark email as sent
+ */
+export async function markEmailSent(id: number): Promise<void> {
+  try {
+    await db
+      .update(email_queue)
+      .set({ 
+        status: 'sent',
+        sentAt: new Date(),
+      })
+      .where(eq(email_queue.id, id));
+  } catch (error) {
+    throw new DatabaseError(`Failed to mark email sent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Mark email as failed
+ */
+export async function markEmailFailed(id: number): Promise<void> {
+  try {
+    await db
+      .update(email_queue)
+      .set({ status: 'failed' })
+      .where(eq(email_queue.id, id));
+  } catch (error) {
+    throw new DatabaseError(`Failed to mark email failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get digest content for a user
+ */
+export async function getDigestContent(
+  userId: number,
+  type: 'daily' | 'weekly'
+): Promise<{
+  newArticles: Article[];
+  followingActivity: any[];
+  trendingArticles: Article[];
+}> {
+  try {
+    const { users, follows } = await import('./schema/index');
+    
+    // Calculate time threshold
+    const now = new Date();
+    const threshold = type === 'daily'
+      ? new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Get new articles in followed categories (simplified - just get recent published articles)
+    const newArticles = await db
+      .select()
+      .from(articles)
+      .where(
+        and(
+          eq(articles.status, 'published'),
+          gte(articles.publishedAt, threshold)
+        )
+      )
+      .orderBy(desc(articles.publishedAt))
+      .limit(10);
+
+    // Get activity from followed users
+    const followingList = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+
+    let followingActivity: any[] = [];
+    if (followingList.length > 0) {
+      const followingIds = followingList.map(f => f.followingId);
+      
+      // Get recent revisions from followed users
+      followingActivity = await db
+        .select({
+          type: sql<string>`'edit'`,
+          articleId: articleRevisions.articleId,
+          articleTitle: articleRevisions.title,
+          userId: articleRevisions.editorId,
+          timestamp: articleRevisions.createdAt,
+          changeType: articleRevisions.changeType,
+        })
+        .from(articleRevisions)
+        .where(
+          and(
+            inArray(articleRevisions.editorId, followingIds),
+            gte(articleRevisions.createdAt, threshold)
+          )
+        )
+        .orderBy(desc(articleRevisions.createdAt))
+        .limit(20);
+    }
+
+    // Get trending articles (high view count or upvotes in recent period)
+    const trendingArticles = await db
+      .select()
+      .from(articles)
+      .where(
+        and(
+          eq(articles.status, 'published'),
+          gte(articles.createdAt, threshold)
+        )
+      )
+      .orderBy(desc(articles.viewCount))
+      .limit(10);
+
+    return {
+      newArticles,
+      followingActivity,
+      trendingArticles,
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get digest content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

@@ -1,0 +1,291 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getSession } from '../../lib/auth';
+import { getEmailDigestSettings, getUserById } from '@aidepedia/db';
+
+const session = await getSession(Astro.request);
+
+// Redirect to login if not authenticated
+if (!session?.user?.id) {
+  return Astro.redirect('/login');
+}
+
+// Get current user data
+let user: any;
+let digestSettings: any;
+try {
+  user = await getUserById(parseInt(session.user.id as string));
+  digestSettings = await getEmailDigestSettings(parseInt(session.user.id as string));
+} catch (error) {
+  return Astro.redirect('/login');
+}
+---
+
+<Layout title="Notification Settings">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Notification Settings</h1>
+      <p class="text-gray-600 mt-2">Manage your email notification preferences</p>
+    </div>
+
+    <!-- Email Digests Section -->
+    <form id="notifications-form" class="space-y-6">
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Email Digests</h2>
+        <p class="text-sm text-gray-600 mb-6">
+          Get regular updates about new articles, activity from people you follow, and trending content delivered to your inbox.
+        </p>
+        
+        <div class="space-y-4">
+          <!-- Daily Digest -->
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex-1">
+              <label for="daily-digest" class="text-sm font-medium text-gray-900">
+                Daily Digest
+              </label>
+              <p class="text-sm text-gray-500 mt-1">
+                Receive a daily summary of new articles and activity
+              </p>
+            </div>
+            <button 
+              type="button"
+              id="daily-digest-toggle"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              role="switch"
+              aria-checked={digestSettings.dailyEnabled ? 'true' : 'false'}
+              data-enabled={digestSettings.dailyEnabled ? 'true' : 'false'}
+            >
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+            </button>
+            <input type="hidden" name="dailyEnabled" value={digestSettings.dailyEnabled ? 'true' : 'false'} />
+          </div>
+
+          <!-- Weekly Digest -->
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div class="flex-1">
+              <label for="weekly-digest" class="text-sm font-medium text-gray-900">
+                Weekly Digest
+              </label>
+              <p class="text-sm text-gray-500 mt-1">
+                Receive a weekly roundup of the best content
+              </p>
+            </div>
+            <button 
+              type="button"
+              id="weekly-digest-toggle"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              role="switch"
+              aria-checked={digestSettings.weeklyEnabled ? 'true' : 'false'}
+              data-enabled={digestSettings.weeklyEnabled ? 'true' : 'false'}
+            >
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+            </button>
+            <input type="hidden" name="weeklyEnabled" value={digestSettings.weeklyEnabled ? 'true' : 'false'} />
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Section -->
+      <div class="bg-white rounded-xl shadow border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Preview Your Digest</h2>
+        <p class="text-sm text-gray-600 mb-4">
+          See what your digest email would look like with the latest content.
+        </p>
+        <button 
+          type="button"
+          id="preview-digest"
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
+        >
+          Preview Digest
+        </button>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="flex items-center justify-end space-x-4">
+        <a 
+          href="/settings/profile"
+          class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Back to Profile
+        </a>
+        <button 
+          type="submit"
+          class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          Save Changes
+        </button>
+      </div>
+    </form>
+
+    <!-- Status Messages -->
+    <div id="success-message" class="hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+      <p class="text-green-800 font-medium">✓ Notification settings updated successfully!</p>
+    </div>
+    
+    <div id="error-message" class="hidden mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <p class="text-red-800 font-medium" id="error-text">Error updating settings</p>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Digest Preview</h3>
+          <button 
+            type="button"
+            id="close-preview"
+            class="text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="preview-content" class="flex-1 overflow-y-auto p-6">
+          <!-- Preview content will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Toggle switch functionality
+  function setupToggle(toggleId: string, inputName: string) {
+    const toggle = document.getElementById(toggleId) as HTMLButtonElement;
+    const input = document.querySelector(`input[name="${inputName}"]`) as HTMLInputElement;
+    
+    if (!toggle || !input) return;
+    
+    const updateToggle = () => {
+      const isEnabled = toggle.dataset.enabled === 'true';
+      const span = toggle.querySelector('span');
+      
+      if (isEnabled) {
+        toggle.classList.add('bg-blue-600');
+        toggle.classList.remove('bg-gray-200');
+        span?.classList.add('translate-x-5');
+        span?.classList.remove('translate-x-0');
+      } else {
+        toggle.classList.remove('bg-blue-600');
+        toggle.classList.add('bg-gray-200');
+        span?.classList.remove('translate-x-5');
+        span?.classList.add('translate-x-0');
+      }
+      
+      input.value = isEnabled ? 'true' : 'false';
+      toggle.setAttribute('aria-checked', isEnabled ? 'true' : 'false');
+    };
+    
+    updateToggle();
+    
+    toggle.addEventListener('click', () => {
+      const current = toggle.dataset.enabled === 'true';
+      toggle.dataset.enabled = (!current).toString();
+      updateToggle();
+    });
+  }
+  
+  setupToggle('daily-digest-toggle', 'dailyEnabled');
+  setupToggle('weekly-digest-toggle', 'weeklyEnabled');
+  
+  // Form submission
+  const form = document.getElementById('notifications-form') as HTMLFormElement;
+  const successMessage = document.getElementById('success-message');
+  const errorMessage = document.getElementById('error-message');
+  const errorText = document.getElementById('error-text');
+  
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const data = {
+      dailyEnabled: formData.get('dailyEnabled') === 'true',
+      weeklyEnabled: formData.get('weeklyEnabled') === 'true',
+    };
+    
+    try {
+      const response = await fetch('/api/v1/users/me/digest-settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        successMessage?.classList.remove('hidden');
+        errorMessage?.classList.add('hidden');
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          successMessage?.classList.add('hidden');
+        }, 3000);
+      } else {
+        throw new Error(result.error?.message || 'Failed to update settings');
+      }
+    } catch (error) {
+      errorMessage?.classList.remove('hidden');
+      successMessage?.classList.add('hidden');
+      if (errorText) {
+        errorText.textContent = error instanceof Error ? error.message : 'Error updating settings';
+      }
+    }
+  });
+  
+  // Preview functionality
+  const previewBtn = document.getElementById('preview-digest');
+  const previewModal = document.getElementById('preview-modal');
+  const closePreviewBtn = document.getElementById('close-preview');
+  const previewContent = document.getElementById('preview-content');
+  
+  previewBtn?.addEventListener('click', async () => {
+    previewModal?.classList.remove('hidden');
+    previewContent!.innerHTML = '<p class="text-center text-gray-500">Loading preview...</p>';
+    
+    try {
+      // In a real implementation, this would fetch actual preview data
+      // For now, show a placeholder
+      previewContent!.innerHTML = `
+        <div class="space-y-6">
+          <div>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">📚 New Articles</h4>
+            <p class="text-gray-600">No new articles in the last 24 hours</p>
+          </div>
+          
+          <div>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">👥 Activity from People You Follow</h4>
+            <p class="text-gray-600">No recent activity from people you follow</p>
+          </div>
+          
+          <div>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">🔥 Trending Articles</h4>
+            <p class="text-gray-600">No trending articles right now</p>
+          </div>
+        </div>
+      `;
+    } catch (error) {
+      previewContent!.innerHTML = '<p class="text-center text-red-600">Failed to load preview</p>';
+    }
+  });
+  
+  closePreviewBtn?.addEventListener('click', () => {
+    previewModal?.classList.add('hidden');
+  });
+  
+  // Close modal on backdrop click
+  previewModal?.addEventListener('click', (e) => {
+    if (e.target === previewModal) {
+      previewModal.classList.add('hidden');
+    }
+  });
+  
+  // Close modal on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !previewModal?.classList.contains('hidden')) {
+      previewModal?.classList.add('hidden');
+    }
+  });
+</script>

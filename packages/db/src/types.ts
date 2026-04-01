@@ -208,3 +208,48 @@ export interface EditSuggestionWithUser extends EditSuggestion {
     image: string | null;
   };
 }
+
+// Email digest types
+export type EmailDigestType = 'daily' | 'weekly';
+
+export interface EmailDigest {
+  id: number;
+  userId: number;
+  type: EmailDigestType;
+  enabled: boolean;
+  lastSent: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NewEmailDigest {
+  userId: number;
+  type?: EmailDigestType;
+  enabled?: boolean;
+  lastSent?: Date | null;
+}
+
+export interface EmailDigestSettings {
+  dailyEnabled: boolean;
+  weeklyEnabled: boolean;
+}
+
+// Email queue types
+export type EmailQueueStatus = 'pending' | 'sent' | 'failed';
+
+export interface EmailQueue {
+  id: number;
+  to: string;
+  subject: string;
+  body: string;
+  status: EmailQueueStatus;
+  createdAt: Date;
+  sentAt: Date | null;
+}
+
+export interface NewEmailQueue {
+  to: string;
+  subject: string;
+  body: string;
+  status?: EmailQueueStatus;
+}

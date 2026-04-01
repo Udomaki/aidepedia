@@ -309,3 +309,35 @@ export const edit_suggestions = pgTable('edit_suggestions', {
   userIdx: index('edit_suggestion_user_idx').on(table.userId),
   statusIdx: index('edit_suggestion_status_idx').on(table.status),
 }));
+
+export const email_digests = pgTable('email_digests', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', {
+    enum: ['daily', 'weekly'],
+    length: 10
+  }).notNull().default('daily'),
+  enabled: boolean('enabled').default(true),
+  lastSent: timestamp('last_sent'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('email_digest_user_idx').on(table.userId),
+  typeIdx: index('email_digest_type_idx').on(table.type),
+}));
+
+export const email_queue = pgTable('email_queue', {
+  id: serial('id').primaryKey(),
+  to: varchar('to', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 500 }).notNull(),
+  body: text('body').notNull(),
+  status: varchar('status', {
+    enum: ['pending', 'sent', 'failed'],
+    length: 20
+  }).notNull().default('pending'),
+  createdAt: timestamp('created_at').defaultNow(),
+  sentAt: timestamp('sent_at'),
+}, (table) => ({
+  statusIdx: index('email_queue_status_idx').on(table.status),
+  createdAtIdx: index('email_queue_created_at_idx').on(table.createdAt),
+}));
