@@ -378,3 +378,35 @@ export interface ContentReportQueryParams extends PaginationParams {
   contentType?: ContentType;
   reporterId?: number;
 }
+
+// Article draft types
+export interface ArticleDraft {
+  id: number;
+  articleId: number | null;
+  userId: number;
+  title: string | null;
+  content: string | null;
+  excerpt: string | null;
+  tags: string[] | null;
+  lastSaved: Date;
+  createdAt: Date;
+}
+
+export interface NewArticleDraft {
+  articleId?: number | null;
+  userId: number;
+  title?: string | null;
+  content?: string | null;
+  excerpt?: string | null;
+  tags?: string[];
+}
+
+export interface ArticleDraftWithArticle extends ArticleDraft {
+  article?: {
+    id: number;
+    slug: string;
+    title: string;
+    content: string;
+    excerpt: string | null;
+  } | null;
+}

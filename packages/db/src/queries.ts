@@ -4432,3 +4432,218 @@ export async function getBlockedByUserIds(userId: number): Promise<number[]> {
     throw new DatabaseError(`Failed to fetch blocked-by user IDs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+// ============================================
+// Article Draft Queries
+// ============================================
+
+import { article_drafts } from './schema/index';
+import type { ArticleDraft, NewArticleDraft, ArticleDraftWithArticle } from './types';
+
+/**
+ * Get a draft for an article by a specific user
+ */
+export async function getArticleDraft(
+  articleId: number | null,
+  userId: number
+): Promise<ArticleDraftWithArticle | null> {
+  try {
+    if (articleId) {
+      // Get draft for existing article
+      const [draft] = await db
+        .select({
+          id: article_drafts.id,
+          articleId: article_drafts.articleId,
+          userId: article_drafts.userId,
+          title: article_drafts.title,
+          content: article_drafts.content,
+          excerpt: article_drafts.excerpt,
+          tags: article_drafts.tags,
+          lastSaved: article_drafts.lastSaved,
+          createdAt: article_drafts.createdAt,
+          article: {
+            id: articles.id,
+            slug: articles.slug,
+            title: articles.title,
+            content: articles.content,
+            excerpt: articles.excerpt,
+          },
+        })
+        .from(article_drafts)
+        .leftJoin(articles, eq(article_drafts.articleId, articles.id))
+        .where(
+          and(
+            eq(article_drafts.articleId, articleId),
+            eq(article_drafts.userId, userId)
+          )
+        )
+        .limit(1);
+
+      return draft as ArticleDraftWithArticle || null;
+    } else {
+      // Get draft for new article (articleId is null)
+      const [draft] = await db
+        .select({
+          id: article_drafts.id,
+          articleId: article_drafts.articleId,
+          userId: article_drafts.userId,
+          title: article_drafts.title,
+          content: article_drafts.content,
+          excerpt: article_drafts.excerpt,
+          tags: article_drafts.tags,
+          lastSaved: article_drafts.lastSaved,
+          createdAt: article_drafts.createdAt,
+          article: sql`null`,
+        })
+        .from(article_drafts)
+        .where(
+          and(
+            sql`${article_drafts.articleId} IS NULL`,
+            eq(article_drafts.userId, userId)
+          )
+        )
+        .limit(1);
+
+      return draft as ArticleDraftWithArticle || null;
+    }
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch article draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Save (create or update) a draft
+ */
+export async function saveArticleDraft(
+  articleId: number | null,
+  userId: number,
+  data: {
+    title?: string;
+    content?: string;
+    excerpt?: string;
+    tags?: string[];
+  }
+): Promise<ArticleDraft> {
+  try {
+    // Check if draft already exists
+    const existing = await getArticleDraft(articleId, userId);
+
+    if (existing) {
+      // Update existing draft
+      const [updated] = await db
+        .update(article_drafts)
+        .set({
+          ...data,
+          lastSaved: new Date(),
+        })
+        .where(eq(article_drafts.id, existing.id))
+        .returning();
+
+      return updated;
+    } else {
+      // Create new draft
+      const [draft] = await db
+        .insert(article_drafts)
+        .values({
+          articleId: articleId ?? null,
+          userId,
+          ...data,
+        })
+        .returning();
+
+      return draft;
+    }
+  } catch (error) {
+    throw new DatabaseError(`Failed to save article draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a draft
+ */
+export async function deleteArticleDraft(
+  articleId: number | null,
+  userId: number
+): Promise<void> {
+  try {
+    if (articleId) {
+      await db
+        .delete(article_drafts)
+        .where(
+          and(
+            eq(article_drafts.articleId, articleId),
+            eq(article_drafts.userId, userId)
+          )
+        );
+    } else {
+      await db
+        .delete(article_drafts)
+        .where(
+          and(
+            sql`${article_drafts.articleId} IS NULL`,
+            eq(article_drafts.userId, userId)
+          )
+        );
+    }
+  } catch (error) {
+    throw new DatabaseError(`Failed to delete article draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get all drafts for a user
+ */
+export async function getUserDrafts(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<ArticleDraftWithArticle>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: article_drafts.id,
+          articleId: article_drafts.articleId,
+          userId: article_drafts.userId,
+          title: article_drafts.title,
+          content: article_drafts.content,
+          excerpt: article_drafts.excerpt,
+          tags: article_drafts.tags,
+          lastSaved: article_drafts.lastSaved,
+          createdAt: article_drafts.createdAt,
+          article: {
+            id: articles.id,
+            slug: articles.slug,
+            title: articles.title,
+            content: articles.content,
+            excerpt: articles.excerpt,
+          },
+        })
+        .from(article_drafts)
+        .leftJoin(articles, eq(article_drafts.articleId, articles.id))
+        .where(eq(article_drafts.userId, userId))
+        .orderBy(desc(article_drafts.lastSaved))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(article_drafts)
+        .where(eq(article_drafts.userId, userId)),
+    ]);
+
+    return {
+      data: data as ArticleDraftWithArticle[],
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch user drafts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
