@@ -1,9 +1,4 @@
 name = "aidepedia"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
-
-[build]
-command = "cd apps/web && pnpm build"
-
-[site]
-bucket = "./apps/web/dist"
+main = "apps/web/dist/_worker.js"
