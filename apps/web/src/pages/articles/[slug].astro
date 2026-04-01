@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle } from '@aidepedia/db';
+import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked } from '@aidepedia/db';
+import { getSession } from '../../lib/auth';
 
 export async function getStaticPaths() {
   // Try to fetch all published articles for static generation
@@ -45,6 +46,19 @@ try {
   comments = await getCommentsByArticle(article.id);
 } catch (e) {
   console.warn('Could not fetch comments:', e);
+}
+
+// Check if user is logged in and has bookmarked this article
+let isUserLoggedIn = false;
+let isArticleBookmarked = false;
+try {
+  const session = await getSession(Astro.request);
+  if (session?.user?.id) {
+    isUserLoggedIn = true;
+    isArticleBookmarked = await isBookmarked(parseInt(session.user.id as string), article.id);
+  }
+} catch (e) {
+  // User not logged in or error checking bookmark status
 }
 
 const pageTitle = `${article.title} - AIdepedia`;
@@ -122,6 +136,23 @@ const totalComments = countAllComments(comments);
         </div>
         
         <h1 class="text-4xl font-bold text-gray-900 mb-4">{article.title}</h1>
+        
+        <!-- Bookmark Button -->
+        {isUserLoggedIn && (
+          <button
+            id="bookmark-btn"
+            data-article-slug={article.slug}
+            data-bookmarked={isArticleBookmarked.toString()}
+            class="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg transition-colors font-medium"
+          >
+            <span id="bookmark-icon" class="text-2xl">
+              {isArticleBookmarked ? '🔖' : '📑'}
+            </span>
+            <span id="bookmark-text" class="text-gray-700">
+              {isArticleBookmarked ? 'Bookmarked' : 'Save for later'}
+            </span>
+          </button>
+        )}
         
         {article.excerpt && (
           <p class="text-xl text-gray-600 mb-4">{article.excerpt}</p>
@@ -464,4 +495,47 @@ const totalComments = countAllComments(comments);
 
   // Initialize
   checkAuth();
+
+  // Handle bookmark toggle
+  const bookmarkBtn = document.getElementById('bookmark-btn');
+  bookmarkBtn?.addEventListener('click', async () => {
+    if (!currentUser) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const articleSlug = bookmarkBtn.dataset.articleSlug;
+    const isBookmarked = bookmarkBtn.dataset.bookmarked === 'true';
+    
+    try {
+      const response = await fetch(`/api/v1/articles/${articleSlug}/bookmark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const newBookmarked = result.data.bookmarked;
+        
+        // Update button state
+        bookmarkBtn.dataset.bookmarked = newBookmarked.toString();
+        document.getElementById('bookmark-icon').textContent = newBookmarked ? '🔖' : '📑';
+        document.getElementById('bookmark-text').textContent = newBookmarked ? 'Bookmarked' : 'Save for later';
+        
+        // Update button style
+        if (newBookmarked) {
+          bookmarkBtn.className = 'flex items-center gap-2 mb-4 px-4 py-2 rounded-lg transition-colors font-medium bg-yellow-100 text-yellow-800';
+        } else {
+          bookmarkBtn.className = 'flex items-center gap-2 mb-4 px-4 py-2 rounded-lg transition-colors font-medium bg-gray-100 text-gray-700 hover:bg-gray-200';
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update bookmark');
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+      alert('Failed to update bookmark');
+    }
+  });
+
 </script>
