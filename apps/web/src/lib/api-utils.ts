@@ -179,6 +179,7 @@ export function transformArticleForApi(article: any, categoryName?: string) {
     viewCount: article.viewCount || 0,
     upvotes: article.upvotes || 0,
     downvotes: article.downvotes || 0,
+    readingTime: article.readingTime || 1,
     createdAt: article.createdAt?.toISOString?.() || article.createdAt,
     updatedAt: article.updatedAt?.toISOString?.() || article.updatedAt,
     publishedAt: article.publishedAt?.toISOString?.() || article.publishedAt,

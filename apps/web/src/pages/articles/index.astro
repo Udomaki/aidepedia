@@ -67,6 +67,10 @@ const categoryMap = new Map<number, Category>(categories.map(c => [c.id, c]));
                   {article.viewCount || 0} views
                 </span>
                 <span>•</span>
+                <span>
+                  {article.readingTime || 1} min read
+                </span>
+                <span>•</span>
                 <time datetime={article.createdAt?.toISOString()}>
                   {new Date(article.createdAt || '').toLocaleDateString()}
                 </time>

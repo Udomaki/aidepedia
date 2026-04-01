@@ -38,6 +38,7 @@ import {
   DatabaseError,
 } from './types';
 import { triggerWebhookEvent } from './webhooks';
+import { calculateReadingTime } from './reading-time';
 
 /**
  * Fetch an article by its slug
@@ -220,12 +221,16 @@ export async function createArticle(
       throw new ValidationError(`Article with slug "${data.slug}" already exists`);
     }
 
+    // Calculate reading time from content
+    const readingTime = calculateReadingTime(data.content || '');
+
     // Create article
     const [article] = await db
       .insert(articles)
       .values({
         ...data,
         authorId: editorId,
+        readingTime,
       })
       .returning();
 
@@ -286,11 +291,15 @@ export async function updateArticle(
       }
     }
 
+    // Calculate reading time if content is being updated
+    const readingTime = updates.content ? calculateReadingTime(updates.content) : existing.readingTime;
+
     // Update article
     const [article] = await db
       .update(articles)
       .set({
         ...updates,
+        readingTime,
         updatedAt: new Date(),
       })
       .where(eq(articles.id, id))
