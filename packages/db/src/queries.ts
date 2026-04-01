@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -10,6 +10,9 @@ import type {
   PaginatedResult,
   Category,
   NewCategory,
+  Editor,
+  ReputationEvent,
+  NewReputationEvent,
 } from './types';
 import {
   NotFoundError,
@@ -577,5 +580,166 @@ export async function getTags(): Promise<string[]> {
     return uniqueTags;
   } catch (error) {
     throw new DatabaseError(`Failed to fetch tags: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get editor by ID
+ */
+export async function getEditorById(id: number): Promise<Editor> {
+  try {
+    const [editor] = await db
+      .select()
+      .from(editors)
+      .where(eq(editors.id, id))
+      .limit(1);
+
+    if (!editor) {
+      throw new NotFoundError('Editor', `id:${id}`);
+    }
+
+    return editor;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to fetch editor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get reputation events for an editor
+ */
+export async function getReputationEvents(
+  editorId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<ReputationEvent>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(reputationEvents)
+        .where(eq(reputationEvents.editorId, editorId))
+        .orderBy(desc(reputationEvents.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(reputationEvents)
+        .where(eq(reputationEvents.editorId, editorId)),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch reputation events: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Add a reputation event and update editor's reputation score
+ */
+export async function addReputationEvent(
+  data: NewReputationEvent
+): Promise<ReputationEvent> {
+  try {
+    // Create the event
+    const [event] = await db
+      .insert(reputationEvents)
+      .values(data)
+      .returning();
+
+    // Update editor's reputation score
+    await db
+      .update(editors)
+      .set({
+        reputationScore: sql`${editors.reputationScore} + ${data.pointsChange}`,
+      })
+      .where(eq(editors.id, data.editorId));
+
+    return event;
+  } catch (error) {
+    throw new DatabaseError(`Failed to add reputation event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get editor leaderboard
+ */
+export async function getEditorLeaderboard(
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<Editor>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(editors)
+        .where(eq(editors.isActive, true))
+        .orderBy(desc(editors.reputationScore))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(editors)
+        .where(eq(editors.isActive, true)),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch leaderboard: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update editor statistics
+ */
+export async function updateEditorStats(
+  editorId: number,
+  stats: {
+    articlesCreated?: number;
+    articlesEdited?: number;
+    votesCast?: number;
+  }
+): Promise<Editor> {
+  try {
+    const [editor] = await db
+      .update(editors)
+      .set(stats)
+      .where(eq(editors.id, editorId))
+      .returning();
+
+    if (!editor) {
+      throw new NotFoundError('Editor', `id:${editorId}`);
+    }
+
+    return editor;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update editor stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
