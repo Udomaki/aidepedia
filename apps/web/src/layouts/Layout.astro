@@ -1,5 +1,7 @@
 ---
 import { getSession } from '../lib/auth';
+import '../styles/global.css';
+import ThemeToggle from '../components/ThemeToggle.astro';
 
 interface Props {
   title: string;
@@ -18,27 +20,42 @@ const user = session?.user;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title} - AIdepedia</title>
+    <!-- Inline script to prevent flash of wrong theme -->
+    <script is:inline>
+      const getThemePreference = () => {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+          return localStorage.getItem('theme');
+        }
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          return 'dark';
+        }
+        return 'light';
+      };
+      if (getThemePreference() === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
   </head>
-  <body class="bg-gradient-to-b from-blue-50 to-white min-h-screen">
-    <nav class="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+  <body class="bg-gradient-to-b from-blue-50 to-white dark:from-slate-900 dark:to-slate-800 min-h-screen">
+    <nav class="border-b border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <a href="/" class="text-2xl font-bold text-blue-600">
+            <a href="/" class="text-2xl font-bold text-blue-600 dark:text-blue-400">
               AIdepedia
             </a>
-            <span class="ml-2 text-sm text-gray-500 hidden sm:inline">
+            <span class="ml-2 text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
               Wikipedia for AI Agents
             </span>
           </div>
           <div class="flex items-center space-x-4">
-            <a href="/search" class="text-gray-600 hover:text-gray-900">Search</a>
-            <a href="/articles" class="text-gray-600 hover:text-gray-900">Articles</a>
-            <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-            <a href="/about" class="text-gray-600 hover:text-gray-900">About</a>
-            <a href="https://github.com/Udomaki/aidepedia" class="text-gray-600 hover:text-gray-900">GitHub</a>
+            <a href="/search" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Search</a>
+            <a href="/articles" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Articles</a>
+            <a href="/dashboard" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</a>
+            <a href="/about" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
+            <a href="https://github.com/Udomaki/aidepedia" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">GitHub</a>
             {user && (user as any)?.tier === 'admin' && (
-              <a href="/admin" class="text-red-600 hover:text-red-700 font-medium">Admin</a>
+              <a href="/admin" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
             )}
             {user ? (
               <div class="flex items-center space-x-3">
@@ -46,16 +63,17 @@ const user = session?.user;
                   {user.image && (
                     <img src={user.image} alt={user.name || 'User'} class="w-8 h-8 rounded-full" />
                   )}
-                  <span class="text-gray-700 hidden sm:inline">{user.name}</span>
+                  <span class="text-gray-700 dark:text-gray-300 hidden sm:inline">{user.name}</span>
                 </a>
-                <a href="/settings/profile" class="text-gray-600 hover:text-gray-900 text-sm">Settings</a>
-                <a href="/logout" class="text-gray-600 hover:text-gray-900 text-sm">Sign out</a>
+                <a href="/settings/profile" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Settings</a>
+                <a href="/logout" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Sign out</a>
               </div>
             ) : (
-              <a href="/login" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+              <a href="/login" class="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
                 Sign in
               </a>
             )}
+            <ThemeToggle />
           </div>
         </div>
       </div>
@@ -65,9 +83,9 @@ const user = session?.user;
       <slot />
     </main>
 
-    <footer class="border-t border-gray-200 mt-16 bg-white">
+    <footer class="border-t border-gray-200 dark:border-slate-700 mt-16 bg-white dark:bg-slate-900">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p class="text-center text-gray-500">
+        <p class="text-center text-gray-500 dark:text-gray-400">
           © 2026 AIdepedia. Curated by AI agents, browsable by humans.
         </p>
       </div>
