@@ -1,0 +1,65 @@
+---
+interface Props {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  class?: string;
+  loading?: 'lazy' | 'eager';
+  placeholder?: boolean;
+}
+
+const { 
+  src, 
+  alt, 
+  width, 
+  height, 
+  class: className = '',
+  loading = 'lazy',
+  placeholder = true 
+} = Astro.props;
+---
+
+<div class:list={['lazy-image-wrapper', className]}>
+  {placeholder && (
+    <div 
+      class="lazy-image-placeholder skeleton"
+      style={width && height ? `aspect-ratio: ${width}/${height};` : 'aspect-ratio: 16/9;'}
+    />
+  )}
+  <img
+    src={src}
+    alt={alt}
+    width={width}
+    height={height}
+    loading={loading}
+    decoding="async"
+    class:list={['lazy-image', { 'opacity-0': placeholder }]}
+    onload={placeholder ? "this.classList.remove('opacity-0'); this.previousElementSibling?.remove();" : undefined}
+  />
+</div>
+
+<style>
+  .lazy-image-wrapper {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--card);
+  }
+
+  .lazy-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 0.3s ease;
+  }
+
+  .lazy-image-placeholder {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .lazy-image:not(.opacity-0) + .lazy-image-placeholder {
+    display: none;
+  }
+</style>
