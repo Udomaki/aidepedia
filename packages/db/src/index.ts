@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import postgres from 'postgres/cjs';  // Cloudflare Workers compatible CommonJS export
 import * as schema from './schema/index';
 
 const connectionString = process.env.DATABASE_URL!;
@@ -12,7 +12,7 @@ export * from './schema/index';
 export * from './queries';
 export * from './types';
 export * from './webhooks';
-export * from './backup';
+// export * from './backup';  // Disabled for Cloudflare Workers - uses Node.js fs/child_process
 export * from './reading-time';
 
 // Re-export drizzle-orm operators for convenience
