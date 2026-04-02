@@ -1,0 +1,302 @@
+---
+interface Props {
+  qualityScore: {
+    overallScore: number;
+    completenessScore: number;
+    accuracyScore: number;
+    readabilityScore: number;
+    citationScore: number;
+    toneScore: number;
+    wordCount: number;
+    citationCount: number;
+    headingCount: number;
+    paragraphCount: number;
+    improvements?: Array<{
+      category: string;
+      priority: string;
+      suggestion: string;
+      impact: number;
+    }>;
+  };
+}
+
+const { qualityScore } = Astro.props;
+
+function getScoreColor(score: number): string {
+  if (score >= 80) return 'text-green-600';
+  if (score >= 60) return 'text-yellow-600';
+  return 'text-red-600';
+}
+
+function getScoreGrade(score: number): string {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
+}
+---
+
+<div class="quality-score-badge">
+  <div class="score-circle ${getScoreColor(qualityScore.overallScore)}">
+    <svg viewBox="0 0 36 36" class="circular-chart">
+      <path
+        class="circle-bg"
+        d="M18 2.0845
+          a 15.9155 15.9155 0 0 1 0 31.831
+          a 15.9155 15.9155 0 0 1 0 -31.831"
+      />
+      <path
+        class="circle"
+        stroke-dasharray="${qualityScore.overallScore}, 100"
+        d="M18 2.0845
+          a 15.9155 15.9155 0 0 1 0 31.831
+          a 15.9155 15.9155 0 0 1 0 -31.831"
+      />
+    </svg>
+    <div class="score-text">
+      <span class="score-number">{qualityScore.overallScore}</span>
+      <span class="score-grade">{getScoreGrade(qualityScore.overallScore)}</span>
+    </div>
+  </div>
+  
+  <div class="score-details">
+    <h4>Article Quality Score</h4>
+    <div class="metrics-grid">
+      <div class="metric">
+        <span class="metric-label">Completeness</span>
+        <span class={`metric-value ${getScoreColor(qualityScore.completenessScore)}`}>
+          {qualityScore.completenessScore}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Accuracy</span>
+        <span class={`metric-value ${getScoreColor(qualityScore.accuracyScore)}`}>
+          {qualityScore.accuracyScore}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Readability</span>
+        <span class={`metric-value ${getScoreColor(qualityScore.readabilityScore)}`}>
+          {qualityScore.readabilityScore}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Citations</span>
+        <span class={`metric-value ${getScoreColor(qualityScore.citationScore)}`}>
+          {qualityScore.citationScore}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Tone</span>
+        <span class={`metric-value ${getScoreColor(qualityScore.toneScore)}`}>
+          {qualityScore.toneScore}
+        </span>
+      </div>
+    </div>
+    
+    <div class="article-stats">
+      <span class="stat">{qualityScore.wordCount} words</span>
+      <span class="stat">{qualityScore.citationCount} citations</span>
+      <span class="stat">{qualityScore.headingCount} sections</span>
+    </div>
+  </div>
+</div>
+
+{qualityScore.improvements && qualityScore.improvements.length > 0 && (
+  <div class="improvements-section">
+    <h5>Ways to Improve</h5>
+    <ul class="improvements-list">
+      {qualityScore.improvements.slice(0, 3).map((improvement) => (
+        <li class={`improvement-item priority-${improvement.priority}`}>
+          <strong>{improvement.category}:</strong> {improvement.suggestion}
+          <span class="impact-badge">+{improvement.impact} points</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
+
+<style>
+  .quality-score-badge {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .score-circle {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+  }
+
+  .circular-chart {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .circle-bg {
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 3;
+  }
+
+  .circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    animation: progress 1s ease-out forwards;
+  }
+
+  @keyframes progress {
+    0% {
+      stroke-dasharray: 0 100;
+    }
+  }
+
+  .score-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .score-number {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .score-grade {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    opacity: 0.8;
+  }
+
+  .score-details {
+    flex: 1;
+  }
+
+  .score-details h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1.125rem;
+    color: #1f2937;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .metric-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .metric-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .article-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .stat {
+    position: relative;
+  }
+
+  .stat:not(:last-child)::after {
+    content: '·';
+    margin-left: 1rem;
+  }
+
+  .improvements-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .improvements-section h5 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    color: #1f2937;
+  }
+
+  .improvements-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .improvement-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.875rem;
+  }
+
+  .improvement-item:last-child {
+    border-bottom: none;
+  }
+
+  .improvement-item.priority-high {
+    color: #dc2626;
+  }
+
+  .improvement-item.priority-medium {
+    color: #d97706;
+  }
+
+  .improvement-item.priority-low {
+    color: #6b7280;
+  }
+
+  .impact-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.125rem 0.5rem;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .text-green-600 {
+    color: #16a34a;
+  }
+
+  .text-yellow-600 {
+    color: #ca8a04;
+  }
+
+  .text-red-600 {
+    color: #dc2626;
+  }
+</style>

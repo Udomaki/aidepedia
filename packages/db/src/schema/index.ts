@@ -621,3 +621,143 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// AI-powered content suggestions
+export const ai_suggestions = pgTable('ai_suggestions', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+  suggestionType: varchar('suggestion_type', {
+    enum: ['grammar', 'style', 'fact_check', 'tone', 'citation', 'completeness', 'clarity'],
+    length: 20
+  }).notNull(),
+
+  status: varchar('status', {
+    enum: ['pending', 'accepted', 'rejected', 'dismissed'],
+    length: 20
+  }).notNull().default('pending'),
+
+  // Location in the article
+  startOffset: integer('start_offset'),
+  endOffset: integer('end_offset'),
+  originalText: text('original_text'),
+  suggestedText: text('suggested_text'),
+
+  // AI metadata
+  confidence: integer('confidence'), // 0-100
+  reasoning: text('reasoning'),
+  category: varchar('category', { length: 100 }), // e.g., "passive_voice", "uncited_claim", "biased_language"
+
+  // For fact-checking
+  verificationStatus: varchar('verification_status', {
+    enum: ['verified', 'unverified', 'disputed', 'needs_citation'],
+    length: 20
+  }),
+  sources: jsonb('sources').$type<Array<{ url: string; title: string; reliability: number }>>(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+}, (table) => ({
+  articleIdx: index('ai_suggestion_article_idx').on(table.articleId),
+  userIdx: index('ai_suggestion_user_idx').on(table.userId),
+  typeIdx: index('ai_suggestion_type_idx').on(table.suggestionType),
+  statusIdx: index('ai_suggestion_status_idx').on(table.status),
+  createdAtIdx: index('ai_suggestion_created_at_idx').on(table.createdAt),
+}));
+
+// AI quality scores
+export const ai_quality_scores = pgTable('ai_quality_scores', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }).unique(),
+
+  overallScore: integer('overall_score').notNull(), // 0-100
+
+  // Component scores
+  completenessScore: integer('completeness_score').notNull(),
+  accuracyScore: integer('accuracy_score').notNull(),
+  readabilityScore: integer('readability_score').notNull(),
+  citationScore: integer('citation_score').notNull(),
+  toneScore: integer('tone_score').notNull(),
+
+  // Detailed metrics
+  wordCount: integer('word_count').notNull(),
+  citationCount: integer('citation_count').notNull(),
+  headingCount: integer('heading_count').notNull(),
+  paragraphCount: integer('paragraph_count').notNull(),
+
+  // Improvement suggestions
+  improvements: jsonb('improvements').$type<Array<{
+    category: string;
+    priority: 'high' | 'medium' | 'low';
+    suggestion: string;
+    impact: number;
+  }>>(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('ai_quality_article_idx').on(table.articleId),
+  overallScoreIdx: index('ai_quality_score_idx').on(table.overallScore),
+  updatedAtIdx: index('ai_quality_updated_at_idx').on(table.updatedAt),
+}));
+
+// Duplicate detection results
+export const duplicate_articles = pgTable('duplicate_articles', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  duplicateOfId: integer('duplicate_of_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+
+  similarityScore: integer('similarity_score').notNull(), // 0-100
+  matchingSections: jsonb('matching_sections').$type<Array<{
+    startOffset: number;
+    endOffset: number;
+    text: string;
+  }>>(),
+
+  status: varchar('status', {
+    enum: ['detected', 'merged', 'redirected', 'dismissed'],
+    length: 20
+  }).notNull().default('detected'),
+
+  mergedIntoId: integer('merged_into_id').references(() => articles.id, { onDelete: 'set null' }),
+  redirectSlug: varchar('redirect_slug', { length: 255 }),
+
+  detectedBy: varchar('detected_by', {
+    enum: ['ai', 'user'],
+    length: 10
+  }).notNull().default('ai'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+}, (table) => ({
+  articleIdx: index('duplicate_article_idx').on(table.articleId),
+  duplicateOfIdx: index('duplicate_of_idx').on(table.duplicateOfId),
+  similarityIdx: index('duplicate_similarity_idx').on(table.similarityScore),
+  statusIdx: index('duplicate_status_idx').on(table.status),
+}));
+
+// AI usage tracking for rate limiting and cost management
+export const ai_usage = pgTable('ai_usage', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+
+  operation: varchar('operation', {
+    enum: ['grammar_check', 'fact_verify', 'quality_score', 'suggestion_generate', 'tone_analyze', 'citation_suggest', 'duplicate_detect'],
+    length: 30
+  }).notNull(),
+
+  articleId: integer('article_id').references(() => articles.id, { onDelete: 'set null' }),
+
+  tokensUsed: integer('tokens_used').notNull(),
+  costCents: integer('cost_cents').notNull(), // Cost in cents
+
+  success: boolean('success').notNull(),
+  errorMessage: text('error_message'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('ai_usage_user_idx').on(table.userId),
+  operationIdx: index('ai_usage_operation_idx').on(table.operation),
+  createdAtIdx: index('ai_usage_created_at_idx').on(table.createdAt),
+}));

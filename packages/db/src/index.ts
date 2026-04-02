@@ -16,4 +16,4 @@ export * from './backup';
 export * from './reading-time';
 
 // Re-export drizzle-orm operators for convenience
-export { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, avg } from 'drizzle-orm';
+export { eq, ne, desc, and, or, like, inArray, sql, count, gte, lte, between, avg } from 'drizzle-orm';
