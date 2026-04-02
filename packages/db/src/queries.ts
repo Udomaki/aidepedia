@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes, saved_searches } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -33,6 +33,9 @@ import type {
   ReportStatus,
   ArticleVote,
   NewArticleVote,
+  SavedSearch,
+  NewSavedSearch,
+  AdvancedSearchParams,
 } from './types';
 import {
   NotFoundError,
@@ -4091,7 +4094,6 @@ export async function getAuditResourceTypes(): Promise<string[]> {
 // System Settings Queries
 // ============================================
 
-import { system_settings } from './schema/index';
 import type { SystemSetting, MaintenanceModeSettings, NewSystemSetting } from './types';
 
 /**
@@ -5798,4 +5800,356 @@ function selectVariant(
 
   // Fallback to first variant
   return variants[0].name;
+}
+
+// ============================================
+// Saved Search Functions
+// ============================================
+
+/**
+ * Create a saved search
+ */
+export async function createSavedSearch(data: {
+  userId: number;
+  name: string;
+  query: string;
+  filters?: SavedSearch['filters'];
+}): Promise<SavedSearch> {
+  try {
+    const [saved] = await db
+      .insert(saved_searches)
+      .values({
+        userId: data.userId,
+        name: data.name,
+        query: data.query,
+        filters: data.filters || null,
+      })
+      .returning();
+
+    return saved;
+  } catch (error) {
+    throw new DatabaseError(`Failed to create saved search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get saved searches for a user
+ */
+export async function getSavedSearches(
+  userId: number,
+  params: { page?: number; limit?: number } = {}
+): Promise<PaginatedResult<SavedSearch>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(saved_searches)
+        .where(eq(saved_searches.userId, userId))
+        .orderBy(desc(saved_searches.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(saved_searches)
+        .where(eq(saved_searches.userId, userId)),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to get saved searches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a single saved search by ID
+ */
+export async function getSavedSearchById(
+  id: number,
+  userId: number
+): Promise<SavedSearch> {
+  try {
+    const [saved] = await db
+      .select()
+      .from(saved_searches)
+      .where(and(eq(saved_searches.id, id), eq(saved_searches.userId, userId)))
+      .limit(1);
+
+    if (!saved) {
+      throw new NotFoundError('SavedSearch', `id:${id}`);
+    }
+
+    return saved;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to get saved search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update a saved search
+ */
+export async function updateSavedSearch(
+  id: number,
+  userId: number,
+  updates: {
+    name?: string;
+    query?: string;
+    filters?: SavedSearch['filters'];
+  }
+): Promise<SavedSearch> {
+  try {
+    const [saved] = await db
+      .update(saved_searches)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(saved_searches.id, id), eq(saved_searches.userId, userId)))
+      .returning();
+
+    if (!saved) {
+      throw new NotFoundError('SavedSearch', `id:${id}`);
+    }
+
+    return saved;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update saved search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a saved search
+ */
+export async function deleteSavedSearch(
+  id: number,
+  userId: number
+): Promise<void> {
+  try {
+    const [deleted] = await db
+      .delete(saved_searches)
+      .where(and(eq(saved_searches.id, id), eq(saved_searches.userId, userId)))
+      .returning();
+
+    if (!deleted) {
+      throw new NotFoundError('SavedSearch', `id:${id}`);
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to delete saved search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ============================================
+// Advanced Search Functions
+// ============================================
+
+/**
+ * Advanced search with PostgreSQL full-text search and relevance ranking
+ */
+export async function advancedSearch(
+  params: AdvancedSearchParams = {}
+): Promise<PaginatedResult<Article & { relevanceScore?: number; highlightedTitle?: string; highlightedContent?: string }>> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const offset = (page - 1) * limit;
+
+    // Build base conditions
+    const conditions = [];
+
+    if (params.status) {
+      conditions.push(eq(articles.status, params.status));
+    }
+
+    if (params.categoryId) {
+      conditions.push(eq(articles.categoryId, params.categoryId));
+    }
+
+    if (params.authorId) {
+      conditions.push(eq(articles.authorId, params.authorId));
+    }
+
+    if (params.tags && params.tags.length > 0) {
+      conditions.push(sql`${articles.tags} && ${params.tags}`);
+    }
+
+    if (params.dateFrom) {
+      conditions.push(gte(articles.createdAt, new Date(params.dateFrom)));
+    }
+
+    if (params.dateTo) {
+      conditions.push(lte(articles.createdAt, new Date(params.dateTo)));
+    }
+
+    // Article length filter (based on reading time)
+    if (params.articleLength) {
+      const lengthRanges = {
+        short: [1, 3],
+        medium: [4, 10],
+        long: [11, 999],
+      };
+      const [min, max] = lengthRanges[params.articleLength];
+      conditions.push(and(gte(articles.readingTime, min), lte(articles.readingTime, max)));
+    }
+
+    if (params.minReadingTime !== undefined) {
+      conditions.push(gte(articles.readingTime, params.minReadingTime));
+    }
+
+    if (params.maxReadingTime !== undefined) {
+      conditions.push(lte(articles.readingTime, params.maxReadingTime));
+    }
+
+    // Vote filters
+    if (params.minVotes !== undefined) {
+      conditions.push(gte(sql`${articles.upvotes} - ${articles.downvotes}`, params.minVotes));
+    }
+
+    if (params.maxVotes !== undefined) {
+      conditions.push(lte(sql`${articles.upvotes} - ${articles.downvotes}`, params.maxVotes));
+    }
+
+    // Predefined vote filters
+    if (params.voteFilter === 'highly_voted') {
+      conditions.push(gte(sql`${articles.upvotes} - ${articles.downvotes}`, 10));
+    } else if (params.voteFilter === 'controversial') {
+      conditions.push(sql`${articles.upvotes} > 5 AND ${articles.downvotes} > 5`);
+    } else if (params.voteFilter === 'new') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      conditions.push(gte(articles.createdAt, weekAgo));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Full-text search with relevance ranking
+    if (params.search && params.useFTS !== false) {
+      const searchQuery = params.search.trim();
+      
+      // Use PostgreSQL full-text search with ranking
+      // Note: Using raw SQL for FTS functionality
+      const ftsQuery = sql`
+        SELECT 
+          a.*,
+          ts_rank_cd(
+            setweight(to_tsvector('english', coalesce(a.title, '')), 'A') ||
+            setweight(to_tsvector('english', coalesce(a.content, '')), 'B'),
+            plainto_tsquery('english', ${searchQuery})
+          ) as relevance_score,
+          ts_headline(
+            'english',
+            a.title,
+            plainto_tsquery('english', ${searchQuery}),
+            'StartSel=<mark>, StopSel=</mark>, MaxWords=10, MinWords=5'
+          ) as highlighted_title,
+          ts_headline(
+            'english',
+            a.content,
+            plainto_tsquery('english', ${searchQuery}),
+            'StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=15'
+          ) as highlighted_content
+        FROM articles a
+        WHERE 
+          ${whereClause || sql.raw('TRUE')}
+          AND (
+            to_tsvector('english', coalesce(a.title, '')) @@ plainto_tsquery('english', ${searchQuery})
+            OR to_tsvector('english', coalesce(a.content, '')) @@ plainto_tsquery('english', ${searchQuery})
+          )
+        ORDER BY relevance_score DESC, a.quality_score DESC, a.created_at DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `;
+
+      const countQuery = sql`
+        SELECT COUNT(*) as total
+        FROM articles a
+        WHERE 
+          ${whereClause || sql.raw('TRUE')}
+          AND (
+            to_tsvector('english', coalesce(a.title, '')) @@ plainto_tsquery('english', ${searchQuery})
+            OR to_tsvector('english', coalesce(a.content, '')) @@ plainto_tsquery('english', ${searchQuery})
+          )
+      `;
+
+      const [results, [{ total }]] = await Promise.all([
+        db.execute(ftsQuery),
+        db.execute(countQuery),
+      ]);
+
+      const data = results.rows.map(row => ({
+        ...row,
+        relevanceScore: Number(row.relevance_score),
+        highlightedTitle: row.highlighted_title,
+        highlightedContent: row.highlighted_content,
+      })) as any[];
+
+      return {
+        data,
+        meta: {
+          total: Number(total),
+          page,
+          limit,
+          totalPages: Math.ceil(Number(total) / limit),
+        },
+      };
+    }
+
+    // Fallback to simple LIKE search if FTS is disabled
+    if (params.search) {
+      conditions.push(
+        or(
+          like(articles.title, `%${params.search}%`),
+          like(articles.content, `%${params.search}%`)
+        )
+      );
+    }
+
+    // Regular search without FTS
+    const finalWhereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select()
+        .from(articles)
+        .where(finalWhereClause)
+        .orderBy(desc(articles.qualityScore), desc(articles.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ total: count() })
+        .from(articles)
+        .where(finalWhereClause),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  } catch (error) {
+    throw new DatabaseError(`Failed to perform advanced search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }

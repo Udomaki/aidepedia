@@ -4,21 +4,21 @@ import { getCategories } from '@aidepedia/db';
 
 export const prerender = false;
 
-// Get categories for filter dropdown
+// Get categories for filters
 const categories = await getCategories();
 ---
 
-<Layout title="Search">
+<Layout title="Advanced Search">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <!-- Search Header -->
     <div class="mb-8">
-      <h1 class="text-4xl font-bold text-gray-900 mb-4">Search Articles</h1>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Advanced Search</h1>
       <p class="text-gray-600">
-        Find articles across AIdepedia. Use filters to narrow down results.
+        Find articles with powerful filters and full-text search. Use facets to narrow down results.
       </p>
     </div>
 
-    <!-- Search Input with Suggestions -->
+    <!-- Main Search Input -->
     <div class="mb-6">
       <label for="search-input" class="block text-sm font-medium text-gray-700 mb-2">
         Search articles
@@ -27,7 +27,7 @@ const categories = await getCategories();
         <input
           type="search"
           id="search-input"
-          placeholder="Search articles..."
+          placeholder="Search by title, content, or tags..."
           class="w-full px-6 py-4 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
           autocomplete="off"
           aria-describedby="search-help"
@@ -35,15 +35,29 @@ const categories = await getCategories();
           aria-autocomplete="list"
         />
         <span id="search-help" class="sr-only">
-          Enter keywords to search for articles. Use filters to narrow results.
+          Enter keywords to search for articles. Advanced filters available below.
         </span>
+        
         <!-- Loading indicator -->
-        <div id="search-loading" class="absolute right-4 top-1/2 transform -translate-y-1/2 hidden">
+        <div id="search-loading" class="absolute right-12 top-1/2 transform -translate-y-1/2 hidden">
           <svg class="animate-spin h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         </div>
+        
+        <!-- Clear button -->
+        <button
+          id="clear-search"
+          type="button"
+          class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden"
+          aria-label="Clear search"
+        >
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        
         <!-- Suggestions dropdown -->
         <div
           id="suggestions"
@@ -54,68 +68,193 @@ const categories = await getCategories();
       </div>
     </div>
 
-    <!-- Filters and Sort Row -->
-    <div class="flex flex-wrap gap-4 mb-8" role="group" aria-label="Search filters">
-      <!-- Category Filter -->
-      <div class="flex-1 min-w-[200px]">
-        <label for="category-filter" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
-        <select
-          id="category-filter"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-          aria-describedby="category-help"
-        >
-          <option value="">All Categories</option>
-          {categories.map(cat => (
-            <option value={cat.slug}>{cat.name}</option>
-          ))}
-        </select>
+    <!-- Advanced Filters Toggle -->
+    <div class="mb-6">
+      <button
+        id="toggle-filters"
+        type="button"
+        class="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+        aria-expanded="false"
+        aria-controls="advanced-filters"
+      >
+        <svg id="filter-icon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+        </svg>
+        Advanced Filters
+      </button>
+    </div>
+
+    <!-- Advanced Filters Panel -->
+    <div id="advanced-filters" class="hidden mb-8 bg-gray-50 rounded-xl p-6 border border-gray-200">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Category Filter -->
+        <div>
+          <label for="category-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Category
+          </label>
+          <select
+            id="category-filter"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="">All Categories</option>
+            {categories.map(cat => (
+              <option value={cat.slug}>{cat.name} ({cat.articleCount || 0})</option>
+            ))}
+          </select>
+        </div>
+
+        <!-- Author Filter -->
+        <div>
+          <label for="author-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Author ID
+          </label>
+          <input
+            type="number"
+            id="author-filter"
+            placeholder="Enter author ID"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+
+        <!-- Date Range Filter -->
+        <div>
+          <label for="date-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Date Range
+          </label>
+          <select
+            id="date-filter"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="">Any Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+
+        <!-- Custom Date Range (hidden by default) -->
+        <div id="custom-date-range" class="hidden md:col-span-2 lg:col-span-3">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="date-from" class="block text-sm font-medium text-gray-700 mb-2">
+                From Date
+              </label>
+              <input
+                type="date"
+                id="date-from"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+            <div>
+              <label for="date-to" class="block text-sm font-medium text-gray-700 mb-2">
+                To Date
+              </label>
+              <input
+                type="date"
+                id="date-to"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Article Length Filter -->
+        <div>
+          <label for="length-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Article Length
+          </label>
+          <select
+            id="length-filter"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="">Any Length</option>
+            <option value="short">Short (1-3 min read)</option>
+            <option value="medium">Medium (4-10 min read)</option>
+            <option value="long">Long (11+ min read)</option>
+          </select>
+        </div>
+
+        <!-- Vote Filter -->
+        <div>
+          <label for="vote-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Vote Status
+          </label>
+          <select
+            id="vote-filter"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="">Any Votes</option>
+            <option value="highly_voted">Highly Voted (10+ votes)</option>
+            <option value="controversial">Controversial</option>
+            <option value="new">New This Week</option>
+          </select>
+        </div>
+
+        <!-- Sort Options -->
+        <div>
+          <label for="sort-filter" class="block text-sm font-medium text-gray-700 mb-2">
+            Sort By
+          </label>
+          <select
+            id="sort-filter"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="relevance">Relevance</option>
+            <option value="date">Date (Newest)</option>
+            <option value="votes">Votes</option>
+            <option value="quality">Quality Score</option>
+          </select>
+        </div>
       </div>
 
-      <!-- Date Range Filter -->
-      <div class="flex-1 min-w-[200px]">
-        <label for="date-filter" class="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-        <select
-          id="date-filter"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-        >
-          <option value="">Any Time</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="year">This Year</option>
-        </select>
-      </div>
-
-      <!-- Sort Options -->
-      <div class="flex-1 min-w-[200px]">
-        <label for="sort-filter" class="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-        <select
-          id="sort-filter"
-          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-        >
-          <option value="relevance">Relevance</option>
-          <option value="date">Date</option>
-          <option value="votes">Votes</option>
-        </select>
-      </div>
-
-      <!-- Clear Filters Button -->
-      <div class="flex items-end">
+      <!-- Filter Actions -->
+      <div class="flex justify-end gap-4 mt-6 pt-6 border-t border-gray-200">
         <button
           id="clear-filters"
           type="button"
           class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-          aria-label="Clear all search filters"
         >
-          Clear Filters
+          Clear All Filters
+        </button>
+        <button
+          id="apply-filters"
+          type="button"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Apply Filters
         </button>
       </div>
+    </div>
+
+    <!-- Saved Searches Section -->
+    <div id="saved-searches-section" class="mb-8 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Saved Searches</h3>
+        <button
+          id="save-current-search"
+          type="button"
+          class="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Save Current Search
+        </button>
+      </div>
+      <div id="saved-searches-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
     <!-- Recent Searches -->
     <div id="recent-searches-container" class="mb-8 hidden">
       <h3 class="text-sm font-medium text-gray-700 mb-3">Recent Searches</h3>
       <div id="recent-searches" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Active Filters Display -->
+    <div id="active-filters" class="mb-6 hidden">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-medium text-gray-700">Active filters:</span>
+        <div id="filter-tags" class="flex flex-wrap gap-2"></div>
+      </div>
     </div>
 
     <!-- Results Container -->
@@ -156,6 +295,42 @@ const categories = await getCategories();
         </ul>
       </div>
     </div>
+
+    <!-- Save Search Modal -->
+    <div id="save-search-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">Save Search</h3>
+        <form id="save-search-form">
+          <div class="mb-4">
+            <label for="search-name" class="block text-sm font-medium text-gray-700 mb-2">
+              Search Name
+            </label>
+            <input
+              type="text"
+              id="search-name"
+              required
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              placeholder="e.g., Machine Learning Articles"
+            />
+          </div>
+          <div class="flex justify-end gap-4">
+            <button
+              type="button"
+              id="cancel-save-search"
+              class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </Layout>
 
@@ -165,40 +340,79 @@ const categories = await getCategories();
   let currentQuery = '';
   let currentPage = 1;
   let abortController: AbortController | null = null;
+  let activeFilters: any = {};
+  let savedSearches: any[] = [];
 
   // DOM Elements
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const searchLoading = document.getElementById('search-loading');
+  const clearSearchBtn = document.getElementById('clear-search');
   const suggestionsDiv = document.getElementById('suggestions');
+  const toggleFiltersBtn = document.getElementById('toggle-filters');
+  const advancedFiltersDiv = document.getElementById('advanced-filters');
+  const filterIcon = document.getElementById('filter-icon');
   const categoryFilter = document.getElementById('category-filter') as HTMLSelectElement;
+  const authorFilter = document.getElementById('author-filter') as HTMLInputElement;
   const dateFilter = document.getElementById('date-filter') as HTMLSelectElement;
+  const customDateRange = document.getElementById('custom-date-range');
+  const dateFrom = document.getElementById('date-from') as HTMLInputElement;
+  const dateTo = document.getElementById('date-to') as HTMLInputElement;
+  const lengthFilter = document.getElementById('length-filter') as HTMLSelectElement;
+  const voteFilter = document.getElementById('vote-filter') as HTMLSelectElement;
   const sortFilter = document.getElementById('sort-filter') as HTMLSelectElement;
   const clearFiltersBtn = document.getElementById('clear-filters');
+  const applyFiltersBtn = document.getElementById('apply-filters');
   const resultsContainer = document.getElementById('results-container');
   const paginationContainer = document.getElementById('pagination-container');
   const paginationDiv = document.getElementById('pagination');
   const noResultsDiv = document.getElementById('no-results');
   const recentSearchesContainer = document.getElementById('recent-searches-container');
   const recentSearchesDiv = document.getElementById('recent-searches');
+  const activeFiltersDiv = document.getElementById('active-filters');
+  const filterTagsDiv = document.getElementById('filter-tags');
+  const savedSearchesSection = document.getElementById('saved-searches-section');
+  const savedSearchesList = document.getElementById('saved-searches-list');
+  const saveCurrentSearchBtn = document.getElementById('save-current-search');
+  const saveSearchModal = document.getElementById('save-search-modal');
+  const saveSearchForm = document.getElementById('save-search-form') as HTMLFormElement;
+  const cancelSaveSearchBtn = document.getElementById('cancel-save-search');
+  const searchNameInput = document.getElementById('search-name') as HTMLInputElement;
 
   // Initialize from URL params
   function initFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const query = params.get('q') || '';
     const category = params.get('category') || '';
+    const author = params.get('authorId') || '';
+    const date = params.get('dateFrom') || '';
+    const length = params.get('articleLength') || '';
+    const votes = params.get('voteFilter') || '';
     const sort = params.get('sort') || 'relevance';
     const page = params.get('page') || '1';
 
     searchInput.value = query;
     categoryFilter.value = category;
+    authorFilter.value = author;
+    dateFilter.value = date;
+    lengthFilter.value = length;
+    voteFilter.value = votes;
     sortFilter.value = sort;
     currentPage = parseInt(page, 10);
 
-    if (query) {
+    // Build active filters
+    if (category) activeFilters.category = category;
+    if (author) activeFilters.authorId = author;
+    if (date) activeFilters.dateFrom = date;
+    if (length) activeFilters.articleLength = length;
+    if (votes) activeFilters.voteFilter = votes;
+
+    if (query || Object.keys(activeFilters).length > 0) {
       performSearch();
     }
     
     loadRecentSearches();
+    loadSavedSearches();
+    updateActiveFiltersDisplay();
   }
 
   // Update URL params
@@ -207,12 +421,38 @@ const categories = await getCategories();
     
     if (currentQuery) params.set('q', currentQuery);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
+    if (authorFilter.value) params.set('authorId', authorFilter.value);
+    if (dateFilter.value) params.set('dateFrom', dateFilter.value);
+    if (lengthFilter.value) params.set('articleLength', lengthFilter.value);
+    if (voteFilter.value) params.set('voteFilter', voteFilter.value);
     if (sortFilter.value !== 'relevance') params.set('sort', sortFilter.value);
     if (currentPage > 1) params.set('page', currentPage.toString());
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState({}, '', newUrl);
   }
+
+  // Toggle advanced filters
+  toggleFiltersBtn!.addEventListener('click', () => {
+    const isHidden = advancedFiltersDiv!.classList.contains('hidden');
+    advancedFiltersDiv!.classList.toggle('hidden');
+    toggleFiltersBtn!.setAttribute('aria-expanded', String(isHidden));
+    
+    if (isHidden) {
+      filterIcon!.style.transform = 'rotate(180deg)';
+    } else {
+      filterIcon!.style.transform = 'rotate(0deg)';
+    }
+  });
+
+  // Show/hide custom date range
+  dateFilter.addEventListener('change', () => {
+    if (dateFilter.value === 'custom') {
+      customDateRange!.classList.remove('hidden');
+    } else {
+      customDateRange!.classList.add('hidden');
+    }
+  });
 
   // Debounced search
   function debounceSearch() {
@@ -224,18 +464,16 @@ const categories = await getCategories();
     }, 300);
   }
 
-  // Perform search
+  // Perform advanced search
   async function performSearch() {
     const query = searchInput.value.trim();
     currentQuery = query;
 
-    if (!query) {
-      resultsContainer!.innerHTML = '';
-      paginationContainer!.classList.add('hidden');
-      noResultsDiv!.classList.add('hidden');
-      suggestionsDiv!.classList.add('hidden');
-      updateUrl();
-      return;
+    // Show/hide clear button
+    if (query) {
+      clearSearchBtn!.classList.remove('hidden');
+    } else {
+      clearSearchBtn!.classList.add('hidden');
     }
 
     // Cancel previous request
@@ -254,15 +492,26 @@ const categories = await getCategories();
       params.set('q', query);
       params.set('page', currentPage.toString());
       if (categoryFilter.value) params.set('category', categoryFilter.value);
+      if (authorFilter.value) params.set('authorId', authorFilter.value);
+      if (dateFilter.value && dateFilter.value !== 'custom') {
+        params.set('dateFrom', dateFilter.value);
+      } else if (dateFilter.value === 'custom') {
+        if (dateFrom.value) params.set('dateFrom', dateFrom.value);
+        if (dateTo.value) params.set('dateTo', dateTo.value);
+      }
+      if (lengthFilter.value) params.set('articleLength', lengthFilter.value);
+      if (voteFilter.value) params.set('voteFilter', voteFilter.value);
+      if (sortFilter.value) params.set('sortBy', sortFilter.value);
 
-      const response = await fetch(`/api/v1/search?${params.toString()}`, {
+      const response = await fetch(`/api/v1/search/advanced?${params.toString()}`, {
         signal: abortController.signal
       });
       const data = await response.json();
 
       if (data.success) {
         displayResults(data.data, data.meta);
-        saveRecentSearch(query);
+        if (query) saveRecentSearch(query);
+        updateActiveFiltersDisplay();
       } else {
         showError(data.error?.message || 'Search failed');
       }
@@ -280,7 +529,7 @@ const categories = await getCategories();
 
   // Display search results
   function displayResults(data: any, meta: any) {
-    const { results, query } = data;
+    const { results, facets } = data;
     const { total, page, totalPages } = meta;
 
     if (results.length === 0) {
@@ -292,11 +541,13 @@ const categories = await getCategories();
 
     noResultsDiv!.classList.add('hidden');
 
-    // Sort results based on sort filter
-    const sortedResults = sortResults([...results], sortFilter.value);
-
     // Display results
-    resultsContainer!.innerHTML = sortedResults.map((article: any) => createArticleCard(article, query)).join('');
+    resultsContainer!.innerHTML = `
+      <div class="mb-4 text-sm text-gray-600">
+        Found ${total.toLocaleString()} result${total !== 1 ? 's' : ''}
+      </div>
+      ${results.map((article: any) => createArticleCard(article, currentQuery)).join('')}
+    `;
     
     // Display pagination
     if (totalPages > 1) {
@@ -304,21 +555,6 @@ const categories = await getCategories();
       paginationContainer!.classList.remove('hidden');
     } else {
       paginationContainer!.classList.add('hidden');
-    }
-  }
-
-  // Sort results
-  function sortResults(results: any[], sortBy: string) {
-    switch (sortBy) {
-      case 'date':
-        return results.sort((a, b) => 
-          new Date(b.publishedAt || b.createdAt).getTime() - 
-          new Date(a.publishedAt || a.createdAt).getTime()
-        );
-      case 'votes':
-        return results.sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes));
-      default:
-        return results; // Relevance (API order)
     }
   }
 
@@ -331,6 +567,9 @@ const categories = await getCategories();
       day: 'numeric'
     });
 
+    const title = article.highlightedTitle || article.title;
+    const excerpt = article.highlightedContent || article.excerpt;
+
     return `
       <article class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow mb-6" role="article">
         <div class="flex items-start justify-between gap-6">
@@ -342,7 +581,7 @@ const categories = await getCategories();
                 </span>
               ` : ''}
               ${article.tags && article.tags.length > 0 ? `
-                <div class="flex gap-1" aria-label="Tags">
+                <div class="flex gap-1 flex-wrap" aria-label="Tags">
                   ${article.tags.slice(0, 3).map((tag: string) => `
                     <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
                       #${tag}
@@ -354,17 +593,17 @@ const categories = await getCategories();
 
             <a href="/articles/${article.slug}" class="group" aria-label="Read article: ${article.title}">
               <h2 class="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-2">
-                ${highlightText(article.title, query)}
+                ${title}
               </h2>
             </a>
 
-            ${article.excerpt ? `
+            ${excerpt ? `
               <p class="text-gray-600 mb-4 line-clamp-2">
-                ${highlightText(article.excerpt, query)}
+                ${excerpt}
               </p>
             ` : ''}
 
-            <div class="flex items-center gap-4 text-sm text-gray-500" aria-label="Article statistics">
+            <div class="flex items-center gap-4 text-sm text-gray-500 flex-wrap" aria-label="Article statistics">
               <span>
                 Quality Score: <strong class="text-gray-700">${article.qualityScore || 0}</strong>
               </span>
@@ -375,6 +614,10 @@ const categories = await getCategories();
               <span aria-hidden="true">•</span>
               <span>
                 ${article.viewCount || 0} views
+              </span>
+              <span aria-hidden="true">•</span>
+              <span>
+                ${article.readingTime || 1} min read
               </span>
               <span aria-hidden="true">•</span>
               <time datetime="${dateToShow}">
@@ -401,33 +644,82 @@ const categories = await getCategories();
     `;
   }
 
-  // Highlight matching text
-  function highlightText(text: string, query: string) {
-    if (!query) return text;
+  // Update active filters display
+  function updateActiveFiltersDisplay() {
+    const filters = [];
     
-    const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
-    return text.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
+    if (categoryFilter.value) {
+      const option = categoryFilter.options[categoryFilter.selectedIndex];
+      filters.push({ key: 'category', label: `Category: ${option.text}` });
+    }
+    if (authorFilter.value) {
+      filters.push({ key: 'authorId', label: `Author ID: ${authorFilter.value}` });
+    }
+    if (dateFilter.value) {
+      const option = dateFilter.options[dateFilter.selectedIndex];
+      filters.push({ key: 'dateFrom', label: `Date: ${option.text}` });
+    }
+    if (lengthFilter.value) {
+      const option = lengthFilter.options[lengthFilter.selectedIndex];
+      filters.push({ key: 'articleLength', label: `Length: ${option.text}` });
+    }
+    if (voteFilter.value) {
+      const option = voteFilter.options[voteFilter.selectedIndex];
+      filters.push({ key: 'voteFilter', label: `Votes: ${option.text}` });
+    }
+
+    if (filters.length > 0) {
+      activeFiltersDiv!.classList.remove('hidden');
+      filterTagsDiv!.innerHTML = filters.map(f => `
+        <button
+          class="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+          onclick="removeFilter('${f.key}')"
+          aria-label="Remove filter: ${f.label}"
+        >
+          ${f.label}
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      `).join('');
+    } else {
+      activeFiltersDiv!.classList.add('hidden');
+    }
   }
 
-  // Escape regex special characters
-  function escapeRegex(string: string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
+  // Remove individual filter
+  (window as any).removeFilter = (key: string) => {
+    switch (key) {
+      case 'category':
+        categoryFilter.value = '';
+        break;
+      case 'authorId':
+        authorFilter.value = '';
+        break;
+      case 'dateFrom':
+        dateFilter.value = '';
+        customDateRange!.classList.add('hidden');
+        break;
+      case 'articleLength':
+        lengthFilter.value = '';
+        break;
+      case 'voteFilter':
+        voteFilter.value = '';
+        break;
+    }
+    currentPage = 1;
+    performSearch();
+  };
 
   // Display pagination
   function displayPagination(currentPage: number, totalPages: number) {
     const pages: (number | string)[] = [];
 
-    // Always show first page
     pages.push(1);
-
-    // Show pages around current
     for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
       if (pages[pages.length - 1] !== i - 1) pages.push('...');
       pages.push(i);
     }
-
-    // Always show last page
     if (totalPages > 1) {
       if (pages[pages.length - 1] !== totalPages - 1) pages.push('...');
       pages.push(totalPages);
@@ -493,16 +785,9 @@ const categories = await getCategories();
 
   function saveRecentSearch(query: string) {
     let recent = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    
-    // Remove if already exists
     recent = recent.filter((s: string) => s !== query);
-    
-    // Add to beginning
     recent.unshift(query);
-    
-    // Keep only last 5
     recent = recent.slice(0, 5);
-    
     localStorage.setItem('recentSearches', JSON.stringify(recent));
     loadRecentSearches();
   }
@@ -513,6 +798,142 @@ const categories = await getCategories();
     currentPage = 1;
     performSearch();
   };
+
+  // Saved searches management
+  async function loadSavedSearches() {
+    try {
+      const response = await fetch('/api/v1/search/saved');
+      const data = await response.json();
+      
+      if (data.success && data.data.length > 0) {
+        savedSearches = data.data;
+        savedSearchesSection!.classList.remove('hidden');
+        renderSavedSearches();
+      } else {
+        savedSearchesSection!.classList.add('hidden');
+      }
+    } catch (error) {
+      console.error('Error loading saved searches:', error);
+    }
+  }
+
+  function renderSavedSearches() {
+    savedSearchesList!.innerHTML = savedSearches.map((search: any) => `
+      <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between mb-2">
+          <h4 class="font-semibold text-gray-900">${search.name}</h4>
+          <button
+            onclick="deleteSavedSearch(${search.id})"
+            class="text-red-500 hover:text-red-700"
+            aria-label="Delete saved search"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-600 mb-3">"${search.query}"</p>
+        <button
+          onclick="applySavedSearch(${search.id})"
+          class="text-sm text-blue-600 hover:text-blue-700 font-medium"
+        >
+          Apply Search →
+        </button>
+      </div>
+    `).join('');
+  }
+
+  (window as any).applySavedSearch = (id: number) => {
+    const search = savedSearches.find((s: any) => s.id === id);
+    if (search) {
+      searchInput.value = search.query;
+      currentQuery = search.query;
+      
+      // Apply filters
+      if (search.filters) {
+        if (search.filters.category) categoryFilter.value = search.filters.category;
+        if (search.filters.authorId) authorFilter.value = search.filters.authorId.toString();
+        if (search.filters.dateFrom) dateFilter.value = search.filters.dateFrom;
+        if (search.filters.articleLength) lengthFilter.value = search.filters.articleLength;
+        if (search.filters.voteFilter) voteFilter.value = search.filters.voteFilter;
+      }
+      
+      currentPage = 1;
+      performSearch();
+    }
+  };
+
+  (window as any).deleteSavedSearch = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this saved search?')) return;
+    
+    try {
+      await fetch(`/api/v1/search/saved/${id}`, { method: 'DELETE' });
+      savedSearches = savedSearches.filter((s: any) => s.id !== id);
+      renderSavedSearches();
+      
+      if (savedSearches.length === 0) {
+        savedSearchesSection!.classList.add('hidden');
+      }
+    } catch (error) {
+      console.error('Error deleting saved search:', error);
+      alert('Failed to delete saved search');
+    }
+  };
+
+  // Save current search
+  saveCurrentSearchBtn!.addEventListener('click', () => {
+    if (!currentQuery && Object.keys(activeFilters).length === 0) {
+      alert('Please perform a search first');
+      return;
+    }
+    saveSearchModal!.classList.remove('hidden');
+    searchNameInput.value = currentQuery;
+    searchNameInput.focus();
+  });
+
+  cancelSaveSearchBtn!.addEventListener('click', () => {
+    saveSearchModal!.classList.add('hidden');
+  });
+
+  saveSearchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const name = searchNameInput.value.trim();
+    if (!name) return;
+
+    try {
+      const response = await fetch('/api/v1/search/saved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          query: currentQuery,
+          filters: {
+            category: categoryFilter.value || undefined,
+            authorId: authorFilter.value ? parseInt(authorFilter.value) : undefined,
+            dateFrom: dateFilter.value || undefined,
+            articleLength: lengthFilter.value || undefined,
+            voteFilter: voteFilter.value || undefined,
+          },
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        savedSearches.push(data.data);
+        savedSearchesSection!.classList.remove('hidden');
+        renderSavedSearches();
+        saveSearchModal!.classList.add('hidden');
+        searchNameInput.value = '';
+      } else {
+        alert('Failed to save search');
+      }
+    } catch (error) {
+      console.error('Error saving search:', error);
+      alert('Failed to save search');
+    }
+  });
 
   // Live suggestions
   async function showSuggestions(query: string) {
@@ -528,18 +949,16 @@ const categories = await getCategories();
       if (data.success && data.data.results.length > 0) {
         suggestionsDiv!.innerHTML = `
           <ul class="divide-y divide-gray-200" role="listbox">
-            ${data.data.results.map((article: any, index: number) => `
+            ${data.data.results.map((article: any) => `
               <li role="option" aria-selected="false">
                 <a
                   href="/articles/${article.slug}"
                   class="block px-4 py-3 hover:bg-gray-50 transition-colors"
-                  role="option"
                   tabindex="0"
-                  aria-label="${article.title}"
                 >
-                  <div class="font-medium text-gray-900">${highlightText(article.title, query)}</div>
+                  <div class="font-medium text-gray-900">${article.title}</div>
                   ${article.excerpt ? `
-                    <div class="text-sm text-gray-500 truncate">${highlightText(article.excerpt, query)}</div>
+                    <div class="text-sm text-gray-500 truncate">${article.excerpt}</div>
                   ` : ''}
                 </a>
               </li>
@@ -559,14 +978,12 @@ const categories = await getCategories();
   searchInput.addEventListener('input', (e) => {
     const query = (e.target as HTMLInputElement).value.trim();
     
-    // Show suggestions immediately
     if (query.length >= 2) {
       showSuggestions(query);
     } else {
       suggestionsDiv!.classList.add('hidden');
     }
     
-    // Debounced search
     debounceSearch();
   });
 
@@ -579,6 +996,14 @@ const categories = await getCategories();
     }
   });
 
+  clearSearchBtn!.addEventListener('click', () => {
+    searchInput.value = '';
+    currentQuery = '';
+    currentPage = 1;
+    clearSearchBtn!.classList.add('hidden');
+    performSearch();
+  });
+
   // Close suggestions when clicking outside
   document.addEventListener('click', (e) => {
     if (!searchInput.contains(e.target as Node) && !suggestionsDiv!.contains(e.target as Node)) {
@@ -586,35 +1011,34 @@ const categories = await getCategories();
     }
   });
 
-  categoryFilter.addEventListener('change', () => {
-    currentPage = 1;
-    if (currentQuery) performSearch();
-    updateUrl();
+  // Close modal when clicking outside
+  saveSearchModal!.addEventListener('click', (e) => {
+    if (e.target === saveSearchModal) {
+      saveSearchModal!.classList.add('hidden');
+    }
   });
 
-  sortFilter.addEventListener('change', () => {
+  applyFiltersBtn!.addEventListener('click', () => {
     currentPage = 1;
-    if (currentQuery) performSearch();
-    updateUrl();
-  });
-
-  dateFilter.addEventListener('change', () => {
-    currentPage = 1;
-    if (currentQuery) performSearch();
-    updateUrl();
+    performSearch();
   });
 
   clearFiltersBtn!.addEventListener('click', () => {
     searchInput.value = '';
     categoryFilter.value = '';
+    authorFilter.value = '';
     dateFilter.value = '';
+    lengthFilter.value = '';
+    voteFilter.value = '';
     sortFilter.value = 'relevance';
+    customDateRange!.classList.add('hidden');
     currentQuery = '';
     currentPage = 1;
     resultsContainer!.innerHTML = '';
     paginationContainer!.classList.add('hidden');
     noResultsDiv!.classList.add('hidden');
     suggestionsDiv!.classList.add('hidden');
+    activeFiltersDiv!.classList.add('hidden');
     updateUrl();
   });
 
@@ -628,5 +1052,12 @@ const categories = await getCategories();
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  
+  mark {
+    background-color: #fef08a;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
   }
 </style>
