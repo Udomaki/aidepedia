@@ -621,3 +621,127 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// Moderator roles and permissions
+export const moderator_roles = pgTable('moderator_roles', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: varchar('role', {
+    enum: ['junior', 'senior', 'admin'],
+    length: 20
+  }).notNull(),
+  permissions: jsonb('permissions').notNull().$type<Array<string>>().default([]),
+  assignedBy: integer('assigned_by').references(() => users.id, { onDelete: 'set null' }),
+  assignedAt: timestamp('assigned_at').defaultNow(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('moderator_role_user_idx').on(table.userId),
+  roleIdx: index('moderator_role_role_idx').on(table.role),
+  activeIdx: index('moderator_role_active_idx').on(table.isActive),
+}));
+
+// Moderation flags for content
+export const moderation_flags = pgTable('moderation_flags', {
+  id: serial('id').primaryKey(),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment', 'user_profile'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  flaggedBy: integer('flagged_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: varchar('reason', {
+    enum: ['inappropriate', 'inaccurate', 'spam', 'harassment', 'misinformation', 'copyright', 'other'],
+    length: 20
+  }).notNull(),
+  description: text('description'),
+  severity: varchar('severity', {
+    enum: ['low', 'medium', 'high', 'critical'],
+    length: 10
+  }).notNull().default('medium'),
+  status: varchar('status', {
+    enum: ['pending', 'under_review', 'approved', 'rejected', 'escalated'],
+    length: 20
+  }).notNull().default('pending'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  resolution: text('resolution'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  contentTypeIdx: index('moderation_flag_content_type_idx').on(table.contentType),
+  contentIdIdx: index('moderation_flag_content_id_idx').on(table.contentId),
+  flaggedByIdx: index('moderation_flag_flagged_by_idx').on(table.flaggedBy),
+  statusIdx: index('moderation_flag_status_idx').on(table.status),
+  severityIdx: index('moderation_flag_severity_idx').on(table.severity),
+  createdAtIdx: index('moderation_flag_created_at_idx').on(table.createdAt),
+}));
+
+// Moderation actions against users
+export const moderation_actions = pgTable('moderation_actions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  actionType: varchar('action_type', {
+    enum: ['warn', 'restrict_editing', 'temp_ban', 'perm_ban'],
+    length: 20
+  }).notNull(),
+  reason: text('reason').notNull(),
+  relatedFlagId: integer('related_flag_id').references(() => moderation_flags.id, { onDelete: 'set null' }),
+  moderatorId: integer('moderator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  duration: integer('duration'), // Duration in hours for temporary actions
+  expiresAt: timestamp('expires_at'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('moderation_action_user_idx').on(table.userId),
+  actionTypeIdx: index('moderation_action_type_idx').on(table.actionType),
+  moderatorIdx: index('moderation_action_moderator_idx').on(table.moderatorId),
+  activeIdx: index('moderation_action_active_idx').on(table.isActive),
+  createdAtIdx: index('moderation_action_created_at_idx').on(table.createdAt),
+}));
+
+// Appeals for moderation decisions
+export const moderation_appeals = pgTable('moderation_appeals', {
+  id: serial('id').primaryKey(),
+  actionId: integer('action_id').notNull().references(() => moderation_actions.id, { onDelete: 'cascade' }),
+  appellantId: integer('appellant_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  evidence: text('evidence'), // Links, screenshots, etc.
+  status: varchar('status', {
+    enum: ['pending', 'under_review', 'approved', 'rejected'],
+    length: 20
+  }).notNull().default('pending'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  resolution: text('resolution'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  actionIdx: index('moderation_appeal_action_idx').on(table.actionId),
+  appellantIdx: index('moderation_appeal_appellant_idx').on(table.appellantId),
+  statusIdx: index('moderation_appeal_status_idx').on(table.status),
+  createdAtIdx: index('moderation_appeal_created_at_idx').on(table.createdAt),
+}));
+
+// Moderation audit log
+export const moderation_audit_log = pgTable('moderation_audit_log', {
+  id: serial('id').primaryKey(),
+  moderatorId: integer('moderator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 100 }).notNull(),
+  resourceType: varchar('resource_type', {
+    enum: ['flag', 'user', 'appeal', 'article', 'comment'],
+    length: 20
+  }).notNull(),
+  resourceId: integer('resource_id'),
+  details: jsonb('details').$type<Record<string, unknown>>(),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  moderatorIdx: index('moderation_audit_moderator_idx').on(table.moderatorId),
+  actionIdx: index('moderation_audit_action_idx').on(table.action),
+  resourceTypeIdx: index('moderation_audit_resource_type_idx').on(table.resourceType),
+  createdAtIdx: index('moderation_audit_created_at_idx').on(table.createdAt),
+}));

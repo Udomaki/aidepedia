@@ -420,3 +420,182 @@ export interface ArticleDraftWithArticle extends ArticleDraft {
     excerpt: string | null;
   } | null;
 }
+
+// Moderation types
+export type ModeratorRole = 'junior' | 'senior' | 'admin';
+export type ModerationFlagReason = 'inappropriate' | 'inaccurate' | 'spam' | 'harassment' | 'misinformation' | 'copyright' | 'other';
+export type ModerationFlagSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type ModerationFlagStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'escalated';
+export type ModerationActionType = 'warn' | 'restrict_editing' | 'temp_ban' | 'perm_ban';
+export type AppealStatus = 'pending' | 'under_review' | 'approved' | 'rejected';
+
+export interface ModeratorRoleRecord {
+  id: number;
+  userId: number;
+  role: ModeratorRole;
+  permissions: string[];
+  assignedBy: number | null;
+  assignedAt: Date | null;
+  isActive: boolean | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface NewModeratorRole {
+  userId: number;
+  role: ModeratorRole;
+  permissions?: string[];
+  assignedBy?: number | null;
+}
+
+export interface ModerationFlag {
+  id: number;
+  contentType: 'article' | 'comment' | 'user_profile';
+  contentId: number;
+  flaggedBy: number;
+  reason: ModerationFlagReason;
+  description: string | null;
+  severity: ModerationFlagSeverity;
+  status: ModerationFlagStatus;
+  reviewedBy: number | null;
+  reviewedAt: Date | null;
+  resolution: string | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface NewModerationFlag {
+  contentType: 'article' | 'comment' | 'user_profile';
+  contentId: number;
+  flaggedBy: number;
+  reason: ModerationFlagReason;
+  description?: string | null;
+  severity?: ModerationFlagSeverity;
+}
+
+export interface ModerationFlagWithDetails extends ModerationFlag {
+  flagger: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+  reviewer?: {
+    id: number;
+    name: string | null;
+  } | null;
+  content?: {
+    type: 'article' | 'comment' | 'user_profile';
+    id: number;
+    title?: string | null;
+    excerpt?: string | null;
+  };
+}
+
+export interface ModerationFlagQueryParams extends PaginationParams {
+  status?: ModerationFlagStatus;
+  severity?: ModerationFlagSeverity;
+  reason?: ModerationFlagReason;
+  contentType?: 'article' | 'comment' | 'user_profile';
+  flaggedBy?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface ModerationAction {
+  id: number;
+  userId: number;
+  actionType: ModerationActionType;
+  reason: string;
+  relatedFlagId: number | null;
+  moderatorId: number;
+  duration: number | null;
+  expiresAt: Date | null;
+  isActive: boolean | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface NewModerationAction {
+  userId: number;
+  actionType: ModerationActionType;
+  reason: string;
+  relatedFlagId?: number | null;
+  moderatorId: number;
+  duration?: number | null;
+  expiresAt?: Date | null;
+}
+
+export interface ModerationActionWithDetails extends ModerationAction {
+  user: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+  moderator: {
+    id: number;
+    name: string | null;
+  };
+  relatedFlag?: ModerationFlag | null;
+}
+
+export interface ModerationAppeal {
+  id: number;
+  actionId: number;
+  appellantId: number;
+  reason: string;
+  evidence: string | null;
+  status: AppealStatus;
+  reviewedBy: number | null;
+  reviewedAt: Date | null;
+  resolution: string | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface NewModerationAppeal {
+  actionId: number;
+  appellantId: number;
+  reason: string;
+  evidence?: string | null;
+}
+
+export interface ModerationAppealWithDetails extends ModerationAppeal {
+  appellant: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+  reviewer?: {
+    id: number;
+    name: string | null;
+  } | null;
+  action: ModerationActionWithDetails;
+}
+
+export interface ModerationAuditLog {
+  id: number;
+  moderatorId: number;
+  action: string;
+  resourceType: 'flag' | 'user' | 'appeal' | 'article' | 'comment';
+  resourceId: number | null;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: Date | null;
+}
+
+export interface ModerationAuditLogWithModerator extends ModerationAuditLog {
+  moderator: {
+    id: number;
+    name: string | null;
+    email: string;
+  };
+}
+
+export interface ModerationAuditLogQueryParams extends PaginationParams {
+  moderatorId?: number;
+  action?: string;
+  resourceType?: 'flag' | 'user' | 'appeal' | 'article' | 'comment';
+  dateFrom?: string;
+  dateTo?: string;
+}

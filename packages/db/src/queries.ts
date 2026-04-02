@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes, moderator_roles, moderation_flags, moderation_actions, moderation_appeals, moderation_audit_log } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -8,6 +8,7 @@ import type {
   NewArticleRevision,
   ArticleQueryParams,
   PaginatedResult,
+  PaginationParams,
   Category,
   NewCategory,
   Editor,
@@ -33,6 +34,22 @@ import type {
   ReportStatus,
   ArticleVote,
   NewArticleVote,
+  ModeratorRoleRecord,
+  NewModeratorRole,
+  ModerationFlag,
+  NewModerationFlag,
+  ModerationFlagWithDetails,
+  ModerationFlagQueryParams,
+  ModerationAction,
+  NewModerationAction,
+  ModerationActionWithDetails,
+  ModerationAppeal,
+  NewModerationAppeal,
+  ModerationAppealWithDetails,
+  ModerationAuditLog,
+  ModerationAuditLogWithModerator,
+  ModerationAuditLogQueryParams,
+  AppealStatus,
 } from './types';
 import {
   NotFoundError,
@@ -5798,4 +5815,527 @@ function selectVariant(
 
   // Fallback to first variant
   return variants[0].name;
+}
+
+// ========================================
+// MODERATION FUNCTIONS
+// ========================================
+
+/**
+ * Get moderator role for a user
+ */
+export async function getModeratorRole(userId: number): Promise<ModeratorRoleRecord | null> {
+  const [role] = await db
+    .select()
+    .from(moderator_roles)
+    .where(and(
+      eq(moderator_roles.userId, userId),
+      eq(moderator_roles.isActive, true)
+    ))
+    .limit(1);
+
+  return role || null;
+}
+
+/**
+ * Assign moderator role to user
+ */
+export async function assignModeratorRole(
+  params: NewModeratorRole & { assignedBy: number }
+): Promise<ModeratorRoleRecord> {
+  const [role] = await db
+    .insert(moderator_roles)
+    .values({
+      ...params,
+      assignedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return role;
+}
+
+/**
+ * Update moderator role
+ */
+export async function updateModeratorRole(
+  userId: number,
+  updates: Partial<Pick<ModeratorRoleRecord, 'role' | 'permissions' | 'isActive'>>
+): Promise<ModeratorRoleRecord> {
+  const [role] = await db
+    .update(moderator_roles)
+    .set({
+      ...updates,
+      updatedAt: new Date(),
+    })
+    .where(eq(moderator_roles.userId, userId))
+    .returning();
+
+  if (!role) {
+    throw new NotFoundError('Moderator role', `userId:${userId}`);
+  }
+
+  return role;
+}
+
+/**
+ * Flag content for moderation
+ */
+export async function flagContent(params: NewModerationFlag): Promise<ModerationFlag> {
+  const [flag] = await db
+    .insert(moderation_flags)
+    .values({
+      ...params,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return flag;
+}
+
+/**
+ * Get moderation flags with filtering and pagination
+ */
+export async function getModerationFlags(
+  params: ModerationFlagQueryParams = {}
+): Promise<PaginatedResult<ModerationFlagWithDetails>> {
+  const {
+    status,
+    severity,
+    reason,
+    contentType,
+    flaggedBy,
+    dateFrom,
+    dateTo,
+    page = 1,
+    limit = 20,
+  } = params;
+
+  const offset = (page - 1) * limit;
+  const conditions = [];
+
+  if (status) conditions.push(eq(moderation_flags.status, status));
+  if (severity) conditions.push(eq(moderation_flags.severity, severity));
+  if (reason) conditions.push(eq(moderation_flags.reason, reason));
+  if (contentType) conditions.push(eq(moderation_flags.contentType, contentType));
+  if (flaggedBy) conditions.push(eq(moderation_flags.flaggedBy, flaggedBy));
+  if (dateFrom) conditions.push(gte(moderation_flags.createdAt, new Date(dateFrom)));
+  if (dateTo) conditions.push(lte(moderation_flags.createdAt, new Date(dateTo)));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(moderation_flags)
+    .where(whereClause);
+
+  // Get flags with details
+  const flags = await db
+    .select()
+    .from(moderation_flags)
+    .where(whereClause)
+    .orderBy(desc(moderation_flags.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Get flagger details for each flag
+  const flagsWithDetails = await Promise.all(
+    flags.map(async (flag) => {
+      const [flagger] = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, flag.flaggedBy))
+        .limit(1);
+
+      let reviewer = null;
+      if (flag.reviewedBy) {
+        [reviewer] = await db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(eq(users.id, flag.reviewedBy))
+          .limit(1);
+      }
+
+      let content = undefined;
+      if (flag.contentType === 'article') {
+        const [article] = await db
+          .select({ id: articles.id, title: articles.title, excerpt: articles.excerpt })
+          .from(articles)
+          .where(eq(articles.id, flag.contentId))
+          .limit(1);
+        if (article) {
+          content = { type: 'article' as const, ...article };
+        }
+      }
+
+      return {
+        ...flag,
+        flagger: flagger!,
+        reviewer,
+        content,
+      };
+    })
+  );
+
+  return {
+    data: flagsWithDetails,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+/**
+ * Review a moderation flag
+ */
+export async function reviewModerationFlag(
+  flagId: number,
+  reviewerId: number,
+  status: 'approved' | 'rejected' | 'escalated',
+  resolution?: string
+): Promise<ModerationFlag> {
+  const [flag] = await db
+    .update(moderation_flags)
+    .set({
+      status,
+      reviewedBy: reviewerId,
+      reviewedAt: new Date(),
+      resolution,
+      updatedAt: new Date(),
+    })
+    .where(eq(moderation_flags.id, flagId))
+    .returning();
+
+  if (!flag) {
+    throw new NotFoundError('Moderation flag', `id:${flagId}`);
+  }
+
+  return flag;
+}
+
+/**
+ * Take moderation action against a user
+ */
+export async function takeModerationAction(
+  params: NewModerationAction
+): Promise<ModerationAction> {
+  const [action] = await db
+    .insert(moderation_actions)
+    .values({
+      ...params,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return action;
+}
+
+/**
+ * Get moderation actions for a user
+ */
+export async function getUserModerationActions(
+  userId: number
+): Promise<ModerationActionWithDetails[]> {
+  const actions = await db
+    .select()
+    .from(moderation_actions)
+    .where(eq(moderation_actions.userId, userId))
+    .orderBy(desc(moderation_actions.createdAt));
+
+  const actionsWithDetails = await Promise.all(
+    actions.map(async (action) => {
+      const [user] = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, action.userId))
+        .limit(1);
+
+      const [moderator] = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(eq(users.id, action.moderatorId))
+        .limit(1);
+
+      let relatedFlag = null;
+      if (action.relatedFlagId) {
+        const [flag] = await db
+          .select()
+          .from(moderation_flags)
+          .where(eq(moderation_flags.id, action.relatedFlagId))
+          .limit(1);
+        relatedFlag = flag || null;
+      }
+
+      return {
+        ...action,
+        user: user!,
+        moderator: moderator!,
+        relatedFlag,
+      };
+    })
+  );
+
+  return actionsWithDetails;
+}
+
+/**
+ * Deactivate expired moderation actions
+ */
+export async function deactivateExpiredActions(): Promise<void> {
+  await db
+    .update(moderation_actions)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(and(
+      eq(moderation_actions.isActive, true),
+      lte(moderation_actions.expiresAt, new Date())
+    ));
+}
+
+/**
+ * Create an appeal
+ */
+export async function createAppeal(params: NewModerationAppeal): Promise<ModerationAppeal> {
+  const [appeal] = await db
+    .insert(moderation_appeals)
+    .values({
+      ...params,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return appeal;
+}
+
+/**
+ * Get appeals with filtering and pagination
+ */
+export async function getAppeals(
+  params: PaginationParams & { status?: AppealStatus } = {}
+): Promise<PaginatedResult<ModerationAppealWithDetails>> {
+  const { status, page = 1, limit = 20 } = params;
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (status) conditions.push(eq(moderation_appeals.status, status));
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(moderation_appeals)
+    .where(whereClause);
+
+  // Get appeals
+  const appeals = await db
+    .select()
+    .from(moderation_appeals)
+    .where(whereClause)
+    .orderBy(desc(moderation_appeals.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Get details for each appeal
+  const appealsWithDetails = await Promise.all(
+    appeals.map(async (appeal) => {
+      const [appellant] = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, appeal.appellantId))
+        .limit(1);
+
+      let reviewer = null;
+      if (appeal.reviewedBy) {
+        [reviewer] = await db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(eq(users.id, appeal.reviewedBy))
+          .limit(1);
+      }
+
+      // Get action details
+      const [actionRecord] = await db
+        .select()
+        .from(moderation_actions)
+        .where(eq(moderation_actions.id, appeal.actionId))
+        .limit(1);
+
+      let actionWithDetails = null;
+      if (actionRecord) {
+        const [user] = await db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(eq(users.id, actionRecord.userId))
+          .limit(1);
+
+        const [moderator] = await db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(eq(users.id, actionRecord.moderatorId))
+          .limit(1);
+
+        actionWithDetails = {
+          ...actionRecord,
+          user: user!,
+          moderator: moderator!,
+        };
+      }
+
+      return {
+        ...appeal,
+        appellant: appellant!,
+        reviewer,
+        action: actionWithDetails!,
+      };
+    })
+  );
+
+  return {
+    data: appealsWithDetails,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+/**
+ * Review an appeal
+ */
+export async function reviewAppeal(
+  appealId: number,
+  reviewerId: number,
+  status: 'approved' | 'rejected',
+  resolution?: string
+): Promise<ModerationAppeal> {
+  const [appeal] = await db
+    .update(moderation_appeals)
+    .set({
+      status,
+      reviewedBy: reviewerId,
+      reviewedAt: new Date(),
+      resolution,
+      updatedAt: new Date(),
+    })
+    .where(eq(moderation_appeals.id, appealId))
+    .returning();
+
+  if (!appeal) {
+    throw new NotFoundError('Appeal', `id:${appealId}`);
+  }
+
+  // If appeal is approved, deactivate the related action
+  if (status === 'approved') {
+    await db
+      .update(moderation_actions)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(moderation_actions.id, appeal.actionId));
+  }
+
+  return appeal;
+}
+
+/**
+ * Log moderation action to audit log
+ */
+export async function logModerationAction(
+  moderatorId: number,
+  action: string,
+  resourceType: 'flag' | 'user' | 'appeal' | 'article' | 'comment',
+  resourceId: number | null,
+  details: Record<string, unknown> | null = null,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
+): Promise<void> {
+  await db.insert(moderation_audit_log).values({
+    moderatorId,
+    action,
+    resourceType,
+    resourceId,
+    details,
+    ipAddress,
+    userAgent,
+    createdAt: new Date(),
+  });
+}
+
+/**
+ * Get moderation audit logs
+ */
+export async function getModerationAuditLogs(
+  params: ModerationAuditLogQueryParams = {}
+): Promise<PaginatedResult<ModerationAuditLogWithModerator>> {
+  const {
+    moderatorId,
+    action,
+    resourceType,
+    dateFrom,
+    dateTo,
+    page = 1,
+    limit = 50,
+  } = params;
+
+  const offset = (page - 1) * limit;
+  const conditions = [];
+
+  if (moderatorId) conditions.push(eq(moderation_audit_log.moderatorId, moderatorId));
+  if (action) conditions.push(eq(moderation_audit_log.action, action));
+  if (resourceType) conditions.push(eq(moderation_audit_log.resourceType, resourceType));
+  if (dateFrom) conditions.push(gte(moderation_audit_log.createdAt, new Date(dateFrom)));
+  if (dateTo) conditions.push(lte(moderation_audit_log.createdAt, new Date(dateTo)));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(moderation_audit_log)
+    .where(whereClause);
+
+  // Get logs
+  const logs = await db
+    .select()
+    .from(moderation_audit_log)
+    .where(whereClause)
+    .orderBy(desc(moderation_audit_log.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Get moderator details for each log
+  const logsWithModerators = await Promise.all(
+    logs.map(async (log) => {
+      const [moderator] = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, log.moderatorId))
+        .limit(1);
+
+      return {
+        ...log,
+        moderator: moderator!,
+      };
+    })
+  );
+
+  return {
+    data: logsWithModerators,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 }
