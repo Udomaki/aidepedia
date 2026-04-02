@@ -1,0 +1,654 @@
+---
+import Layout from '../../../layouts/Layout';
+
+export const prerender = false;
+---
+
+<Layout title="Advanced Analytics Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">Advanced Analytics v3</h1>
+      <p class="text-gray-600">
+        ML-powered predictions • User behavior insights • Content gap analysis
+      </p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-6 border-b border-gray-200">
+      <nav class="flex gap-4">
+        <button
+          class="tab-btn px-4 py-2 text-blue-600 border-b-2 border-blue-600 font-medium"
+          data-tab="predictions"
+        >
+          📊 Predictions
+        </button>
+        <button
+          class="tab-btn px-4 py-2 text-gray-500 hover:text-gray-700 font-medium"
+          data-tab="behavior"
+        >
+          👥 User Behavior
+        </button>
+        <button
+          class="tab-btn px-4 py-2 text-gray-500 hover:text-gray-700 font-medium"
+          data-tab="gaps"
+        >
+          🔍 Content Gaps
+        </button>
+        <button
+          class="tab-btn px-4 py-2 text-gray-500 hover:text-gray-700 font-medium"
+          data-tab="builder"
+        >
+          🎨 Dashboard Builder
+        </button>
+      </nav>
+    </div>
+
+    <!-- Predictions Tab -->
+    <div id="tab-predictions" class="tab-content">
+      <!-- Period Selector -->
+      <div class="mb-6 flex gap-2">
+        <button class="pred-period-btn px-4 py-2 bg-blue-600 text-white rounded-lg font-medium" data-days="7">
+          7 Days
+        </button>
+        <button class="pred-period-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium" data-days="30">
+          30 Days
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Trending Topics -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">📈 Trending Topics</h2>
+          <div id="trending-topics" class="space-y-3">
+            <p class="text-gray-500 text-center py-4">Loading...</p>
+          </div>
+        </div>
+
+        <!-- Resource Needs -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">🎯 Resource Needs</h2>
+          <div id="resource-needs" class="space-y-3">
+            <p class="text-gray-500 text-center py-4">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- User Behavior Tab -->
+    <div id="tab-behavior" class="tab-content hidden">
+      <!-- Period Selector -->
+      <div class="mb-6 flex gap-2">
+        <button class="behav-period-btn px-4 py-2 bg-blue-600 text-white rounded-lg font-medium" data-days="7">
+          7 Days
+        </button>
+        <button class="behav-period-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium" data-days="30">
+          30 Days
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- User Segments -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">👥 User Segments</h2>
+          <div id="user-segments" class="space-y-3">
+            <p class="text-gray-500 text-center py-4">Loading...</p>
+          </div>
+        </div>
+
+        <!-- Engagement Patterns -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">⏰ Engagement Patterns</h2>
+          <div id="engagement-patterns" class="space-y-2">
+            <p class="text-gray-500 text-center py-4">Loading...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top User Journeys -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">🛤️ Top User Journeys</h2>
+        <div id="top-journeys" class="space-y-4">
+          <p class="text-gray-500 text-center py-4">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Gaps Tab -->
+    <div id="tab-gaps" class="tab-content hidden">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h3 class="text-sm font-medium text-gray-600 mb-2">Critical Gaps</h3>
+          <p id="critical-gaps" class="text-3xl font-bold text-red-600">-</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h3 class="text-sm font-medium text-gray-600 mb-2">High Priority</h3>
+          <p id="high-priority-gaps" class="text-3xl font-bold text-orange-600">-</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h3 class="text-sm font-medium text-gray-600 mb-2">Medium Priority</h3>
+          <p id="medium-priority-gaps" class="text-3xl font-bold text-yellow-600">-</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h3 class="text-sm font-medium text-gray-600 mb-2">Avg Demand Score</h3>
+          <p id="avg-demand" class="text-3xl font-bold text-blue-600">-</p>
+        </div>
+      </div>
+
+      <!-- Content Gaps List -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">🔍 Content Gaps</h2>
+        <div id="content-gaps" class="space-y-3">
+          <p class="text-gray-500 text-center py-4">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Article Suggestions -->
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">💡 Article Suggestions</h2>
+        <div id="article-suggestions" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <p class="text-gray-500 text-center py-4 col-span-2">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard Builder Tab -->
+    <div id="tab-builder" class="tab-content hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <!-- Widget Palette -->
+        <div class="lg:col-span-1 bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">🧩 Widgets</h2>
+          <div id="widget-palette" class="space-y-2">
+            <!-- Will be populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Dashboard Canvas -->
+        <div class="lg:col-span-3 bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-900">Dashboard Canvas</h2>
+            <div class="flex gap-2">
+              <select id="dashboard-selector" class="px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">Select Dashboard</option>
+              </select>
+              <button id="create-dashboard-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                + New Dashboard
+              </button>
+              <button id="save-dashboard-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 hidden">
+                Save
+              </button>
+            </div>
+          </div>
+          <div id="dashboard-canvas" class="min-h-96 border-2 border-dashed border-gray-300 rounded-lg p-4">
+            <p class="text-gray-500 text-center py-8">Select a dashboard or create a new one to start building</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  let currentPredDays = 7;
+  let currentBehavDays = 7;
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const tab = target.dataset.tab;
+
+      // Update tab styles
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+        b.classList.add('text-gray-500');
+      });
+      target.classList.remove('text-gray-500');
+      target.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+
+      // Show/hide content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      document.getElementById(`tab-${tab}`)?.classList.remove('hidden');
+
+      // Load data for tab
+      if (tab === 'predictions') loadPredictions(currentPredDays);
+      if (tab === 'behavior') loadBehavior(currentBehavDays);
+      if (tab === 'gaps') loadContentGaps();
+      if (tab === 'builder') loadDashboardBuilder();
+    });
+  });
+
+  // Predictions
+  async function loadPredictions(days: number) {
+    try {
+      const response = await fetch(`/api/v1/analytics/predictions?days=${days}`);
+      const data = await response.json();
+
+      if (data.success) {
+        renderTrendingTopics(data.data.trendingTopics || []);
+        renderResourceNeeds(data.data.resourceNeeds || []);
+      }
+    } catch (error) {
+      console.error('Error loading predictions:', error);
+    }
+  }
+
+  function renderTrendingTopics(topics: any[]) {
+    const container = document.getElementById('trending-topics')!;
+    if (topics.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No trending topics found</p>';
+      return;
+    }
+
+    container.innerHTML = topics.map((topic, i) => `
+      <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl font-bold text-gray-400">${i + 1}</span>
+          <div>
+            <p class="font-medium text-gray-900">${topic.topic}</p>
+            <p class="text-sm text-gray-500">${topic.category}</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="font-bold text-gray-900">${topic.momentum.toFixed(1)}</p>
+          <p class="text-xs text-gray-500">momentum</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderResourceNeeds(needs: any[]) {
+    const container = document.getElementById('resource-needs')!;
+    if (needs.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No resource needs found</p>';
+      return;
+    }
+
+    container.innerHTML = needs.map(need => `
+      <div class="p-3 bg-gray-50 rounded-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-medium text-gray-900">${need.category}</h3>
+          <span class="px-2 py-1 text-xs font-medium rounded ${
+            need.priority === 'high' ? 'bg-red-100 text-red-700' :
+            need.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+            'bg-green-100 text-green-700'
+          }">${need.priority}</span>
+        </div>
+        <div class="text-sm text-gray-600">
+          <p>Current: ${need.currentArticles} articles</p>
+          <p>Predicted demand: ${need.predictedDemandNext30Days.toLocaleString()} views</p>
+          <p class="font-medium text-blue-600">Suggested: +${need.suggestedNewArticles} articles</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // User Behavior
+  async function loadBehavior(days: number) {
+    try {
+      const response = await fetch(`/api/v1/analytics/behavior?days=${days}`);
+      const data = await response.json();
+
+      if (data.success) {
+        renderUserSegments(data.data.userSegments || []);
+        renderEngagementPatterns(data.data.engagementPatterns || []);
+        renderTopJourneys(data.data.topJourneys || []);
+      }
+    } catch (error) {
+      console.error('Error loading behavior:', error);
+    }
+  }
+
+  function renderUserSegments(segments: any[]) {
+    const container = document.getElementById('user-segments')!;
+    if (segments.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No user segments found</p>';
+      return;
+    }
+
+    container.innerHTML = segments.map(seg => `
+      <div class="p-4 bg-gray-50 rounded-lg">
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="font-bold text-gray-900">${seg.segmentName}</h3>
+          <span class="text-lg font-bold text-blue-600">${seg.userCount}</span>
+        </div>
+        <p class="text-sm text-gray-600 mb-2">${seg.description}</p>
+        <div class="text-xs text-gray-500">
+          Avg read time: ${seg.characteristics.avgReadTime.toFixed(0)}s • 
+          Scroll depth: ${seg.characteristics.avgScrollDepth.toFixed(0)}%
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderEngagementPatterns(patterns: any[]) {
+    const container = document.getElementById('engagement-patterns')!;
+    if (patterns.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No engagement patterns found</p>';
+      return;
+    }
+
+    container.innerHTML = patterns.slice(0, 10).map(pattern => `
+      <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+        <div>
+          <p class="font-medium text-gray-900">${pattern.timeOfDay} - ${pattern.dayOfWeek}</p>
+          <p class="text-xs text-gray-500">${pattern.totalSessions} sessions</p>
+        </div>
+        <div class="text-right text-sm">
+          <p>${pattern.avgReadTime.toFixed(0)}s avg</p>
+          <p>${pattern.avgScrollDepth.toFixed(0)}% scroll</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderTopJourneys(journeys: any[]) {
+    const container = document.getElementById('top-journeys')!;
+    if (journeys.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No user journeys found</p>';
+      return;
+    }
+
+    container.innerHTML = journeys.map((journey, i) => `
+      <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-bold text-gray-900">Journey #${i + 1}</span>
+          <span class="text-sm text-gray-500">${journey.steps.length} steps • ${journey.totalArticles} articles</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          ${journey.steps.slice(0, 5).map((step: any) => `
+            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+              ${step.articleTitle || step.path}
+            </span>
+          `).join('')}
+          ${journey.steps.length > 5 ? `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">+${journey.steps.length - 5} more</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Content Gaps
+  async function loadContentGaps() {
+    try {
+      const [gapsRes, summaryRes] = await Promise.all([
+        fetch('/api/v1/analytics/gaps?type=gaps'),
+        fetch('/api/v1/analytics/gaps?type=summary')
+      ]);
+
+      const gapsData = await gapsRes.json();
+      const summaryData = await summaryRes.json();
+
+      if (gapsData.success && summaryData.success) {
+        renderGapSummary(summaryData.data.summary);
+        renderContentGaps(gapsData.data.contentGaps || []);
+        loadArticleSuggestions();
+      }
+    } catch (error) {
+      console.error('Error loading content gaps:', error);
+    }
+  }
+
+  function renderGapSummary(summary: any) {
+    document.getElementById('critical-gaps')!.textContent = summary.criticalGaps;
+    document.getElementById('high-priority-gaps')!.textContent = summary.highPriorityGaps;
+    document.getElementById('medium-priority-gaps')!.textContent = summary.mediumPriorityGaps;
+    document.getElementById('avg-demand')!.textContent = summary.averageDemandScore.toFixed(1);
+  }
+
+  function renderContentGaps(gaps: any[]) {
+    const container = document.getElementById('content-gaps')!;
+    if (gaps.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4">No content gaps found</p>';
+      return;
+    }
+
+    container.innerHTML = gaps.map(gap => `
+      <div class="flex items-start justify-between p-4 border border-gray-200 rounded-lg">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-gray-900">${gap.suggestedTitle}</h3>
+            <span class="px-2 py-1 text-xs font-medium rounded ${
+              gap.priority === 'critical' ? 'bg-red-100 text-red-700' :
+              gap.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+              gap.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-green-100 text-green-700'
+            }">${gap.priority}</span>
+          </div>
+          <p class="text-sm text-gray-600 mb-2">${gap.reason}</p>
+          <div class="flex gap-4 text-xs text-gray-500">
+            <span>Demand: ${gap.demandScore}/100</span>
+            <span>Searches: ${gap.searchVolume}</span>
+            <span>Competition: ${gap.competition}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function loadArticleSuggestions() {
+    try {
+      const response = await fetch('/api/v1/analytics/gaps?type=suggestions&limit=6');
+      const data = await response.json();
+
+      if (data.success) {
+        renderArticleSuggestions(data.data.articleSuggestions || []);
+      }
+    } catch (error) {
+      console.error('Error loading article suggestions:', error);
+    }
+  }
+
+  function renderArticleSuggestions(suggestions: any[]) {
+    const container = document.getElementById('article-suggestions')!;
+    if (suggestions.length === 0) {
+      container.innerHTML = '<p class="text-gray-500 text-center py-4 col-span-2">No suggestions found</p>';
+      return;
+    }
+
+    container.innerHTML = suggestions.map(s => `
+      <div class="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+        <h3 class="font-bold text-gray-900 mb-2">${s.suggestedTitle}</h3>
+        <p class="text-sm text-gray-600 mb-2">${s.reason}</p>
+        <div class="flex gap-2 flex-wrap">
+          ${s.suggestedTags.map((tag: string) => `
+            <span class="px-2 py-1 bg-white text-gray-700 text-xs rounded border">${tag}</span>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Dashboard Builder
+  async function loadDashboardBuilder() {
+    await loadWidgetPalette();
+    await loadDashboards();
+  }
+
+  async function loadWidgetPalette() {
+    try {
+      const response = await fetch('/api/v1/analytics/dashboards/widgets?templates=true');
+      const data = await response.json();
+
+      if (data.success) {
+        renderWidgetPalette(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading widget templates:', error);
+    }
+  }
+
+  function renderWidgetPalette(templates: any[]) {
+    const container = document.getElementById('widget-palette')!;
+    container.innerHTML = templates.map(t => `
+      <div class="widget-template p-3 bg-gray-50 rounded-lg cursor-move hover:bg-gray-100 border-2 border-transparent hover:border-blue-300" 
+           data-type="${t.type}" draggable="true">
+        <h3 class="font-medium text-gray-900">${t.name}</h3>
+        <p class="text-xs text-gray-500">${t.description}</p>
+      </div>
+    `).join('');
+
+    // Add drag handlers
+    container.querySelectorAll('.widget-template').forEach(el => {
+      el.addEventListener('dragstart', (e) => {
+        (e as DragEvent).dataTransfer!.setData('text/plain', (e.target as HTMLElement).dataset.type!);
+      });
+    });
+  }
+
+  async function loadDashboards() {
+    try {
+      const response = await fetch('/api/v1/analytics/dashboards');
+      const data = await response.json();
+
+      if (data.success) {
+        const selector = document.getElementById('dashboard-selector')! as HTMLSelectElement;
+        selector.innerHTML = '<option value="">Select Dashboard</option>' +
+          data.data.map((d: any) => `<option value="${d.id}">${d.name}</option>`).join('');
+      }
+    } catch (error) {
+      console.error('Error loading dashboards:', error);
+    }
+  }
+
+  // Create dashboard
+  document.getElementById('create-dashboard-btn')?.addEventListener('click', async () => {
+    const name = prompt('Enter dashboard name:');
+    if (!name) return;
+
+    try {
+      const response = await fetch('/api/v1/analytics/dashboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        await loadDashboards();
+        const selector = document.getElementById('dashboard-selector')! as HTMLSelectElement;
+        selector.value = data.data.id;
+        renderDashboardCanvas(data.data);
+      }
+    } catch (error) {
+      console.error('Error creating dashboard:', error);
+    }
+  });
+
+  // Select dashboard
+  document.getElementById('dashboard-selector')?.addEventListener('change', async (e) => {
+    const dashboardId = (e.target as HTMLSelectElement).value;
+    if (!dashboardId) {
+      document.getElementById('dashboard-canvas')!.innerHTML = '<p class="text-gray-500 text-center py-8">Select a dashboard or create a new one</p>';
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/analytics/dashboards?id=${dashboardId}`);
+      const data = await response.json();
+      if (data.success) {
+        renderDashboardCanvas(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    }
+  });
+
+  function renderDashboardCanvas(dashboard: any) {
+    const canvas = document.getElementById('dashboard-canvas')!;
+    document.getElementById('save-dashboard-btn')!.classList.remove('hidden');
+
+    if (dashboard.widgets.length === 0) {
+      canvas.innerHTML = '<p class="text-gray-500 text-center py-8">Drag widgets here to build your dashboard</p>';
+      return;
+    }
+
+    canvas.innerHTML = '<div class="grid grid-cols-6 gap-4">' +
+      dashboard.widgets.map((w: any) => `
+        <div class="col-span-${w.position.width} row-span-${w.position.height} bg-gray-50 border border-gray-300 rounded-lg p-4">
+          <h3 class="font-bold text-gray-900 mb-2">${w.title}</h3>
+          <p class="text-sm text-gray-500">${w.type}</p>
+        </div>
+      `).join('') +
+      '</div>';
+
+    // Setup drop zone
+    canvas.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      canvas.classList.add('bg-blue-50');
+    });
+
+    canvas.addEventListener('dragleave', () => {
+      canvas.classList.remove('bg-blue-50');
+    });
+
+    canvas.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      canvas.classList.remove('bg-blue-50');
+      
+      const type = (e as DragEvent).dataTransfer!.getData('text/plain');
+      await addWidgetToDashboard(dashboard.id, type);
+    });
+  }
+
+  async function addWidgetToDashboard(dashboardId: string, type: string) {
+    try {
+      const response = await fetch('/api/v1/analytics/dashboards/widgets?dashboardId=' + dashboardId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          title: type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          config: {},
+          position: { x: 0, y: 0, width: 2, height: 1 }
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Reload dashboard
+        const dashRes = await fetch(`/api/v1/analytics/dashboards?id=${dashboardId}`);
+        const dashData = await dashRes.json();
+        if (dashData.success) {
+          renderDashboardCanvas(dashData.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding widget:', error);
+    }
+  }
+
+  // Period selectors
+  document.querySelectorAll('.pred-period-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const days = parseInt((e.target as HTMLElement).dataset.days || '7');
+      currentPredDays = days;
+      document.querySelectorAll('.pred-period-btn').forEach(b => {
+        b.classList.remove('bg-blue-600', 'text-white');
+        b.classList.add('bg-gray-200', 'text-gray-700');
+      });
+      (e.target as HTMLElement).classList.remove('bg-gray-200', 'text-gray-700');
+      (e.target as HTMLElement).classList.add('bg-blue-600', 'text-white');
+      loadPredictions(days);
+    });
+  });
+
+  document.querySelectorAll('.behav-period-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const days = parseInt((e.target as HTMLElement).dataset.days || '7');
+      currentBehavDays = days;
+      document.querySelectorAll('.behav-period-btn').forEach(b => {
+        b.classList.remove('bg-blue-600', 'text-white');
+        b.classList.add('bg-gray-200', 'text-gray-700');
+      });
+      (e.target as HTMLElement).classList.remove('bg-gray-200', 'text-gray-700');
+      (e.target as HTMLElement).classList.add('bg-blue-600', 'text-white');
+      loadBehavior(days);
+    });
+  });
+
+  // Initial load
+  loadPredictions(currentPredDays);
+</script>
