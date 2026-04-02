@@ -1,0 +1,301 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { listArticles, getCategories } from '@aidepedia/db';
+import { getSession } from '../lib/auth';
+
+// Check authentication
+let isUserLoggedIn = false;
+try {
+  const session = await getSession(Astro.request);
+  isUserLoggedIn = !!session?.user?.id;
+} catch (e) {
+  // User not logged in
+}
+
+// Fetch categories for filter
+let categories: any[] = [];
+try {
+  categories = await getCategories();
+} catch (e) {
+  console.warn('Could not fetch categories:', e);
+}
+
+const pageTitle = 'Bulk Export - AIdepedia';
+const pageDescription = 'Export multiple articles in various formats';
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">Bulk Export</span>
+    </nav>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">📦 Bulk Export</h1>
+        <p class="text-gray-600">Export multiple articles at once in your preferred format.</p>
+      </div>
+
+      <div class="p-6">
+        <!-- Export Options -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+          <!-- Format Selection -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
+            <div class="space-y-2">
+              <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input type="radio" name="format" value="json" checked class="w-4 h-4 text-blue-600" />
+                <div>
+                  <div class="font-medium text-gray-900">JSON</div>
+                  <div class="text-sm text-gray-500">Structured data with full metadata</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input type="radio" name="format" value="markdown" class="w-4 h-4 text-blue-600" />
+                <div>
+                  <div class="font-medium text-gray-900">Markdown</div>
+                  <div class="text-sm text-gray-500">Plain text with YAML frontmatter</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <input type="radio" name="format" value="pdf" class="w-4 h-4 text-blue-600" />
+                <div>
+                  <div class="font-medium text-gray-900">PDF</div>
+                  <div class="text-sm text-gray-500">Formatted documents for reading</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Filter Options -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Filter Options</label>
+            
+            <div class="space-y-4">
+              <div>
+                <label for="category-filter" class="block text-sm text-gray-600 mb-1">Category</label>
+                <select
+                  id="category-filter"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((cat: any) => (
+                    <option value={cat.slug}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label for="limit-input" class="block text-sm text-gray-600 mb-1">Maximum Articles</label>
+                <input
+                  type="number"
+                  id="limit-input"
+                  value="50"
+                  min="1"
+                  max="100"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p class="text-xs text-gray-500 mt-1">Maximum: 100 articles per export</p>
+              </div>
+
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="include-metadata"
+                    checked
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">Include metadata</span>
+                </label>
+
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="include-images"
+                    checked
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700">Include images</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Article Selection (Optional) -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Custom Article Selection (Optional)
+          </label>
+          <textarea
+            id="custom-slugs"
+            rows="3"
+            placeholder="Enter article slugs (one per line) to export specific articles instead of using filters..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          ></textarea>
+          <p class="text-xs text-gray-500 mt-1">Leave empty to use filter options above</p>
+        </div>
+
+        <!-- Export Progress -->
+        <div id="export-progress" class="hidden mb-6">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div>
+                <p class="font-medium text-blue-900">Preparing export...</p>
+                <p class="text-sm text-blue-700">This may take a moment for large collections</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Export Button -->
+        <div class="flex gap-4">
+          <button
+            id="start-export-btn"
+            class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Start Export
+          </button>
+          {isUserLoggedIn && (
+            <a
+              href="/export-history"
+              class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              View Export History
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="mt-8 bg-gray-50 rounded-lg p-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">Export Formats Guide</h2>
+      
+      <div class="grid md:grid-cols-3 gap-6">
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-2">JSON Format</h3>
+          <p class="text-sm text-gray-600 mb-2">
+            Best for data analysis, importing into other tools, or programmatic access.
+          </p>
+          <ul class="text-sm text-gray-600 list-disc list-inside space-y-1">
+            <li>Structured data format</li>
+            <li>Includes all metadata</li>
+            <li>Easy to parse and process</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-2">Markdown Format</h3>
+          <p class="text-sm text-gray-600 mb-2">
+            Best for reading, note-taking apps, or converting to other formats.
+          </p>
+          <ul class="text-sm text-gray-600 list-disc list-inside space-y-1">
+            <li>Human-readable plain text</li>
+            <li>YAML frontmatter for metadata</li>
+            <li>Works with Obsidian, Notion, etc.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="font-semibold text-gray-900 mb-2">PDF Format</h3>
+          <p class="text-sm text-gray-600 mb-2">
+            Best for offline reading, sharing, or archiving.
+          </p>
+          <ul class="text-sm text-gray-600 list-disc list-inside space-y-1">
+            <li>Formatted documents</li>
+            <li>Preserves layout</li>
+            <li>Universal compatibility</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  const startExportBtn = document.getElementById('start-export-btn') as HTMLButtonElement | null;
+  const exportProgress = document.getElementById('export-progress');
+  const customSlugsTextarea = document.getElementById('custom-slugs') as HTMLTextAreaElement | null;
+  const categoryFilter = document.getElementById('category-filter') as HTMLSelectElement | null;
+  const limitInput = document.getElementById('limit-input') as HTMLInputElement | null;
+  const includeMetadataCheckbox = document.getElementById('include-metadata') as HTMLInputElement | null;
+  const includeImagesCheckbox = document.getElementById('include-images') as HTMLInputElement | null;
+
+  startExportBtn?.addEventListener('click', async () => {
+    if (!startExportBtn) return;
+    
+    // Get selected format
+    const formatRadio = document.querySelector('input[name="format"]:checked') as HTMLInputElement;
+    const format = formatRadio?.value || 'json';
+
+    // Get custom slugs if provided
+    const customSlugsText = customSlugsTextarea?.value.trim();
+    const slugs = customSlugsText
+      ? customSlugsText.split('\n').map(s => s.trim()).filter(s => s.length > 0)
+      : null;
+
+    // Get options
+    const options: any = {
+      format,
+      includeMetadata: includeMetadataCheckbox?.checked ?? true,
+      includeImages: includeImagesCheckbox?.checked ?? true,
+    };
+
+    if (slugs && slugs.length > 0) {
+      options.slugs = slugs;
+    } else {
+      options.category = categoryFilter?.value || undefined;
+      options.limit = parseInt(limitInput?.value || '50', 10);
+    }
+
+    // Show progress
+    exportProgress?.classList.remove('hidden');
+    startExportBtn.disabled = true;
+    startExportBtn.textContent = 'Exporting...';
+
+    try {
+      const response = await fetch('/api/v1/export/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Export failed');
+      }
+
+      // Download the ZIP file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = response.headers.get('content-disposition')
+        ?.split('filename=')[1]
+        ?.replace(/"/g, '') || `aidepedia-export-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // Hide progress
+      exportProgress?.classList.add('hidden');
+      startExportBtn.disabled = false;
+      startExportBtn.textContent = 'Start Export';
+    } catch (error) {
+      console.error('Export error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to export articles');
+      exportProgress?.classList.add('hidden');
+      startExportBtn.disabled = false;
+      startExportBtn.textContent = 'Start Export';
+    }
+  });
+</script>

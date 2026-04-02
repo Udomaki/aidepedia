@@ -5,6 +5,7 @@ import ReportButton from '../../components/ReportButton.astro';
 import ReactionPicker from '../../components/ReactionPicker.astro';
 import ArticleStatsCard from '../../components/ArticleStatsCard.astro';
 import VotingWorkflow from '../../components/VotingWorkflow.astro';
+import ExportButton from '../../components/ExportButton.astro';
 import { getArticleBySlug, listArticles, getCategories, getCommentsByArticle, isBookmarked, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../lib/auth';
 import { generateArticleSchema, generateBreadcrumbSchema, generateOrganizationSchema, generateWebsiteSchema } from '../../lib/structured-data';
@@ -199,6 +200,7 @@ const totalComments = countAllComments(comments);
             </button>
           )}
           <ShareButtons url={pageUrl} title={pageTitle} description={pageDescription} />
+          <ExportButton articleSlug={article.slug} articleTitle={article.title} isLoggedIn={isUserLoggedIn} />
         </div>
         
         {article.excerpt && (
