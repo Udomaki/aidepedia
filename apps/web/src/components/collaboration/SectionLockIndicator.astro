@@ -1,0 +1,85 @@
+---
+import type { SectionLock } from '../../lib/collaboration-client';
+
+interface Props {
+  locks: SectionLock[];
+  currentUserId: number;
+}
+
+const { locks, currentUserId } = Astro.props;
+
+function isLocked(sectionName: string): boolean {
+  return locks.some(lock => lock.sectionName === sectionName);
+}
+
+function getLockForSection(sectionName: string): SectionLock | undefined {
+  return locks.find(lock => lock.sectionName === sectionName);
+}
+---
+
+<div class="section-locks-container">
+  {locks.map(lock => (
+    <div class={`lock-badge ${lock.userId === currentUserId ? 'lock-owned' : 'lock-other'}`}>
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg">
+        {lock.userId === currentUserId ? (
+          <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+          </svg>
+        ) : (
+          <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+          </svg>
+        )}
+        
+        <span class="text-sm font-medium">
+          {lock.sectionName}
+        </span>
+        
+        {lock.userId === currentUserId ? (
+          <span class="text-xs text-green-700">(You)</span>
+        ) : (
+          <span class="text-xs text-gray-600">
+            by {lock.user.name || 'Unknown'}
+          </span>
+        )}
+        
+        <span class="text-xs text-gray-500">
+          {formatTimeRemaining(lock.expiresAt)}
+        </span>
+      </div>
+    </div>
+  ))}
+  
+  {locks.length === 0 && (
+    <div class="text-sm text-gray-500 italic">
+      No sections locked
+    </div>
+  )}
+</div>
+
+<style>
+  .lock-owned {
+    @apply bg-green-50 border border-green-200;
+  }
+  
+  .lock-other {
+    @apply bg-red-50 border border-red-200;
+  }
+</style>
+
+<script>
+  function formatTimeRemaining(expiresAt: Date | string): string {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expired';
+    
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return '<1m';
+    if (minutes < 60) return `${minutes}m`;
+    
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h`;
+  }
+</script>

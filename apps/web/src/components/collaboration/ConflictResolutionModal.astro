@@ -1,0 +1,177 @@
+---
+interface Props {
+  isOpen?: boolean;
+}
+
+const { isOpen = false } = Astro.props;
+---
+
+<div id="conflict-modal" class={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? '' : 'hidden'}`}>
+  <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <!-- Header -->
+    <div class="bg-red-50 border-b border-red-200 px-6 py-4">
+      <div class="flex items-center gap-3">
+        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h2 class="text-xl font-semibold text-red-900">Edit Conflict Detected</h2>
+      </div>
+      <p class="text-sm text-red-700 mt-1">
+        Another user made changes to the same section. Please review and resolve.
+      </p>
+    </div>
+    
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-6">
+      <div class="space-y-6">
+        <!-- Your changes -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-700 mb-2">Your Changes</h3>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div id="your-changes" class="text-sm font-mono whitespace-pre-wrap">
+              <!-- Will be populated dynamically -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- Other user's changes -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-700 mb-2">Other User's Changes</h3>
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div id="their-changes" class="text-sm font-mono whitespace-pre-wrap">
+              <!-- Will be populated dynamically -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- Merged preview -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-700 mb-2">Merged Result (Auto-generated)</h3>
+          <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div id="merged-changes" class="text-sm font-mono whitespace-pre-wrap">
+              <!-- Will be populated dynamically -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- Manual merge editor -->
+        <div id="manual-merge-section" class="hidden">
+          <h3 class="text-sm font-semibold text-gray-700 mb-2">Manual Merge</h3>
+          <textarea
+            id="manual-merge-textarea"
+            class="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+            placeholder="Edit the merged result above or enter your own version..."
+          ></textarea>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="border-t border-gray-200 px-6 py-4 bg-gray-50">
+      <div class="flex items-center justify-between">
+        <div class="flex gap-3">
+          <button
+            id="use-auto-merge-btn"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+          >
+            Use Auto-Merge
+          </button>
+          <button
+            id="manual-merge-btn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Manual Merge
+          </button>
+        </div>
+        
+        <div class="flex gap-3">
+          <button
+            id="cancel-conflict-btn"
+            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            id="resolve-conflict-btn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Apply Resolution
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.getElementById('conflict-modal');
+  const yourChanges = document.getElementById('your-changes');
+  const theirChanges = document.getElementById('their-changes');
+  const mergedChanges = document.getElementById('merged-changes');
+  const manualMergeSection = document.getElementById('manual-merge-section');
+  const manualMergeTextarea = document.getElementById('manual-merge-textarea') as HTMLTextAreaElement;
+  const useAutoMergeBtn = document.getElementById('use-auto-merge-btn');
+  const manualMergeBtn = document.getElementById('manual-merge-btn');
+  const cancelBtn = document.getElementById('cancel-conflict-btn');
+  const resolveBtn = document.getElementById('resolve-conflict-btn');
+  
+  let currentResolution = 'auto_merged';
+  
+  // Show conflict modal with data
+  export function showConflict(yours: string, theirs: string, merged: string) {
+    if (yourChanges) yourChanges.textContent = yours;
+    if (theirChanges) theirChanges.textContent = theirs;
+    if (mergedChanges) mergedChanges.textContent = merged;
+    if (manualMergeTextarea) manualMergeTextarea.value = merged;
+    modal?.classList.remove('hidden');
+  }
+  
+  // Hide conflict modal
+  export function hideConflict() {
+    modal?.classList.add('hidden');
+    manualMergeSection?.classList.add('hidden');
+    currentResolution = 'auto_merged';
+  }
+  
+  // Use auto-merge
+  useAutoMergeBtn?.addEventListener('click', () => {
+    manualMergeSection?.classList.add('hidden');
+    currentResolution = 'auto_merged';
+    resolveBtn?.focus();
+  });
+  
+  // Manual merge
+  manualMergeBtn?.addEventListener('click', () => {
+    manualMergeSection?.classList.remove('hidden');
+    currentResolution = 'manual_merge';
+    manualMergeTextarea?.focus();
+  });
+  
+  // Cancel
+  cancelBtn?.addEventListener('click', hideConflict);
+  
+  // Resolve
+  resolveBtn?.addEventListener('click', () => {
+    const resolvedValue = currentResolution === 'manual_merge'
+      ? manualMergeTextarea?.value
+      : mergedChanges?.textContent;
+    
+    // Emit custom event with resolution
+    const event = new CustomEvent('conflict-resolved', {
+      detail: {
+        resolution: currentResolution,
+        resolvedValue,
+      }
+    });
+    window.dispatchEvent(event);
+    
+    hideConflict();
+  });
+  
+  // Close on escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal?.classList.contains('hidden')) {
+      hideConflict();
+    }
+  });
+</script>

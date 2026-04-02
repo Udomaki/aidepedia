@@ -1,0 +1,396 @@
+---
+import PresenceIndicator from './PresenceIndicator.astro';
+import SectionLockIndicator from './SectionLockIndicator.astro';
+import CollaborationHistory from './CollaborationHistory.astro';
+import ConflictResolutionModal from './ConflictResolutionModal.astro';
+import type { Collaborator, SectionLock } from '../../lib/collaboration-client';
+
+interface Props {
+  articleId: string;
+  userId: number;
+  userName: string;
+}
+
+const { articleId, userId, userName } = Astro.props;
+---
+
+<div class="collaborative-editor">
+  <!-- Collaboration Toolbar -->
+  <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <!-- Presence Indicator -->
+        <div id="presence-container">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600 font-medium">Active Editors:</span>
+            <div id="presence-avatars" class="flex -space-x-2">
+              <!-- Will be populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- Lock Status -->
+        <div id="locks-container" class="flex items-center gap-2">
+          <!-- Will be populated by JavaScript -->
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <!-- History Toggle -->
+        <button
+          id="toggle-history-btn"
+          class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          📜 History
+        </button>
+        
+        <!-- Connection Status -->
+        <div id="connection-status" class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-gray-400" id="connection-dot"></div>
+          <span class="text-xs text-gray-600" id="connection-text">Connecting...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Editor Area -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Editor Column -->
+    <div class="lg:col-span-2">
+      <slot />
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="lg:col-span-1 space-y-6">
+      <!-- Collaboration History (collapsible) -->
+      <div id="history-panel" class="hidden">
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+          <div id="history-content">
+            <!-- Will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Active Locks Panel -->
+      <div id="locks-panel">
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 class="text-sm font-semibold text-gray-900 mb-3">Section Locks</h3>
+          <div id="locks-list">
+            <!-- Will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Conflict Resolution Modal -->
+  <ConflictResolutionModal />
+</div>
+
+<script define:vars={{ articleId, userId, userName }}>
+  import { CollaborationClient } from '../../lib/collaboration-client';
+  
+  let client = null;
+  let collaborators = [];
+  let locks = [];
+  let history = [];
+  
+  // Initialize collaboration client
+  async function initCollaboration() {
+    try {
+      client = new CollaborationClient(articleId, userId, userName);
+      
+      // Set up event listeners
+      client.on('presence_update', handlePresenceUpdate);
+      client.on('edit', handleEdit);
+      client.on('lock_acquired', handleLockAcquired);
+      client.on('lock_released', handleLockReleased);
+      client.on('conflict_detected', handleConflict);
+      
+      // Connect to collaboration server
+      await client.connect();
+      
+      // Update connection status
+      updateConnectionStatus(true);
+      
+      // Load initial data
+      await loadInitialData();
+      
+      // Set up editor tracking
+      setupEditorTracking();
+      
+    } catch (error) {
+      console.error('Failed to initialize collaboration:', error);
+      updateConnectionStatus(false);
+    }
+  }
+  
+  // Load initial collaboration data
+  async function loadInitialData() {
+    try {
+      collaborators = await client.getActiveCollaborators();
+      locks = await client.getActiveLocks();
+      history = await client.getHistory(50);
+      
+      renderPresence();
+      renderLocks();
+      renderHistory();
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+    }
+  }
+  
+  // Handle presence update
+  function handlePresenceUpdate(event) {
+    const index = collaborators.findIndex(c => c.sessionId === event.sessionId);
+    if (index >= 0) {
+      collaborators[index] = {
+        ...collaborators[index],
+        cursorPosition: event.cursorPosition,
+        currentSection: event.currentSection,
+        lastActivity: new Date(),
+      };
+    } else {
+      collaborators.push({
+        sessionId: event.sessionId,
+        user: {
+          id: event.userId,
+          name: event.userName,
+          email: '',
+          image: null,
+        },
+        cursorPosition: event.cursorPosition,
+        currentSection: event.currentSection,
+        lastActivity: new Date(),
+      });
+    }
+    renderPresence();
+  }
+  
+  // Handle edit event
+  function handleEdit(event) {
+    // Reload history to show new edit
+    loadInitialData();
+  }
+  
+  // Handle lock acquired
+  function handleLockAcquired(event) {
+    const existingIndex = locks.findIndex(l => l.sectionName === event.sectionName);
+    if (existingIndex >= 0) {
+      locks[existingIndex] = {
+        sectionName: event.sectionName,
+        userId: event.userId,
+        user: {
+          id: event.userId,
+          name: event.userName,
+          email: '',
+          image: null,
+        },
+        lockedAt: new Date(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      };
+    } else {
+      locks.push({
+        sectionName: event.sectionName,
+        userId: event.userId,
+        user: {
+          id: event.userId,
+          name: event.userName,
+          email: '',
+          image: null,
+        },
+        lockedAt: new Date(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+    }
+    renderLocks();
+  }
+  
+  // Handle lock released
+  function handleLockReleased(event) {
+    locks = locks.filter(l => l.sectionName !== event.sectionName);
+    renderLocks();
+  }
+  
+  // Handle conflict
+  function handleConflict(event) {
+    const modal = document.querySelector('#conflict-modal');
+    if (modal) {
+      // Show conflict modal with data
+      window.showConflict?.(
+        event.yourChanges,
+        event.theirChanges,
+        event.mergedChanges
+      );
+    }
+  }
+  
+  // Render presence indicators
+  function renderPresence() {
+    const container = document.getElementById('presence-avatars');
+    if (!container) return;
+    
+    container.innerHTML = collaborators.map(collab => {
+      const initials = (collab.user.name || 'U')[0].toUpperCase();
+      const avatar = collab.user.image
+        ? `<img src="${collab.user.image}" alt="${collab.user.name}" class="w-8 h-8 rounded-full border-2 border-white shadow-sm hover:scale-110 transition-transform cursor-pointer" title="${collab.user.name}" />`
+        : `<div class="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold hover:scale-110 transition-transform cursor-pointer" title="${collab.user.name}">${initials}</div>`;
+      
+      return `<div class="relative">${avatar}</div>`;
+    }).join('');
+    
+    if (collaborators.length === 0) {
+      container.innerHTML = '<span class="text-sm text-gray-400">No other editors</span>';
+    }
+  }
+  
+  // Render locks
+  function renderLocks() {
+    const container = document.getElementById('locks-list');
+    if (!container) return;
+    
+    container.innerHTML = locks.map(lock => {
+      const isOwned = lock.userId === userId;
+      const bgColor = isOwned ? 'bg-green-50' : 'bg-red-50';
+      const borderColor = isOwned ? 'border-green-200' : 'border-red-200';
+      const icon = isOwned ? '🔒' : '🔓';
+      const label = isOwned ? '(You)' : `by ${lock.user.name || 'Unknown'}`;
+      
+      return `
+        <div class="flex items-center gap-2 px-3 py-2 ${bgColor} border ${borderColor} rounded-lg mb-2">
+          <span>${icon}</span>
+          <span class="text-sm font-medium">${lock.sectionName}</span>
+          <span class="text-xs text-gray-600">${label}</span>
+        </div>
+      `;
+    }).join('');
+    
+    if (locks.length === 0) {
+      container.innerHTML = '<div class="text-sm text-gray-500 italic">No sections locked</div>';
+    }
+  }
+  
+  // Render history
+  function renderHistory() {
+    const container = document.getElementById('history-content');
+    if (!container) return;
+    
+    const iconMap = {
+      'text_insert': '✏️',
+      'text_delete': '🗑️',
+      'text_replace': '🔄',
+      'section_lock': '🔒',
+      'section_unlock': '🔓',
+    };
+    
+    const labelMap = {
+      'text_insert': 'Inserted text',
+      'text_delete': 'Deleted text',
+      'text_replace': 'Replaced text',
+      'section_lock': 'Locked section',
+      'section_unlock': 'Unlocked section',
+    };
+    
+    container.innerHTML = history.slice(0, 20).map(item => {
+      const icon = iconMap[item.editType] || '📝';
+      const label = labelMap[item.editType] || item.editType;
+      const initials = (item.user.name || 'U')[0].toUpperCase();
+      const avatar = item.user.image
+        ? `<img src="${item.user.image}" alt="${item.user.name}" class="w-6 h-6 rounded-full" />`
+        : `<div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">${initials}</div>`;
+      
+      return `
+        <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 mb-2">
+          <span class="text-xl">${icon}</span>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              ${avatar}
+              <span class="font-medium text-gray-900 text-sm">${item.user.name || 'Unknown'}</span>
+            </div>
+            <div class="text-sm text-gray-700 mt-1">${label}${item.sectionName ? `: ${item.sectionName}` : ''}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    if (history.length === 0) {
+      container.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">No history yet</div>';
+    }
+  }
+  
+  // Update connection status
+  function updateConnectionStatus(connected) {
+    const dot = document.getElementById('connection-dot');
+    const text = document.getElementById('connection-text');
+    
+    if (connected) {
+      dot?.classList.remove('bg-gray-400');
+      dot?.classList.add('bg-green-500');
+      if (text) text.textContent = 'Connected';
+    } else {
+      dot?.classList.remove('bg-green-500');
+      dot?.classList.add('bg-gray-400');
+      if (text) text.textContent = 'Disconnected';
+    }
+  }
+  
+  // Set up editor tracking
+  function setupEditorTracking() {
+    const contentEditor = document.getElementById('content');
+    const titleEditor = document.getElementById('title');
+    
+    // Track cursor position
+    contentEditor?.addEventListener('keyup', () => {
+      updateCursorPosition('content');
+    });
+    
+    contentEditor?.addEventListener('click', () => {
+      updateCursorPosition('content');
+    });
+    
+    // Track edits with debouncing
+    let editTimeout;
+    const trackEdit = () => {
+      clearTimeout(editTimeout);
+      editTimeout = setTimeout(() => {
+        // Broadcast edit operation
+        // In a real implementation, you'd track the actual changes
+      }, 500);
+    };
+    
+    contentEditor?.addEventListener('input', trackEdit);
+    titleEditor?.addEventListener('input', trackEdit);
+  }
+  
+  // Update cursor position
+  function updateCursorPosition(sectionName) {
+    const editor = document.getElementById(sectionName);
+    if (!editor || !client) return;
+    
+    const lines = editor.value.substr(0, editor.selectionStart).split('\n');
+    const line = lines.length;
+    const column = lines[lines.length - 1].length;
+    
+    client.updatePresence({ line, column }, sectionName);
+  }
+  
+  // Toggle history panel
+  document.getElementById('toggle-history-btn')?.addEventListener('click', () => {
+    const panel = document.getElementById('history-panel');
+    panel?.classList.toggle('hidden');
+  });
+  
+  // Handle conflict resolution
+  window.addEventListener('conflict-resolved', (event) => {
+    console.log('Conflict resolved:', event.detail);
+    // Apply the resolution to the editor
+  });
+  
+  // Initialize on page load
+  initCollaboration();
+  
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    client?.disconnect();
+  });
+</script>

@@ -1,0 +1,76 @@
+---
+import type { Collaborator } from '../lib/collaboration-client';
+
+interface Props {
+  collaborators: Collaborator[];
+}
+
+const { collaborators } = Astro.props;
+---
+
+<div class="presence-indicator">
+  <div class="flex items-center gap-2">
+    <span class="text-sm text-gray-600 font-medium">Active Editors:</span>
+    <div class="flex -space-x-2">
+      {collaborators.map((collab, index) => (
+        <div 
+          class="relative group"
+          style={`z-index: ${collaborators.length - index}`}
+        >
+          {collab.user.image ? (
+            <img
+              src={collab.user.image}
+              alt={collab.user.name || 'User'}
+              class="w-8 h-8 rounded-full border-2 border-white shadow-sm hover:scale-110 transition-transform cursor-pointer"
+              title={collab.user.name || collab.user.email}
+            />
+          ) : (
+            <div
+              class="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold hover:scale-110 transition-transform cursor-pointer"
+              title={collab.user.name || collab.user.email}
+            >
+              {(collab.user.name || collab.user.email)[0].toUpperCase()}
+            </div>
+          )}
+          
+          <!-- Tooltip -->
+          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <div class="font-semibold">{collab.user.name || 'Unknown'}</div>
+            {collab.currentSection && (
+              <div class="text-gray-300 mt-1">Editing: {collab.currentSection}</div>
+            )}
+            <div class="text-gray-400 mt-1">
+              Active {formatRelativeTime(collab.lastActivity)}
+            </div>
+          </div>
+          
+          <!-- Online indicator -->
+          <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+        </div>
+      ))}
+    </div>
+    
+    {collaborators.length === 0 && (
+      <span class="text-sm text-gray-400">No other editors</span>
+    )}
+  </div>
+</div>
+
+<script>
+  function formatRelativeTime(date: Date | string): string {
+    const now = new Date();
+    const then = new Date(date);
+    const diff = now.getTime() - then.getTime();
+    
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    return then.toLocaleDateString();
+  }
+</script>

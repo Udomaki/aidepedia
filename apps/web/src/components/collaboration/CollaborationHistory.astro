@@ -1,0 +1,122 @@
+---
+interface HistoryItem {
+  id: number;
+  user: {
+    id: number;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+  editType: string;
+  sectionName?: string;
+  createdAt: Date;
+}
+
+interface Props {
+  history: HistoryItem[];
+  currentUserId?: number;
+}
+
+const { history, currentUserId } = Astro.props;
+
+function getEditTypeLabel(editType: string): string {
+  const labels: Record<string, string> = {
+    'text_insert': 'Inserted text',
+    'text_delete': 'Deleted text',
+    'text_replace': 'Replaced text',
+    'section_lock': 'Locked section',
+    'section_unlock': 'Unlocked section',
+  };
+  return labels[editType] || editType;
+}
+
+function getEditTypeIcon(editType: string): string {
+  const icons: Record<string, string> = {
+    'text_insert': '✏️',
+    'text_delete': '🗑️',
+    'text_replace': '🔄',
+    'section_lock': '🔒',
+    'section_unlock': '🔓',
+  };
+  return icons[editType] || '📝';
+}
+---
+
+<div class="collaboration-history">
+  <div class="border-b border-gray-200 pb-3 mb-3">
+    <h3 class="text-lg font-semibold text-gray-900">Collaboration History</h3>
+    <p class="text-sm text-gray-500 mt-1">Recent changes by all editors</p>
+  </div>
+  
+  <div class="space-y-3 max-h-96 overflow-y-auto">
+    {history.map(item => (
+      <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+        <div class="flex-shrink-0 text-2xl">
+          {getEditTypeIcon(item.editType)}
+        </div>
+        
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            {item.user.image ? (
+              <img
+                src={item.user.image}
+                alt={item.user.name || 'User'}
+                class="w-6 h-6 rounded-full"
+              />
+            ) : (
+              <div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
+                {(item.user.name || item.user.email)[0].toUpperCase()}
+              </div>
+            )}
+            
+            <span class="font-medium text-gray-900">
+              {item.user.name || 'Unknown'}
+              {item.user.id === currentUserId && (
+                <span class="text-xs text-gray-500 ml-1">(you)</span>
+              )}
+            </span>
+          </div>
+          
+          <div class="text-sm text-gray-700 mt-1">
+            {getEditTypeLabel(item.editType)}
+            {item.sectionName && (
+              <span class="font-medium">: {item.sectionName}</span>
+            )}
+          </div>
+          
+          <div class="text-xs text-gray-500 mt-1">
+            {formatRelativeTime(item.createdAt)}
+          </div>
+        </div>
+      </div>
+    ))}
+    
+    {history.length === 0 && (
+      <div class="text-center py-8 text-gray-500">
+        <p class="text-sm">No collaboration history yet</p>
+      </div>
+    )}
+  </div>
+</div>
+
+<script>
+  function formatRelativeTime(date: Date | string): string {
+    const now = new Date();
+    const then = new Date(date);
+    const diff = now.getTime() - then.getTime();
+    
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    
+    return then.toLocaleDateString();
+  }
+</script>

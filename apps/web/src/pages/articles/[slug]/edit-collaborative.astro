@@ -1,0 +1,914 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getArticleBySlug, getCategories, getArticleDraft, getArticleTags } from '@aidepedia/db';
+import { getSession } from '../../../lib/auth';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+
+// Check authentication
+const session = await getSession(Astro.request);
+if (!session?.user?.id) {
+  return Astro.redirect('/login?redirect=' + encodeURIComponent(Astro.url.pathname));
+}
+
+const userId = parseInt(session.user.id as string, 10);
+
+// Check if this is a new article
+const isNewArticle = slug === 'new';
+
+// Fetch article data (for editing existing articles)
+let article = null;
+let existingTags: string[] = [];
+if (!isNewArticle && slug) {
+  try {
+    article = await getArticleBySlug(slug);
+    existingTags = await getArticleTags(article.id);
+  } catch (e) {
+    return Astro.redirect('/articles');
+  }
+}
+
+// Fetch categories
+const categories = await getCategories();
+
+// Check for existing draft
+let draft = null;
+try {
+  draft = await getArticleDraft(article?.id ?? null, userId);
+} catch (e) {
+  console.error('Error fetching draft:', e);
+}
+
+const pageTitle = isNewArticle ? 'Create Article - AIdepedia' : `Edit: ${article?.title} - AIdepedia`;
+---
+
+<Layout title={pageTitle}>
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Breadcrumb -->
+    <nav class="text-sm mb-6">
+      <a href="/" class="text-blue-600 hover:text-blue-700">Home</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <a href="/articles" class="text-blue-600 hover:text-blue-700">Articles</a>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600">{isNewArticle ? 'New Article' : 'Edit'}</span>
+    </nav>
+
+    {!isNewArticle && (
+      <div id="collaboration-toolbar" class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-6">
+            <!-- Presence Indicator -->
+            <div id="presence-container">
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600 font-medium">Active Editors:</span>
+                <div id="presence-avatars" class="flex -space-x-2">
+                  <span class="text-sm text-gray-400">Loading...</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Lock Status -->
+            <div id="locks-container" class="flex items-center gap-2">
+              <span class="text-sm text-gray-600 font-medium">Locks:</span>
+              <span id="locks-count" class="text-sm text-gray-500">0</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <button
+              id="toggle-history-btn"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              📜 History
+            </button>
+            
+            <div id="connection-status" class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-gray-400" id="connection-dot"></div>
+              <span class="text-xs text-gray-600" id="connection-text">Connecting...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <!-- Editor Column -->
+      <div class="lg:col-span-3">
+        <!-- Draft Recovery Banner -->
+        <div id="draft-banner" class="hidden mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">📝</span>
+              <div>
+                <p class="font-medium text-yellow-800">You have an unsaved draft</p>
+                <p class="text-sm text-yellow-600">
+                  Last saved: <span id="draft-last-saved"></span>
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <button
+                id="restore-draft-btn"
+                class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+              >
+                Restore Draft
+              </button>
+              <button
+                id="discard-draft-btn"
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Discard Draft
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Editor Form -->
+        <form id="article-form" class="space-y-6">
+          <input type="hidden" name="slug" value={slug || 'new'} />
+          
+          <!-- Auto-save Status -->
+          <div class="flex items-center justify-between">
+            <h1 class="text-3xl font-bold text-gray-900">
+              {isNewArticle ? 'Create New Article' : 'Edit Article'}
+            </h1>
+            <div id="auto-save-status" class="flex items-center gap-2 text-sm text-gray-500">
+              <span id="save-indicator" class="hidden">
+                <svg class="animate-spin h-4 w-4 inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </span>
+              <span id="last-saved-text" class="hidden">
+                <span class="text-green-600">✓</span>
+                Last saved: <span id="last-saved-time"></span>
+              </span>
+              <span id="unsaved-changes" class="hidden text-yellow-600">
+                ● Unsaved changes
+              </span>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <div>
+            <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+              Title <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              value={draft?.title || article?.title || ''}
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+              placeholder="Enter article title..."
+              required
+            />
+          </div>
+
+          <!-- Slug -->
+          <div>
+            <label for="article-slug" class="block text-sm font-medium text-gray-700 mb-2">
+              Slug (URL path)
+            </label>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500">/articles/</span>
+              <input
+                type="text"
+                id="article-slug"
+                name="article-slug"
+                value={article?.slug || ''}
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="article-slug"
+                pattern="[a-z0-9-]+"
+              />
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              Only lowercase letters, numbers, and hyphens. Leave empty to auto-generate from title.
+            </p>
+          </div>
+
+          <!-- Excerpt -->
+          <div>
+            <label for="excerpt" class="block text-sm font-medium text-gray-700 mb-2">
+              Excerpt / Summary
+            </label>
+            <textarea
+              id="excerpt"
+              name="excerpt"
+              rows="2"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Brief summary of the article..."
+            >{draft?.excerpt || article?.excerpt || ''}</textarea>
+          </div>
+
+          <!-- Category -->
+          <div>
+            <label for="category" class="block text-sm font-medium text-gray-700 mb-2">
+              Category
+            </label>
+            <select
+              id="category"
+              name="category"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select a category...</option>
+              {categories.map((cat) => (
+                <option value={cat.id} selected={article?.categoryId === cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <!-- Tags -->
+          <div>
+            <label for="tags" class="block text-sm font-medium text-gray-700 mb-2">
+              Tags
+            </label>
+            <input
+              type="text"
+              id="tags"
+              name="tags"
+              value={(draft?.tags || existingTags.map(t => t.name))?.join(', ') || ''}
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter tags separated by commas..."
+            />
+            <p class="text-xs text-gray-500 mt-1">
+              Separate tags with commas, e.g., "AI, machine learning, neural networks"
+            </p>
+          </div>
+
+          <!-- Content -->
+          <div>
+            <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+              Content <span class="text-red-500">*</span>
+            </label>
+            <textarea
+              id="content"
+              name="content"
+              rows="20"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+              placeholder="Write your article content here..."
+              required
+            >{draft?.content || article?.content || ''}</textarea>
+          </div>
+
+          <!-- Status -->
+          <div>
+            <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+              Status
+            </label>
+            <select
+              id="status"
+              name="status"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="draft" selected={article?.status === 'draft' || isNewArticle}>Draft</option>
+              <option value="pending_review" selected={article?.status === 'pending_review'}>Submit for Review</option>
+              <option value="published" selected={article?.status === 'published'}>Published</option>
+            </select>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+            <a
+              href={isNewArticle ? '/articles' : `/articles/${article?.slug}`}
+              class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              Cancel
+            </a>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                id="save-draft-btn"
+                class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                Save Draft
+              </button>
+              <button
+                type="submit"
+                id="publish-btn"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                {isNewArticle ? 'Create Article' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Sidebar (only for existing articles) -->
+      {!isNewArticle && (
+        <div class="lg:col-span-1 space-y-6">
+          <!-- Collaboration History -->
+          <div id="history-panel" class="hidden">
+            <div class="bg-white border border-gray-200 rounded-lg p-4">
+              <h3 class="text-lg font-semibold text-gray-900 mb-3">Collaboration History</h3>
+              <div id="history-content" class="space-y-3 max-h-96 overflow-y-auto">
+                <div class="text-center py-8 text-gray-500 text-sm">Loading...</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Active Locks -->
+          <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Section Locks</h3>
+            <div id="locks-list" class="space-y-2">
+              <div class="text-sm text-gray-500 italic">No sections locked</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </main>
+
+  <!-- Conflict Resolution Modal -->
+  <div id="conflict-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="bg-red-50 border-b border-red-200 px-6 py-4">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h2 class="text-xl font-semibold text-red-900">Edit Conflict Detected</h2>
+        </div>
+      </div>
+      
+      <div class="flex-1 overflow-y-auto p-6">
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Your Changes</h3>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div id="your-changes" class="text-sm font-mono whitespace-pre-wrap"></div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Other User's Changes</h3>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div id="their-changes" class="text-sm font-mono whitespace-pre-wrap"></div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Merged Result</h3>
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div id="merged-changes" class="text-sm font-mono whitespace-pre-wrap"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="border-t border-gray-200 px-6 py-4 bg-gray-50">
+        <div class="flex justify-end gap-3">
+          <button id="cancel-conflict-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+            Cancel
+          </button>
+          <button id="resolve-conflict-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+            Use Merged Version
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script define:vars={{ slug, isNewArticle, article, draft, userId }}>
+  // Auto-save and collaboration features
+  const AUTO_SAVE_INTERVAL = 30000;
+  const DEBOUNCE_DELAY = 2000;
+  
+  let autoSaveTimer = null;
+  let debounceTimer = null;
+  let hasUnsavedChanges = false;
+  let lastSavedData = null;
+  let currentDraft = draft;
+  let collaborationClient = null;
+
+  // DOM Elements
+  const form = document.getElementById('article-form');
+  const titleInput = document.getElementById('title');
+  const contentInput = document.getElementById('content');
+  const excerptInput = document.getElementById('excerpt');
+  const tagsInput = document.getElementById('tags');
+  const slugInput = document.getElementById('article-slug');
+  const categorySelect = document.getElementById('category');
+  const statusSelect = document.getElementById('status');
+  
+  const saveIndicator = document.getElementById('save-indicator');
+  const lastSavedText = document.getElementById('last-saved-text');
+  const lastSavedTime = document.getElementById('last-saved-time');
+  const unsavedChanges = document.getElementById('unsaved-changes');
+  
+  const draftBanner = document.getElementById('draft-banner');
+  const draftLastSaved = document.getElementById('draft-last-saved');
+  const restoreDraftBtn = document.getElementById('restore-draft-btn');
+  const discardDraftBtn = document.getElementById('discard-draft-btn');
+  const saveDraftBtn = document.getElementById('save-draft-btn');
+
+  // Initialize collaboration if not new article
+  if (!isNewArticle) {
+    initCollaboration();
+  }
+
+  function formatRelativeTime(date) {
+    const now = new Date();
+    const then = new Date(date);
+    const diff = now.getTime() - then.getTime();
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return then.toLocaleDateString();
+  }
+
+  function formatTime(date) {
+    return new Date(date).toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function checkForDraft() {
+    if (currentDraft && currentDraft.lastSaved) {
+      const hasChanges = isNewArticle 
+        ? (currentDraft.title || currentDraft.content)
+        : (
+            currentDraft.title !== article?.title ||
+            currentDraft.content !== article?.content ||
+            currentDraft.excerpt !== article?.excerpt
+          );
+      
+      if (hasChanges) {
+        draftBanner.classList.remove('hidden');
+        draftLastSaved.textContent = formatRelativeTime(currentDraft.lastSaved);
+      }
+    }
+  }
+
+  restoreDraftBtn?.addEventListener('click', () => {
+    if (currentDraft) {
+      if (currentDraft.title) titleInput.value = currentDraft.title;
+      if (currentDraft.content) contentInput.value = currentDraft.content;
+      if (currentDraft.excerpt) excerptInput.value = currentDraft.excerpt;
+      if (currentDraft.tags) tagsInput.value = currentDraft.tags.join(', ');
+      draftBanner.classList.add('hidden');
+      markAsChanged();
+    }
+  });
+
+  discardDraftBtn?.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to discard this draft?')) {
+      try {
+        const response = await fetch(`/api/v1/articles/${slug}/draft`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          draftBanner.classList.add('hidden');
+          currentDraft = null;
+        }
+      } catch (error) {
+        console.error('Error discarding draft:', error);
+      }
+    }
+  });
+
+  function getFormData() {
+    const tags = tagsInput.value
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+    
+    return {
+      title: titleInput.value,
+      content: contentInput.value,
+      excerpt: excerptInput.value,
+      tags: tags,
+      slug: slugInput.value,
+      categoryId: categorySelect.value ? parseInt(categorySelect.value) : null,
+      status: statusSelect.value,
+    };
+  }
+
+  function hasDataChanged() {
+    const currentData = JSON.stringify(getFormData());
+    return currentData !== lastSavedData;
+  }
+
+  function markAsChanged() {
+    hasUnsavedChanges = true;
+    unsavedChanges.classList.remove('hidden');
+    lastSavedText.classList.add('hidden');
+    
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (hasDataChanged()) {
+        saveDraft();
+      }
+    }, DEBOUNCE_DELAY);
+  }
+
+  async function saveDraft() {
+    const data = getFormData();
+    
+    if (!data.title && !data.content) {
+      return;
+    }
+
+    saveIndicator.classList.remove('hidden');
+    unsavedChanges.classList.add('hidden');
+    
+    try {
+      const response = await fetch(`/api/v1/articles/${slug}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        lastSavedData = JSON.stringify(data);
+        hasUnsavedChanges = false;
+        
+        saveIndicator.classList.add('hidden');
+        lastSavedText.classList.remove('hidden');
+        lastSavedTime.textContent = formatTime(new Date());
+        
+        draftBanner.classList.add('hidden');
+      } else {
+        console.error('Failed to save draft');
+        saveIndicator.classList.add('hidden');
+        unsavedChanges.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      saveIndicator.classList.add('hidden');
+      unsavedChanges.classList.remove('hidden');
+    }
+  }
+
+  saveDraftBtn?.addEventListener('click', () => {
+    saveDraft();
+  });
+
+  [titleInput, contentInput, excerptInput, tagsInput].forEach(input => {
+    input?.addEventListener('input', markAsChanged);
+  });
+
+  [categorySelect, statusSelect].forEach(select => {
+    select?.addEventListener('change', markAsChanged);
+  });
+
+  autoSaveTimer = setInterval(() => {
+    if (hasUnsavedChanges && hasDataChanged()) {
+      saveDraft();
+    }
+  }, AUTO_SAVE_INTERVAL);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedChanges && hasDataChanged()) {
+      navigator.sendBeacon(
+        `/api/v1/articles/${slug}/draft`,
+        JSON.stringify(getFormData())
+      );
+      
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const data = getFormData();
+    
+    if (!data.slug && data.title) {
+      data.slug = data.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+    
+    try {
+      let response;
+      
+      if (isNewArticle) {
+        response = await fetch('/api/v1/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      } else {
+        response = await fetch(`/api/v1/articles/${slug}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      }
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        await fetch(`/api/v1/articles/${slug}/draft`, {
+          method: 'DELETE',
+        });
+        
+        const articleSlug = result.data?.slug || data.slug;
+        window.location.href = `/articles/${articleSlug}`;
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to save article');
+      }
+    } catch (error) {
+      console.error('Error saving article:', error);
+      alert('Failed to save article');
+    }
+  });
+
+  checkForDraft();
+  lastSavedData = JSON.stringify(getFormData());
+
+  window.addEventListener('popstate', () => {
+    if (hasUnsavedChanges && hasDataChanged()) {
+      if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        history.pushState(null, '', window.location.href);
+      }
+    }
+  });
+
+  // Collaboration features
+  async function initCollaboration() {
+    try {
+      // Load initial data
+      await loadCollaborators();
+      await loadLocks();
+      await loadHistory();
+      
+      // Set up WebSocket connection
+      connectWebSocket();
+      
+      // Set up presence tracking
+      setupPresenceTracking();
+      
+      // Update connection status
+      updateConnectionStatus(true);
+    } catch (error) {
+      console.error('Error initializing collaboration:', error);
+    }
+  }
+
+  async function loadCollaborators() {
+    try {
+      const response = await fetch(`/api/v1/collaboration/${article?.id || slug}/presence`);
+      const { collaborators } = await response.json();
+      renderCollaborators(collaborators);
+    } catch (error) {
+      console.error('Error loading collaborators:', error);
+    }
+  }
+
+  async function loadLocks() {
+    try {
+      const response = await fetch(`/api/v1/collaboration/${article?.id || slug}/lock`);
+      const { locks } = await response.json();
+      renderLocks(locks);
+    } catch (error) {
+      console.error('Error loading locks:', error);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const response = await fetch(`/api/v1/collaboration/${article?.id || slug}/history?limit=20`);
+      const { history } = await response.json();
+      renderHistory(history);
+    } catch (error) {
+      console.error('Error loading history:', error);
+    }
+  }
+
+  function renderCollaborators(collaborators) {
+    const container = document.getElementById('presence-avatars');
+    if (!container) return;
+    
+    container.innerHTML = collaborators.map(collab => {
+      const initials = (collab.user.name || 'U')[0].toUpperCase();
+      return collab.user.image
+        ? `<img src="${collab.user.image}" alt="${collab.user.name}" class="w-8 h-8 rounded-full border-2 border-white shadow-sm" title="${collab.user.name}" />`
+        : `<div class="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold" title="${collab.user.name}">${initials}</div>`;
+    }).join('');
+    
+    if (collaborators.length === 0) {
+      container.innerHTML = '<span class="text-sm text-gray-400">No other editors</span>';
+    }
+  }
+
+  function renderLocks(locks) {
+    const container = document.getElementById('locks-list');
+    const countEl = document.getElementById('locks-count');
+    
+    if (countEl) countEl.textContent = locks.length;
+    
+    if (!container) return;
+    
+    container.innerHTML = locks.map(lock => {
+      const isOwned = lock.userId === userId;
+      const icon = isOwned ? '🔒' : '🔓';
+      const bgColor = isOwned ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+      
+      return `
+        <div class="flex items-center gap-2 p-2 ${bgColor} border rounded text-sm">
+          <span>${icon}</span>
+          <span class="font-medium">${lock.sectionName}</span>
+          <span class="text-gray-600 text-xs">by ${isOwned ? 'you' : lock.user.name || 'Unknown'}</span>
+        </div>
+      `;
+    }).join('');
+    
+    if (locks.length === 0) {
+      container.innerHTML = '<div class="text-sm text-gray-500 italic">No sections locked</div>';
+    }
+  }
+
+  function renderHistory(history) {
+    const container = document.getElementById('history-content');
+    if (!container) return;
+    
+    const iconMap = {
+      'text_insert': '✏️',
+      'text_delete': '🗑️',
+      'text_replace': '🔄',
+      'section_lock': '🔒',
+      'section_unlock': '🔓',
+    };
+    
+    const labelMap = {
+      'text_insert': 'Inserted text',
+      'text_delete': 'Deleted text',
+      'text_replace': 'Replaced text',
+      'section_lock': 'Locked section',
+      'section_unlock': 'Unlocked section',
+    };
+    
+    container.innerHTML = history.map(item => {
+      const icon = iconMap[item.editType] || '📝';
+      const label = labelMap[item.editType] || item.editType;
+      const initials = (item.user.name || 'U')[0].toUpperCase();
+      
+      return `
+        <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+          <div class="flex-shrink-0 text-xl">${icon}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              ${item.user.image
+                ? `<img src="${item.user.image}" alt="${item.user.name}" class="w-5 h-5 rounded-full" />`
+                : `<div class="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">${initials}</div>`
+              }
+              <span class="font-medium text-gray-900 text-sm">${item.user.name || 'Unknown'}</span>
+            </div>
+            <div class="text-sm text-gray-700 mt-1">${label}${item.sectionName ? `: ${item.sectionName}` : ''}</div>
+            <div class="text-xs text-gray-500 mt-1">${formatRelativeTime(item.createdAt)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    if (history.length === 0) {
+      container.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">No history yet</div>';
+    }
+  }
+
+  function connectWebSocket() {
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/collaboration/${article?.id || slug}/ws`;
+    
+    try {
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        updateConnectionStatus(true);
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleCollaborationEvent(data);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        updateConnectionStatus(false);
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        updateConnectionStatus(false);
+      };
+    } catch (error) {
+      console.error('Error connecting WebSocket:', error);
+    }
+  }
+
+  function handleCollaborationEvent(event) {
+    switch (event.type) {
+      case 'presence_update':
+        loadCollaborators();
+        break;
+      case 'edit':
+        loadHistory();
+        break;
+      case 'lock_acquired':
+      case 'lock_released':
+        loadLocks();
+        loadHistory();
+        break;
+      case 'conflict_detected':
+        showConflict(event);
+        break;
+    }
+  }
+
+  function updateConnectionStatus(connected) {
+    const dot = document.getElementById('connection-dot');
+    const text = document.getElementById('connection-text');
+    
+    if (connected) {
+      dot?.classList.remove('bg-gray-400');
+      dot?.classList.add('bg-green-500');
+      if (text) text.textContent = 'Connected';
+    } else {
+      dot?.classList.remove('bg-green-500');
+      dot?.classList.add('bg-gray-400');
+      if (text) text.textContent = 'Disconnected';
+    }
+  }
+
+  function setupPresenceTracking() {
+    let presenceTimeout;
+    
+    const updatePresence = () => {
+      clearTimeout(presenceTimeout);
+      presenceTimeout = setTimeout(() => {
+        // Send presence update via API
+        fetch(`/api/v1/collaboration/${article?.id || slug}/presence`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: 'session-' + userId,
+            cursorPosition: { line: 0, column: 0 },
+            currentSection: 'content',
+          }),
+        }).catch(err => console.error('Error updating presence:', err));
+      }, 1000);
+    };
+    
+    contentInput?.addEventListener('keyup', updatePresence);
+    contentInput?.addEventListener('click', updatePresence);
+    titleInput?.addEventListener('keyup', updatePresence);
+  }
+
+  function showConflict(event) {
+    const modal = document.getElementById('conflict-modal');
+    const yourChanges = document.getElementById('your-changes');
+    const theirChanges = document.getElementById('their-changes');
+    const mergedChanges = document.getElementById('merged-changes');
+    
+    if (yourChanges) yourChanges.textContent = event.yourChanges || '';
+    if (theirChanges) theirChanges.textContent = event.theirChanges || '';
+    if (mergedChanges) mergedChanges.textContent = event.mergedChanges || '';
+    
+    modal?.classList.remove('hidden');
+  }
+
+  // Toggle history panel
+  document.getElementById('toggle-history-btn')?.addEventListener('click', () => {
+    const panel = document.getElementById('history-panel');
+    panel?.classList.toggle('hidden');
+  });
+
+  // Conflict modal buttons
+  document.getElementById('cancel-conflict-btn')?.addEventListener('click', () => {
+    document.getElementById('conflict-modal')?.classList.add('hidden');
+  });
+
+  document.getElementById('resolve-conflict-btn')?.addEventListener('click', () => {
+    const mergedChanges = document.getElementById('merged-changes')?.textContent;
+    if (mergedChanges && contentInput) {
+      contentInput.value = mergedChanges;
+      markAsChanged();
+    }
+    document.getElementById('conflict-modal')?.classList.add('hidden');
+  });
+</script>

@@ -621,3 +621,6 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// Collaboration tables (OC-101)
+export * from './collaboration';
