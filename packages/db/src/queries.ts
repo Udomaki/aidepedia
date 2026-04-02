@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes, moderation_flags, sentiment_analyses, content_appeals, image_moderation_queue } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -5798,4 +5798,296 @@ function selectVariant(
 
   // Fallback to first variant
   return variants[0].name;
+}
+
+/**
+ * Create a moderation flag
+ */
+export async function createModerationFlag(data: {
+  contentType: 'article' | 'comment' | 'image';
+  contentId: number;
+  flagType: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  confidence: number;
+  aiFlagged: boolean;
+  categoryScores?: Record<string, number>;
+}): Promise<any> {
+  const [flag] = await db
+    .insert(moderation_flags)
+    .values({
+      ...data,
+      status: 'pending',
+    })
+    .returning();
+  return flag;
+}
+
+/**
+ * Get moderation flags with pagination
+ */
+export async function getModerationFlags(params: {
+  page?: number;
+  limit?: number;
+  status?: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+}): Promise<PaginatedResult<any>> {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (params.status) {
+    conditions.push(eq(moderation_flags.status, params.status));
+  }
+  if (params.severity) {
+    conditions.push(eq(moderation_flags.severity, params.severity));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [data, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(moderation_flags)
+      .where(whereClause)
+      .orderBy(desc(moderation_flags.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(moderation_flags)
+      .where(whereClause),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.ceil(Number(total) / limit),
+    },
+  };
+}
+
+/**
+ * Update moderation flag status
+ */
+export async function updateModerationFlagStatus(
+  id: number,
+  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed',
+  reviewedBy?: number
+): Promise<any> {
+  const [flag] = await db
+    .update(moderation_flags)
+    .set({
+      status,
+      reviewedBy,
+      reviewedAt: new Date(),
+    })
+    .where(eq(moderation_flags.id, id))
+    .returning();
+  return flag;
+}
+
+/**
+ * Create sentiment analysis record
+ */
+export async function createSentimentAnalysis(data: {
+  contentType: 'article' | 'comment';
+  contentId: number;
+  score: number;
+  magnitude: number;
+  label: string;
+  flagged: boolean;
+  confidence: number;
+  keywords?: Array<{ word: string; sentiment: number }>;
+}): Promise<any> {
+  const [analysis] = await db
+    .insert(sentiment_analyses)
+    .values(data)
+    .returning();
+  return analysis;
+}
+
+/**
+ * Create content appeal
+ */
+export async function createContentAppeal(data: {
+  contentType: 'article' | 'comment';
+  contentId: number;
+  userId: number;
+  reason: string;
+  originalContent: string;
+}): Promise<any> {
+  const [appeal] = await db
+    .insert(content_appeals)
+    .values({
+      ...data,
+      status: 'pending',
+    })
+    .returning();
+  return appeal;
+}
+
+/**
+ * Get content appeals with pagination
+ */
+export async function getContentAppeals(params: {
+  page?: number;
+  limit?: number;
+  status?: 'pending' | 'approved' | 'rejected';
+}): Promise<PaginatedResult<any>> {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (params.status) {
+    conditions.push(eq(content_appeals.status, params.status));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [data, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(content_appeals)
+      .where(whereClause)
+      .orderBy(desc(content_appeals.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(content_appeals)
+      .where(whereClause),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.ceil(Number(total) / limit),
+    },
+  };
+}
+
+/**
+ * Update content appeal
+ */
+export async function updateContentAppeal(
+  id: number,
+  data: {
+    status?: 'pending' | 'approved' | 'rejected';
+    aiSuggestion?: 'approve' | 'reject';
+    aiConfidence?: number;
+    aiReasoning?: string;
+    reviewedBy?: number;
+  }
+): Promise<any> {
+  const [appeal] = await db
+    .update(content_appeals)
+    .set({
+      ...data,
+      reviewedAt: data.status !== 'pending' ? new Date() : undefined,
+    })
+    .where(eq(content_appeals.id, id))
+    .returning();
+  return appeal;
+}
+
+/**
+ * Add image to moderation queue
+ */
+export async function addImageToModerationQueue(data: {
+  imageUrl: string;
+  relatedContentType?: 'article' | 'comment' | 'user_profile';
+  relatedContentId?: number;
+  uploadedBy?: number;
+}): Promise<any> {
+  const [image] = await db
+    .insert(image_moderation_queue)
+    .values({
+      ...data,
+      flagged: false,
+    })
+    .returning();
+  return image;
+}
+
+/**
+ * Get image moderation queue
+ */
+export async function getImageModerationQueue(params: {
+  page?: number;
+  limit?: number;
+  approved?: boolean;
+  flagged?: boolean;
+}): Promise<PaginatedResult<any>> {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (params.approved !== undefined) {
+    conditions.push(eq(image_moderation_queue.approved, params.approved));
+  }
+  if (params.flagged !== undefined) {
+    conditions.push(eq(image_moderation_queue.flagged, params.flagged));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [data, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(image_moderation_queue)
+      .where(whereClause)
+      .orderBy(desc(image_moderation_queue.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(image_moderation_queue)
+      .where(whereClause),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.ceil(Number(total) / limit),
+    },
+  };
+}
+
+/**
+ * Update image moderation status
+ */
+export async function updateImageModeration(
+  id: number,
+  data: {
+    approved?: boolean;
+    flagged?: boolean;
+    confidence?: number;
+    categories?: any;
+    categoryScores?: any;
+    reason?: string;
+    suggestedAction?: 'approve' | 'review' | 'reject';
+    reviewedBy?: number;
+  }
+): Promise<any> {
+  const [image] = await db
+    .update(image_moderation_queue)
+    .set({
+      ...data,
+      reviewedAt: data.approved !== undefined ? new Date() : undefined,
+    })
+    .where(eq(image_moderation_queue.id, id))
+    .returning();
+  return image;
 }

@@ -1,5 +1,5 @@
 ---
-import { getPendingReviews, getFlaggedContent } from '@aidepedia/db';
+import { getPendingReviews, getFlaggedContent, getModerationFlags, getContentAppeals, getImageModerationQueue } from '@aidepedia/db';
 import Layout from '../../../layouts/Layout.astro';
 
 export const prerender = false;
@@ -8,12 +8,39 @@ export const prerender = false;
 const url = new URL(Astro.request.url);
 const page = parseInt(url.searchParams.get('page') || '1');
 const tab = url.searchParams.get('tab') || 'pending';
+const severity = url.searchParams.get('severity') as 'low' | 'medium' | 'high' | 'critical' | null;
 
 // Fetch data based on tab
 const pendingReviews = await getPendingReviews({ page, limit: 20 });
 const flaggedContent = await getFlaggedContent({ page, limit: 20 });
+const moderationFlags = await getModerationFlags({ page, limit: 20, status: 'pending', severity: severity || undefined });
+const appeals = await getContentAppeals({ page, limit: 20, status: 'pending' });
+const imageQueue = await getImageModerationQueue({ page, limit: 20, approved: null });
 
-const currentData = tab === 'flagged' ? flaggedContent : pendingReviews;
+let currentData: any;
+let tabTitle: string;
+
+switch (tab) {
+  case 'flagged':
+    currentData = flaggedContent;
+    tabTitle = 'Flagged Content';
+    break;
+  case 'flags':
+    currentData = moderationFlags;
+    tabTitle = 'AI Moderation Flags';
+    break;
+  case 'appeals':
+    currentData = appeals;
+    tabTitle = 'Content Appeals';
+    break;
+  case 'images':
+    currentData = imageQueue;
+    tabTitle = 'Image Moderation';
+    break;
+  default:
+    currentData = pendingReviews;
+    tabTitle = 'Pending Review';
+}
 
 // Helper to get report reason (only exists on flagged content)
 function getReportReason(article: typeof currentData.data[0]): string | undefined {
@@ -21,6 +48,17 @@ function getReportReason(article: typeof currentData.data[0]): string | undefine
     return (article as typeof currentData.data[0] & { reportReason?: string }).reportReason;
   }
   return undefined;
+}
+
+// Get severity badge color
+function getSeverityColor(severity: string): string {
+  switch (severity) {
+    case 'critical': return 'bg-red-100 text-red-700';
+    case 'high': return 'bg-orange-100 text-orange-700';
+    case 'medium': return 'bg-yellow-100 text-yellow-700';
+    case 'low': return 'bg-blue-100 text-blue-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
 }
 ---
 
@@ -67,14 +105,261 @@ function getReportReason(article: typeof currentData.data[0]): string | undefine
         >
           Flagged Content ({flaggedContent.meta.total})
         </a>
+        <a
+          href="/admin/moderation?tab=flags"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'flags'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          AI Flags ({moderationFlags.meta.total})
+        </a>
+        <a
+          href="/admin/moderation?tab=appeals"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'appeals'
+              ? 'border-purple-600 text-purple-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Appeals ({appeals.meta.total})
+        </a>
+        <a
+          href="/admin/moderation?tab=images"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'images'
+              ? 'border-green-600 text-green-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Images ({imageQueue.meta.total})
+        </a>
       </nav>
     </div>
+
+    <!-- Severity Filter (only for AI Flags) -->
+    {tab === 'flags' && (
+      <div class="mb-6 flex gap-2">
+        <span class="text-sm text-gray-600">Filter by severity:</span>
+        <a
+          href="/admin/moderation?tab=flags"
+          class={`px-3 py-1 rounded text-sm font-medium ${!severity ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          All
+        </a>
+        {['critical', 'high', 'medium', 'low'].map(s => (
+          <a
+            href={`/admin/moderation?tab=flags&severity=${s}`}
+            class={`px-3 py-1 rounded text-sm font-medium ${severity === s ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </a>
+        ))}
+      </div>
+    )}
 
     <!-- Content List -->
     <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
       {currentData.data.length > 0 ? (
         <div class="divide-y divide-gray-200">
-          {currentData.data.map(article => (
+          {tab === 'flags' && currentData.data.map((flag: any) => (
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start justify-between gap-6">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                      {flag.contentType} #{flag.contentId}
+                    </h3>
+                    <span class={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(flag.severity)}`}>
+                      {flag.severity.toUpperCase()}
+                    </span>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                      {flag.flagType.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                    <span>Confidence: {flag.confidence}%</span>
+                    <span>•</span>
+                    <span>AI Flagged: {flag.aiFlagged ? 'Yes' : 'No'}</span>
+                    <span>•</span>
+                    <time>{new Date(flag.createdAt).toLocaleDateString()}</time>
+                  </div>
+
+                  {flag.categoryScores && (
+                    <div class="flex gap-2 text-xs text-gray-400 mt-2">
+                      {Object.entries(flag.categoryScores).slice(0, 5).map(([key, value]: [string, any]) => (
+                        <span class="px-2 py-1 bg-gray-100 rounded">
+                          {key}: {(value * 100).toFixed(0)}%
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div class="flex flex-col gap-2 min-w-[140px]">
+                  <form method="POST" action="/api/admin/moderation/approve" class="w-full">
+                    <input type="hidden" name="flagId" value={flag.id} />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                    >
+                      ✓ Dismiss
+                    </button>
+                  </form>
+                  <form method="POST" action="/api/admin/moderation/reject" class="w-full">
+                    <input type="hidden" name="flagId" value={flag.id} />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                    >
+                      ✗ Take Action
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {tab === 'appeals' && currentData.data.map((appeal: any) => (
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start justify-between gap-6">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                      Appeal for {appeal.contentType} #{appeal.contentId}
+                    </h3>
+                    {appeal.aiSuggestion && (
+                      <span class={`px-2 py-0.5 rounded text-xs font-medium ${appeal.aiSuggestion === 'approve' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        AI: {appeal.aiSuggestion.toUpperCase()} ({appeal.aiConfidence}%)
+                      </span>
+                    )}
+                  </div>
+
+                  <p class="text-sm text-gray-600 mb-3 line-clamp-2">
+                    {appeal.reason}
+                  </p>
+
+                  {appeal.aiReasoning && (
+                    <p class="text-xs text-gray-500 italic mb-2">
+                      AI Reasoning: {appeal.aiReasoning}
+                    </p>
+                  )}
+
+                  <div class="flex items-center gap-2 text-xs text-gray-400">
+                    <span>User ID: {appeal.userId}</span>
+                    <span>•</span>
+                    <time>{new Date(appeal.createdAt).toLocaleDateString()}</time>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 min-w-[140px]">
+                  <form method="POST" action="/api/admin/moderation/approve" class="w-full">
+                    <input type="hidden" name="appealId" value={appeal.id} />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                    >
+                      ✓ Approve
+                    </button>
+                  </form>
+                  <form method="POST" action="/api/admin/moderation/reject" class="w-full">
+                    <input type="hidden" name="appealId" value={appeal.id} />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                    >
+                      ✗ Reject
+                    </button>
+                  </form>
+                  <a
+                    href={`/${appeal.contentType}s/${appeal.contentId}`}
+                    class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium text-center transition-colors"
+                  >
+                    View Content
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {tab === 'images' && currentData.data.map((image: any) => (
+            <div class="p-6 hover:bg-gray-50 transition-colors">
+              <div class="flex items-start justify-between gap-6">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <img src={image.imageUrl} alt="Image" class="w-32 h-32 object-cover rounded" />
+                    <div>
+                      <h3 class="text-lg font-semibold text-gray-900 mb-1">
+                        Image #{image.id}
+                      </h3>
+                      {image.flagged && (
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                          ⚠️ Flagged
+                        </span>
+                      )}
+                      {image.suggestedAction && (
+                        <span class={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${image.suggestedAction === 'approve' ? 'bg-green-100 text-green-700' : image.suggestedAction === 'reject' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          AI: {image.suggestedAction.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {image.reason && (
+                    <p class="text-sm text-gray-600 mb-2">
+                      {image.reason}
+                    </p>
+                  )}
+
+                  <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                    {image.confidence && <span>Confidence: {image.confidence}%</span>}
+                    {image.relatedContentType && (
+                      <>
+                        <span>•</span>
+                        <span>{image.relatedContentType} #{image.relatedContentId}</span>
+                      </>
+                    )}
+                    <span>•</span>
+                    <time>{new Date(image.createdAt).toLocaleDateString()}</time>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 min-w-[140px]">
+                  <form method="POST" action="/api/admin/moderation/image" class="w-full">
+                    <input type="hidden" name="imageId" value={image.id} />
+                    <input type="hidden" name="approved" value="true" />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                    >
+                      ✓ Approve
+                    </button>
+                  </form>
+                  <form method="POST" action="/api/admin/moderation/image" class="w-full">
+                    <input type="hidden" name="imageId" value={image.id} />
+                    <input type="hidden" name="approved" value="false" />
+                    <button
+                      type="submit"
+                      class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                    >
+                      ✗ Reject
+                    </button>
+                  </form>
+                  <a
+                    href={image.imageUrl}
+                    target="_blank"
+                    class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium text-center transition-colors"
+                  >
+                    View Full
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {(tab === 'pending' || tab === 'flagged') && currentData.data.map((article: any) => (
             <div class="p-6 hover:bg-gray-50 transition-colors">
               <div class="flex items-start justify-between gap-6">
                 <div class="flex-1 min-w-0">
@@ -176,7 +461,7 @@ function getReportReason(article: typeof currentData.data[0]): string | undefine
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p class="text-gray-500 text-lg">
-            {tab === 'pending' ? 'No pending reviews' : 'No flagged content'}
+            No {tabTitle.toLowerCase()} found
           </p>
           <p class="text-gray-400 text-sm mt-2">
             {tab === 'pending' ? 'All articles have been reviewed' : 'All content meets quality standards'}

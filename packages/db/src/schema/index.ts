@@ -621,3 +621,137 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// Content moderation flags
+export const moderation_flags = pgTable('moderation_flags', {
+  id: serial('id').primaryKey(),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment', 'image'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  flagType: varchar('flag_type', {
+    enum: ['spam', 'toxicity', 'inappropriate', 'misinformation', 'harassment', 'violence', 'sexual', 'hate_speech', 'other'],
+    length: 20
+  }).notNull(),
+  severity: varchar('severity', {
+    enum: ['low', 'medium', 'high', 'critical'],
+    length: 10
+  }).notNull().default('low'),
+  confidence: integer('confidence').notNull(), // 0-100
+  aiFlagged: boolean('ai_flagged').notNull().default(false),
+  categoryScores: jsonb('category_scores').$type<Record<string, number>>(),
+  status: varchar('status', {
+    enum: ['pending', 'reviewed', 'resolved', 'dismissed'],
+    length: 20
+  }).notNull().default('pending'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  contentTypeIdx: index('moderation_flag_content_type_idx').on(table.contentType),
+  contentIdx: index('moderation_flag_content_idx').on(table.contentId),
+  flagTypeIdx: index('moderation_flag_type_idx').on(table.flagType),
+  statusIdx: index('moderation_flag_status_idx').on(table.status),
+  severityIdx: index('moderation_flag_severity_idx').on(table.severity),
+  createdAtIdx: index('moderation_flag_created_at_idx').on(table.createdAt),
+}));
+
+// Sentiment analysis results
+export const sentiment_analyses = pgTable('sentiment_analyses', {
+  id: serial('id').primaryKey(),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  score: integer('score').notNull(), // -100 to 100
+  magnitude: integer('magnitude').notNull(), // 0 to 100
+  label: varchar('label', {
+    enum: ['very_negative', 'negative', 'neutral', 'positive', 'very_positive'],
+    length: 20
+  }).notNull(),
+  flagged: boolean('flagged').notNull().default(false),
+  confidence: integer('confidence').notNull(), // 0-100
+  keywords: jsonb('keywords').$type<Array<{ word: string; sentiment: number }>>(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  contentTypeIdx: index('sentiment_content_type_idx').on(table.contentType),
+  contentIdx: index('sentiment_content_idx').on(table.contentId),
+  flaggedIdx: index('sentiment_flagged_idx').on(table.flagged),
+  scoreIdx: index('sentiment_score_idx').on(table.score),
+  createdAtIdx: index('sentiment_created_at_idx').on(table.createdAt),
+}));
+
+// Content appeals
+export const content_appeals = pgTable('content_appeals', {
+  id: serial('id').primaryKey(),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  originalContent: text('original_content').notNull(),
+  status: varchar('status', {
+    enum: ['pending', 'approved', 'rejected'],
+    length: 20
+  }).notNull().default('pending'),
+  aiSuggestion: varchar('ai_suggestion', {
+    enum: ['approve', 'reject'],
+    length: 10
+  }),
+  aiConfidence: integer('ai_confidence'), // 0-100
+  aiReasoning: text('ai_reasoning'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  contentTypeIdx: index('appeal_content_type_idx').on(table.contentType),
+  contentIdx: index('appeal_content_idx').on(table.contentId),
+  userIdx: index('appeal_user_idx').on(table.userId),
+  statusIdx: index('appeal_status_idx').on(table.status),
+  createdAtIdx: index('appeal_created_at_idx').on(table.createdAt),
+}));
+
+// Image moderation queue
+export const image_moderation_queue = pgTable('image_moderation_queue', {
+  id: serial('id').primaryKey(),
+  imageUrl: varchar('image_url', { length: 1000 }).notNull(),
+  relatedContentType: varchar('related_content_type', {
+    enum: ['article', 'comment', 'user_profile'],
+    length: 20
+  }),
+  relatedContentId: integer('related_content_id'),
+  uploadedBy: integer('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+  approved: boolean('approved').default(null),
+  flagged: boolean('flagged').notNull().default(false),
+  confidence: integer('confidence'), // 0-100
+  categories: jsonb('categories').$type<{
+    violence: boolean;
+    sexual: boolean;
+    hate_symbols: boolean;
+    inappropriate: boolean;
+  }>(),
+  categoryScores: jsonb('category_scores').$type<{
+    violence: number;
+    sexual: number;
+    hate_symbols: number;
+    inappropriate: number;
+  }>(),
+  reason: text('reason'),
+  suggestedAction: varchar('suggested_action', {
+    enum: ['approve', 'review', 'reject'],
+    length: 10
+  }),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  imageUrlIdx: index('image_moderation_url_idx').on(table.imageUrl),
+  uploadedByIdx: index('image_moderation_uploaded_by_idx').on(table.uploadedBy),
+  approvedIdx: index('image_moderation_approved_idx').on(table.approved),
+  flaggedIdx: index('image_moderation_flagged_idx').on(table.flagged),
+  createdAtIdx: index('image_moderation_created_at_idx').on(table.createdAt),
+}));
