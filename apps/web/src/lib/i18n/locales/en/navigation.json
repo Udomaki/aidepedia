@@ -1,0 +1,20 @@
+{
+  "home": "Home",
+  "articles": "Articles",
+  "categories": "Categories",
+  "about": "About",
+  "contact": "Contact",
+  "login": "Login",
+  "logout": "Logout",
+  "profile": "Profile",
+  "settings": "Settings",
+  "dashboard": "Dashboard",
+  "createArticle": "Create Article",
+  "myArticles": "My Articles",
+  "bookmarks": "Bookmarks",
+  "notifications": "Notifications",
+  "help": "Help",
+  "faq": "FAQ",
+  "privacy": "Privacy Policy",
+  "terms": "Terms of Service"
+}

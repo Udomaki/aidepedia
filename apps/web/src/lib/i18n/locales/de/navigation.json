@@ -1,0 +1,20 @@
+{
+  "home": "Startseite",
+  "articles": "Artikel",
+  "categories": "Kategorien",
+  "about": "Über uns",
+  "contact": "Kontakt",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "profile": "Profil",
+  "settings": "Einstellungen",
+  "dashboard": "Dashboard",
+  "createArticle": "Artikel erstellen",
+  "myArticles": "Meine Artikel",
+  "bookmarks": "Lesezeichen",
+  "notifications": "Benachrichtigungen",
+  "help": "Hilfe",
+  "faq": "FAQ",
+  "privacy": "Datenschutz",
+  "terms": "Nutzungsbedingungen"
+}

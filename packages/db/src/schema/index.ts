@@ -70,6 +70,9 @@ export const articles = pgTable('articles', {
   categoryId: integer('category_id').references(() => categories.id),
   tags: text('tags').array().default([]),
   
+  // Language support
+  language: varchar('language', { length: 10 }).notNull().default('en'),
+  
   status: varchar('status', { 
     enum: ['draft', 'pending_review', 'published', 'rejected'],
     length: 20
@@ -89,6 +92,7 @@ export const articles = pgTable('articles', {
   slugIdx: index('slug_idx').on(table.slug),
   categoryIdx: index('category_idx').on(table.categoryId),
   statusIdx: index('status_idx').on(table.status),
+  languageIdx: index('language_idx').on(table.language),
 }));
 
 export const editors = pgTable('editors', {
@@ -620,4 +624,32 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   userIdx: index('assignment_user_idx').on(table.userId),
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
+}));
+
+// Article translations for multi-language support
+export const article_translations = pgTable('article_translations', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  language: varchar('language', { length: 10 }).notNull(),
+  title: varchar('title', { length: 500 }).notNull(),
+  content: text('content').notNull(),
+  excerpt: text('excerpt'),
+  translatedBy: varchar('translated_by', { length: 50 }), // 'auto' or 'manual'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleLanguageIdx: index('translation_article_language_idx').on(table.articleId, table.language).unique(),
+  languageIdx: index('translation_language_idx').on(table.language),
+}));
+
+// User language preferences
+export const user_language_preferences = pgTable('user_language_preferences', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  preferredLanguage: varchar('preferred_language', { length: 10 }).notNull().default('en'),
+  fallbackLanguage: varchar('fallback_language', { length: 10 }).notNull().default('en'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('user_language_user_idx').on(table.userId).unique(),
 }));
