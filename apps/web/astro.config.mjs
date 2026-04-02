@@ -8,4 +8,14 @@ export default defineConfig({
   integrations: [tailwind(), auth()],
   output: 'server',
   adapter: cloudflare(),
+  vite: {
+    build: {
+      rollupOptions: {
+        external: ['@aws-sdk/client-s3', 'child_process', 'fs/promises', 'stream', 'path', 'util']
+      }
+    },
+    ssr: {
+      external: ['@aws-sdk/client-s3', 'child_process', 'fs/promises', 'stream', 'path', 'util']
+    }
+  }
 });
