@@ -621,3 +621,91 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// API Keys for AI Agent access
+export const api_keys = pgTable('api_keys', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  keyHash: varchar('key_hash', { length: 255 }).notNull().unique(), // SHA-256 hash of the key
+  keyPrefix: varchar('key_prefix', { length: 8 }).notNull(), // First 8 chars for identification
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', {
+    enum: ['read-only', 'read-write', 'admin'],
+    length: 20
+  }).notNull().default('read-only'),
+  
+  // Rate limiting
+  rateLimit: integer('rate_limit').notNull().default(1000), // Requests per hour
+  
+  // Status
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  expiresAt: timestamp('expires_at'),
+  
+  // Usage stats (denormalized for performance)
+  totalRequests: integer('total_requests').notNull().default(0),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  revokedAt: timestamp('revoked_at'),
+  revokedBy: integer('revoked_by').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => ({
+  keyHashIdx: index('api_key_hash_idx').on(table.keyHash),
+  keyPrefixIdx: index('api_key_prefix_idx').on(table.keyPrefix),
+  userIdx: index('api_key_user_idx').on(table.userId),
+  isActiveIdx: index('api_key_is_active_idx').on(table.isActive),
+}));
+
+// API Usage tracking
+export const api_usage = pgTable('api_usage', {
+  id: serial('id').primaryKey(),
+  apiKeyId: integer('api_key_id').notNull().references(() => api_keys.id, { onDelete: 'cascade' }),
+  
+  // Request details
+  endpoint: varchar('endpoint', { length: 500 }).notNull(),
+  method: varchar('method', { length: 10 }).notNull(),
+  statusCode: integer('status_code').notNull(),
+  
+  // Performance metrics
+  responseTime: integer('response_time').notNull(), // in milliseconds
+  
+  // Request metadata
+  ipAddress: varchar('ip_address', { length: 45 }),
+  userAgent: varchar('user_agent', { length: 500 }),
+  
+  // Error tracking
+  errorMessage: text('error_message'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  apiKeyIdx: index('api_usage_key_idx').on(table.apiKeyId),
+  endpointIdx: index('api_usage_endpoint_idx').on(table.endpoint),
+  createdAtIdx: index('api_usage_created_at_idx').on(table.createdAt),
+}));
+
+// Hourly API usage stats (aggregated for performance)
+export const api_usage_hourly = pgTable('api_usage_hourly', {
+  id: serial('id').primaryKey(),
+  apiKeyId: integer('api_key_id').notNull().references(() => api_keys.id, { onDelete: 'cascade' }),
+  hour: timestamp('hour').notNull(), // Truncated to hour
+  
+  // Request counts
+  totalRequests: integer('total_requests').notNull().default(0),
+  successRequests: integer('success_requests').notNull().default(0),
+  errorRequests: integer('error_requests').notNull().default(0),
+  
+  // Performance metrics
+  avgResponseTime: integer('avg_response_time'), // in milliseconds
+  maxResponseTime: integer('max_response_time'),
+  
+  // Status code breakdown
+  statusCodes: jsonb('status_codes').$type<Record<string, number>>(),
+  
+  // Top endpoints
+  topEndpoints: jsonb('top_endpoints').$type<Array<{ endpoint: string; count: number }>>(),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  apiKeyHourIdx: index('api_usage_hourly_key_hour_idx').on(table.apiKeyId, table.hour),
+  hourIdx: index('api_usage_hourly_hour_idx').on(table.hour),
+}));
