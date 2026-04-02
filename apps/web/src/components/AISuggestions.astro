@@ -1,0 +1,561 @@
+---
+interface Props {
+  articleId: number;
+  articleContent: string;
+}
+
+const { articleId } = Astro.props;
+---
+
+<div class="ai-suggestions-container">
+  <div class="ai-suggestions-header">
+    <h3>AI-Powered Suggestions</h3>
+    <button 
+      id="run-all-checks" 
+      class="btn-primary"
+      data-article-id={articleId}
+    >
+      Run All Checks
+    </button>
+  </div>
+
+  <div class="ai-suggestions-tabs">
+    <button class="tab-btn active" data-tab="all">All</button>
+    <button class="tab-btn" data-tab="grammar">Grammar</button>
+    <button class="tab-btn" data-tab="fact_check">Fact Check</button>
+    <button class="tab-btn" data-tab="tone">Tone</button>
+    <button class="tab-btn" data-tab="citation">Citations</button>
+  </div>
+
+  <div id="suggestions-list" class="suggestions-list">
+    <div class="loading">Loading suggestions...</div>
+  </div>
+
+  <div id="quality-score" class="quality-score-card" style="display: none;">
+    <h4>Quality Score</h4>
+    <div class="score-display">
+      <div class="overall-score">
+        <span class="score-value">0</span>
+        <span class="score-label">Overall</span>
+      </div>
+      <div class="score-breakdown">
+        <div class="score-item">
+          <span class="score-name">Completeness</span>
+          <span class="score-num">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Accuracy</span>
+          <span class="score-num">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Readability</span>
+          <span class="score-num">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Citations</span>
+          <span class="score-num">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Tone</span>
+          <span class="score-num">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="improvements-list"></div>
+  </div>
+</div>
+
+<style>
+  .ai-suggestions-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .ai-suggestions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .ai-suggestions-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: var(--primary-color-dark);
+  }
+
+  .btn-primary:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+  }
+
+  .ai-suggestions-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+  }
+
+  .tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+  }
+
+  .tab-btn:hover {
+    color: var(--primary-color);
+  }
+
+  .suggestions-list {
+    margin-bottom: 1.5rem;
+  }
+
+  .suggestion-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .suggestion-item.accepted {
+    border-left: 3px solid var(--success-color);
+  }
+
+  .suggestion-item.rejected {
+    border-left: 3px solid var(--error-color);
+    opacity: 0.6;
+  }
+
+  .suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 0.5rem;
+  }
+
+  .suggestion-type {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.25rem 0.5rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 3px;
+  }
+
+  .suggestion-confidence {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .suggestion-original {
+    background: #ffeef0;
+    padding: 0.5rem;
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+    text-decoration: line-through;
+    color: var(--error-color);
+  }
+
+  .suggestion-new {
+    background: #e6ffed;
+    padding: 0.5rem;
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+    color: var(--success-color);
+  }
+
+  .suggestion-reasoning {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+  }
+
+  .suggestion-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-accept,
+  .btn-reject,
+  .btn-dismiss {
+    padding: 0.375rem 0.75rem;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .btn-accept {
+    background: var(--success-color);
+    color: white;
+  }
+
+  .btn-reject {
+    background: var(--error-color);
+    color: white;
+  }
+
+  .btn-dismiss {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+  }
+
+  .quality-score-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1.5rem;
+  }
+
+  .quality-score-card h4 {
+    margin: 0 0 1rem 0;
+  }
+
+  .score-display {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .overall-score {
+    text-align: center;
+  }
+
+  .score-value {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    display: block;
+  }
+
+  .score-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .score-breakdown {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+  }
+
+  .score-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .score-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .score-num {
+    font-weight: 600;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+  }
+
+  .error-message {
+    background: #ffeef0;
+    border: 1px solid var(--error-color);
+    padding: 1rem;
+    border-radius: 6px;
+    color: var(--error-color);
+  }
+</style>
+
+<script>
+  class AISuggestions {
+    articleId: string;
+    currentTab: string;
+    suggestions: any[];
+    qualityScore: any;
+
+    constructor() {
+      this.articleId = document.getElementById('run-all-checks')?.dataset.articleId || '';
+      this.currentTab = 'all';
+      this.suggestions = [];
+      this.qualityScore = null;
+      
+      this.init();
+    }
+
+    init() {
+      if (!this.articleId) return;
+
+      this.bindEvents();
+      this.loadSuggestions();
+      this.loadQualityScore();
+    }
+
+    bindEvents() {
+      // Tab switching
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          this.switchTab((e.target as HTMLElement).dataset.tab!);
+        });
+      });
+
+      // Run all checks
+      document.getElementById('run-all-checks')?.addEventListener('click', () => {
+        this.runAllChecks();
+      });
+
+      // Delegation for suggestion actions
+      document.getElementById('suggestions-list')?.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const btn = target.closest('button');
+        if (!btn) return;
+
+        const suggestionItem = btn.closest('.suggestion-item') as HTMLElement;
+        const suggestionId = suggestionItem?.dataset.suggestionId;
+
+        if (btn.classList.contains('btn-accept')) {
+          this.resolveSuggestion(suggestionId || '', 'accept');
+        } else if (btn.classList.contains('btn-reject')) {
+          this.resolveSuggestion(suggestionId || '', 'reject');
+        } else if (btn.classList.contains('btn-dismiss')) {
+          this.resolveSuggestion(suggestionId || '', 'dismiss');
+        }
+      });
+    }
+
+    switchTab(tab: string) {
+      this.currentTab = tab;
+      
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', (btn as HTMLElement).dataset.tab === tab);
+      });
+
+      this.renderSuggestions();
+    }
+
+    async loadSuggestions() {
+      try {
+        const response = await fetch(`/api/v1/ai/suggestions?articleId=${this.articleId}`);
+        const data = await response.json();
+        
+        this.suggestions = data.suggestions || [];
+        this.renderSuggestions();
+      } catch (error) {
+        console.error('Failed to load suggestions:', error);
+        this.showError('Failed to load suggestions');
+      }
+    }
+
+    async loadQualityScore() {
+      try {
+        const response = await fetch(`/api/v1/ai/quality-score?articleId=${this.articleId}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.qualityScore = data.qualityScore;
+          this.renderQualityScore();
+        }
+      } catch (error) {
+        console.error('Failed to load quality score:', error);
+      }
+    }
+
+    async runAllChecks() {
+      const btn = document.getElementById('run-all-checks') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Running...';
+
+      const checks = [
+        { url: '/api/v1/ai/grammar', method: 'POST', body: { articleId: this.articleId, content: this.getArticleContent() } },
+        { url: '/api/v1/ai/fact-check', method: 'POST', body: { articleId: this.articleId, content: this.getArticleContent() } },
+        { url: '/api/v1/ai/tone', method: 'POST', body: { articleId: this.articleId, content: this.getArticleContent() } },
+        { url: '/api/v1/ai/citations', method: 'POST', body: { articleId: this.articleId, content: this.getArticleContent() } },
+        { url: '/api/v1/ai/quality-score', method: 'POST', body: { articleId: this.articleId } },
+        { url: '/api/v1/ai/duplicates', method: 'POST', body: { articleId: this.articleId } },
+      ];
+
+      try {
+        await Promise.all(checks.map(check => 
+          fetch(check.url, {
+            method: check.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(check.body),
+          })
+        ));
+
+        await Promise.all([this.loadSuggestions(), this.loadQualityScore()]);
+      } catch (error) {
+        console.error('Failed to run checks:', error);
+        this.showError('Failed to run some checks');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run All Checks';
+      }
+    }
+
+    async resolveSuggestion(suggestionId: string, action: string) {
+      try {
+        const response = await fetch(`/api/v1/ai/suggestions/${suggestionId}/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+
+        if (response.ok) {
+          await this.loadSuggestions();
+          
+          // Reload page if accepted to show updated content
+          if (action === 'accept') {
+            window.location.reload();
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve suggestion:', error);
+      }
+    }
+
+    getArticleContent(): string {
+      const editor = document.querySelector('textarea[name="content"]') as HTMLTextAreaElement;
+      return editor?.value || '';
+    }
+
+    renderSuggestions() {
+      const container = document.getElementById('suggestions-list');
+      if (!container) return;
+
+      let filtered = this.suggestions;
+      if (this.currentTab !== 'all') {
+        filtered = this.suggestions.filter((s: any) => s.suggestionType === this.currentTab);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="loading">No suggestions found</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map((suggestion: any) => `
+        <div class="suggestion-item ${suggestion.status}" data-suggestion-id="${suggestion.id}">
+          <div class="suggestion-header">
+            <span class="suggestion-type">${this.formatType(suggestion.suggestionType)}</span>
+            ${suggestion.confidence ? `<span class="suggestion-confidence">${suggestion.confidence}% confident</span>` : ''}
+          </div>
+          ${suggestion.originalText ? `<div class="suggestion-original">${this.escapeHtml(suggestion.originalText)}</div>` : ''}
+          ${suggestion.suggestedText ? `<div class="suggestion-new">${this.escapeHtml(suggestion.suggestedText)}</div>` : ''}
+          ${suggestion.reasoning ? `<div class="suggestion-reasoning">${this.escapeHtml(suggestion.reasoning)}</div>` : ''}
+          ${suggestion.status === 'pending' ? `
+            <div class="suggestion-actions">
+              <button class="btn-accept">Accept</button>
+              <button class="btn-reject">Reject</button>
+              <button class="btn-dismiss">Dismiss</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    renderQualityScore() {
+      const container = document.getElementById('quality-score');
+      if (!container || !this.qualityScore) return;
+
+      container.style.display = 'block';
+
+      const scoreValue = container.querySelector('.score-value');
+      if (scoreValue) {
+        scoreValue.textContent = String(this.qualityScore.overallScore);
+      }
+
+      const scoreItems = container.querySelectorAll('.score-item');
+      const scores = [
+        this.qualityScore.completenessScore,
+        this.qualityScore.accuracyScore,
+        this.qualityScore.readabilityScore,
+        this.qualityScore.citationScore,
+        this.qualityScore.toneScore,
+      ];
+
+      scoreItems.forEach((item, index) => {
+        const scoreNum = item.querySelector('.score-num');
+        if (scoreNum && scores[index] !== undefined) {
+          scoreNum.textContent = String(scores[index]);
+        }
+      });
+
+      const improvementsList = container.querySelector('.improvements-list');
+      if (improvementsList && this.qualityScore.improvements?.length > 0) {
+        improvementsList.innerHTML = `
+          <h5>Suggested Improvements:</h5>
+          <ul>
+            ${this.qualityScore.improvements.map((imp: any) => `
+              <li class="priority-${imp.priority}">
+                <strong>${imp.category}:</strong> ${imp.suggestion}
+                <span class="impact">(Impact: +${imp.impact})</span>
+              </li>
+            `).join('')}
+          </ul>
+        `;
+      }
+    }
+
+    showError(message: string) {
+      const container = document.getElementById('suggestions-list');
+      if (container) {
+        container.innerHTML = `<div class="error-message">${message}</div>`;
+      }
+    }
+
+    formatType(type: string): string {
+      const typeMap: Record<string, string> = {
+        grammar: 'Grammar',
+        style: 'Style',
+        fact_check: 'Fact Check',
+        tone: 'Tone',
+        citation: 'Citation',
+        completeness: 'Completeness',
+        clarity: 'Clarity',
+      };
+      return typeMap[type] || type;
+    }
+
+    escapeHtml(text: string): string {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  }
+
+  // Initialize
+  new AISuggestions();
+</script>

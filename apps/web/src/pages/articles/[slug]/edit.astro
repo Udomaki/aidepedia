@@ -1,5 +1,6 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+import AISuggestions from '../../../components/AISuggestions.astro';
 import { getArticleBySlug, getCategories, getArticleDraft, getArticleTags } from '@aidepedia/db';
 import { getSession } from '../../../lib/auth';
 
@@ -257,6 +258,11 @@ const pageTitle = isNewArticle ? 'Create Article - AIdepedia' : `Edit: ${article
         </div>
       </div>
     </form>
+
+    <!-- AI Suggestions (only for existing articles) -->
+    {!isNewArticle && article && (
+      <AISuggestions articleId={article.id} articleContent={article.content} />
+    )}
   </main>
 </Layout>
 
