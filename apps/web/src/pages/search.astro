@@ -52,6 +52,22 @@ const categories = await getCategories();
           class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-96 overflow-y-auto"
         ></div>
       </div>
+      <!-- "Did you mean?" suggestion -->
+      <div id="did-you-mean" class="mt-2 hidden">
+        <span class="text-gray-600">Did you mean: </span>
+        <button
+          id="did-you-mean-btn"
+          class="text-blue-600 hover:text-blue-800 font-medium underline"
+        ></button>
+      </div>
+    </div>
+
+    <!-- Active Filters Display -->
+    <div id="active-filters" class="mb-4 hidden">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-medium text-gray-700">Active filters:</span>
+        <div id="filter-tags" class="flex gap-2 flex-wrap"></div>
+      </div>
     </div>
 
     <!-- Filters and Sort Row -->
@@ -68,6 +84,20 @@ const categories = await getCategories();
           {categories.map(cat => (
             <option value={cat.slug}>{cat.name}</option>
           ))}
+        </select>
+      </div>
+
+      <!-- Quality Score Filter -->
+      <div class="flex-1 min-w-[200px]">
+        <label for="quality-filter" class="block text-sm font-medium text-gray-700 mb-2">Quality Score</label>
+        <select
+          id="quality-filter"
+          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        >
+          <option value="">Any Quality</option>
+          <option value="70-100">High (70+)</option>
+          <option value="40-69">Medium (40-69)</option>
+          <option value="0-39">Low (0-39)</option>
         </select>
       </div>
 
@@ -95,7 +125,8 @@ const categories = await getCategories();
         >
           <option value="relevance">Relevance</option>
           <option value="date">Date</option>
-          <option value="votes">Votes</option>
+          <option value="quality">Quality Score</option>
+          <option value="popularity">Popularity</option>
         </select>
       </div>
 
@@ -114,7 +145,16 @@ const categories = await getCategories();
 
     <!-- Recent Searches -->
     <div id="recent-searches-container" class="mb-8 hidden">
-      <h3 class="text-sm font-medium text-gray-700 mb-3">Recent Searches</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-medium text-gray-700">Recent Searches</h3>
+        <button
+          id="clear-history"
+          class="text-sm text-red-600 hover:text-red-800"
+          aria-label="Clear search history"
+        >
+          Clear History
+        </button>
+      </div>
       <div id="recent-searches" class="flex flex-wrap gap-2"></div>
     </div>
 
@@ -165,34 +205,47 @@ const categories = await getCategories();
   let currentQuery = '';
   let currentPage = 1;
   let abortController: AbortController | null = null;
+  let didYouMeanQuery: string | null = null;
 
   // DOM Elements
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const searchLoading = document.getElementById('search-loading');
   const suggestionsDiv = document.getElementById('suggestions');
+  const didYouMeanDiv = document.getElementById('did-you-mean');
+  const didYouMeanBtn = document.getElementById('did-you-mean-btn') as HTMLButtonElement;
   const categoryFilter = document.getElementById('category-filter') as HTMLSelectElement;
+  const qualityFilter = document.getElementById('quality-filter') as HTMLSelectElement;
   const dateFilter = document.getElementById('date-filter') as HTMLSelectElement;
   const sortFilter = document.getElementById('sort-filter') as HTMLSelectElement;
   const clearFiltersBtn = document.getElementById('clear-filters');
+  const activeFiltersDiv = document.getElementById('active-filters');
+  const filterTagsDiv = document.getElementById('filter-tags');
   const resultsContainer = document.getElementById('results-container');
   const paginationContainer = document.getElementById('pagination-container');
   const paginationDiv = document.getElementById('pagination');
   const noResultsDiv = document.getElementById('no-results');
   const recentSearchesContainer = document.getElementById('recent-searches-container');
   const recentSearchesDiv = document.getElementById('recent-searches');
+  const clearHistoryBtn = document.getElementById('clear-history');
 
   // Initialize from URL params
   function initFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const query = params.get('q') || '';
     const category = params.get('category') || '';
+    const quality = params.get('quality') || '';
     const sort = params.get('sort') || 'relevance';
     const page = params.get('page') || '1';
+    const date = params.get('dateFrom') || '';
 
     searchInput.value = query;
     categoryFilter.value = category;
+    qualityFilter.value = quality;
+    dateFilter.value = date;
     sortFilter.value = sort;
     currentPage = parseInt(page, 10);
+
+    updateActiveFilters();
 
     if (query) {
       performSearch();
@@ -207,12 +260,95 @@ const categories = await getCategories();
     
     if (currentQuery) params.set('q', currentQuery);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
+    if (qualityFilter.value) params.set('quality', qualityFilter.value);
     if (sortFilter.value !== 'relevance') params.set('sort', sortFilter.value);
     if (currentPage > 1) params.set('page', currentPage.toString());
+    if (dateFilter.value) params.set('dateFrom', dateFilter.value);
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState({}, '', newUrl);
   }
+
+  // Update active filters display
+  function updateActiveFilters() {
+    const filters: { label: string; value: string; clear: () => void }[] = [];
+
+    if (categoryFilter.value) {
+      const option = categoryFilter.options[categoryFilter.selectedIndex];
+      filters.push({
+        label: 'Category',
+        value: option.text,
+        clear: () => { categoryFilter.value = ''; }
+      });
+    }
+
+    if (qualityFilter.value) {
+      const option = qualityFilter.options[qualityFilter.selectedIndex];
+      filters.push({
+        label: 'Quality',
+        value: option.text,
+        clear: () => { qualityFilter.value = ''; }
+      });
+    }
+
+    if (dateFilter.value) {
+      const option = dateFilter.options[dateFilter.selectedIndex];
+      filters.push({
+        label: 'Date',
+        value: option.text,
+        clear: () => { dateFilter.value = ''; }
+      });
+    }
+
+    if (sortFilter.value !== 'relevance') {
+      const option = sortFilter.options[sortFilter.selectedIndex];
+      filters.push({
+        label: 'Sort',
+        value: option.text,
+        clear: () => { sortFilter.value = 'relevance'; }
+      });
+    }
+
+    if (filters.length === 0) {
+      activeFiltersDiv!.classList.add('hidden');
+      return;
+    }
+
+    activeFiltersDiv!.classList.remove('hidden');
+    filterTagsDiv!.innerHTML = filters.map(f => `
+      <button
+        class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors"
+        onclick="removeFilter('${f.label}')"
+        aria-label="Remove ${f.label} filter: ${f.value}"
+      >
+        <span>${f.label}: ${f.value}</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    `).join('');
+  }
+
+  // Remove individual filter
+  (window as any).removeFilter = (label: string) => {
+    switch (label) {
+      case 'Category':
+        categoryFilter.value = '';
+        break;
+      case 'Quality':
+        qualityFilter.value = '';
+        break;
+      case 'Date':
+        dateFilter.value = '';
+        break;
+      case 'Sort':
+        sortFilter.value = 'relevance';
+        break;
+    }
+    updateActiveFilters();
+    if (currentQuery) performSearch();
+    updateUrl();
+  };
 
   // Debounced search
   function debounceSearch() {
@@ -234,6 +370,7 @@ const categories = await getCategories();
       paginationContainer!.classList.add('hidden');
       noResultsDiv!.classList.add('hidden');
       suggestionsDiv!.classList.add('hidden');
+      didYouMeanDiv!.classList.add('hidden');
       updateUrl();
       return;
     }
@@ -254,6 +391,13 @@ const categories = await getCategories();
       params.set('q', query);
       params.set('page', currentPage.toString());
       if (categoryFilter.value) params.set('category', categoryFilter.value);
+      if (qualityFilter.value) {
+        const [min, max] = qualityFilter.value.split('-');
+        params.set('minQuality', min);
+        params.set('maxQuality', max);
+      }
+      if (dateFilter.value) params.set('dateFrom', dateFilter.value);
+      if (sortFilter.value) params.set('sortBy', sortFilter.value);
 
       const response = await fetch(`/api/v1/search?${params.toString()}`, {
         signal: abortController.signal
@@ -292,11 +436,8 @@ const categories = await getCategories();
 
     noResultsDiv!.classList.add('hidden');
 
-    // Sort results based on sort filter
-    const sortedResults = sortResults([...results], sortFilter.value);
-
     // Display results
-    resultsContainer!.innerHTML = sortedResults.map((article: any) => createArticleCard(article, query)).join('');
+    resultsContainer!.innerHTML = results.map((article: any) => createArticleCard(article, query)).join('');
     
     // Display pagination
     if (totalPages > 1) {
@@ -304,21 +445,6 @@ const categories = await getCategories();
       paginationContainer!.classList.remove('hidden');
     } else {
       paginationContainer!.classList.add('hidden');
-    }
-  }
-
-  // Sort results
-  function sortResults(results: any[], sortBy: string) {
-    switch (sortBy) {
-      case 'date':
-        return results.sort((a, b) => 
-          new Date(b.publishedAt || b.createdAt).getTime() - 
-          new Date(a.publishedAt || a.createdAt).getTime()
-        );
-      case 'votes':
-        return results.sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes));
-      default:
-        return results; // Relevance (API order)
     }
   }
 
@@ -331,6 +457,11 @@ const categories = await getCategories();
       day: 'numeric'
     });
 
+    const relevanceScore = article.relevanceScore || 0;
+    const relevanceBadge = relevanceScore >= 80 ? 'bg-green-100 text-green-700' :
+                          relevanceScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700';
+
     return `
       <article class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow mb-6" role="article">
         <div class="flex items-start justify-between gap-6">
@@ -339,6 +470,11 @@ const categories = await getCategories();
               ${article.category ? `
                 <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full" aria-label="Category: ${article.category}">
                   ${article.category}
+                </span>
+              ` : ''}
+              ${relevanceScore > 0 && sortFilter.value === 'relevance' ? `
+                <span class="px-2 py-1 ${relevanceBadge} text-xs font-medium rounded-full" aria-label="Relevance score: ${relevanceScore}">
+                  Relevance: ${relevanceScore}%
                 </span>
               ` : ''}
               ${article.tags && article.tags.length > 0 ? `
@@ -514,46 +650,77 @@ const categories = await getCategories();
     performSearch();
   };
 
-  // Live suggestions
+  // Clear search history
+  clearHistoryBtn!.addEventListener('click', () => {
+    localStorage.removeItem('recentSearches');
+    loadRecentSearches();
+  });
+
+  // Live suggestions with "did you mean"
   async function showSuggestions(query: string) {
     if (query.length < 2) {
       suggestionsDiv!.classList.add('hidden');
+      didYouMeanDiv!.classList.add('hidden');
       return;
     }
 
     try {
-      const response = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}&limit=5`);
+      const response = await fetch(`/api/v1/autocomplete?q=${encodeURIComponent(query)}&limit=5`);
       const data = await response.json();
 
-      if (data.success && data.data.results.length > 0) {
-        suggestionsDiv!.innerHTML = `
-          <ul class="divide-y divide-gray-200" role="listbox">
-            ${data.data.results.map((article: any, index: number) => `
-              <li role="option" aria-selected="false">
-                <a
-                  href="/articles/${article.slug}"
-                  class="block px-4 py-3 hover:bg-gray-50 transition-colors"
-                  role="option"
-                  tabindex="0"
-                  aria-label="${article.title}"
-                >
-                  <div class="font-medium text-gray-900">${highlightText(article.title, query)}</div>
-                  ${article.excerpt ? `
-                    <div class="text-sm text-gray-500 truncate">${highlightText(article.excerpt, query)}</div>
-                  ` : ''}
-                </a>
-              </li>
-            `).join('')}
-          </ul>
-        `;
-        suggestionsDiv!.classList.remove('hidden');
-      } else {
-        suggestionsDiv!.classList.add('hidden');
+      if (data.success) {
+        // Show "did you mean" suggestion
+        if (data.data.didYouMean) {
+          didYouMeanQuery = data.data.didYouMean;
+          didYouMeanBtn.textContent = data.data.didYouMean;
+          didYouMeanDiv!.classList.remove('hidden');
+        } else {
+          didYouMeanDiv!.classList.add('hidden');
+          didYouMeanQuery = null;
+        }
+
+        // Show autocomplete suggestions
+        if (data.data.suggestions.length > 0) {
+          suggestionsDiv!.innerHTML = `
+            <ul class="divide-y divide-gray-200" role="listbox">
+              ${data.data.suggestions.map((article: any, index: number) => `
+                <li role="option" aria-selected="false">
+                  <a
+                    href="/articles/${article.slug}"
+                    class="block px-4 py-3 hover:bg-gray-50 transition-colors"
+                    role="option"
+                    tabindex="0"
+                    aria-label="${article.title}"
+                  >
+                    <div class="font-medium text-gray-900">${highlightText(article.title, query)}</div>
+                    ${article.excerpt ? `
+                      <div class="text-sm text-gray-500 truncate">${highlightText(article.excerpt, query)}</div>
+                    ` : ''}
+                  </a>
+                </li>
+              `).join('')}
+            </ul>
+          `;
+          suggestionsDiv!.classList.remove('hidden');
+        } else {
+          suggestionsDiv!.classList.add('hidden');
+        }
       }
     } catch (error) {
       console.error('Suggestions error:', error);
     }
   }
+
+  // "Did you mean" click handler
+  didYouMeanBtn.addEventListener('click', () => {
+    if (didYouMeanQuery) {
+      searchInput.value = didYouMeanQuery;
+      currentQuery = didYouMeanQuery;
+      currentPage = 1;
+      didYouMeanDiv!.classList.add('hidden');
+      performSearch();
+    }
+  });
 
   // Event listeners
   searchInput.addEventListener('input', (e) => {
@@ -564,6 +731,7 @@ const categories = await getCategories();
       showSuggestions(query);
     } else {
       suggestionsDiv!.classList.add('hidden');
+      didYouMeanDiv!.classList.add('hidden');
     }
     
     // Debounced search
@@ -587,18 +755,28 @@ const categories = await getCategories();
   });
 
   categoryFilter.addEventListener('change', () => {
+    updateActiveFilters();
+    currentPage = 1;
+    if (currentQuery) performSearch();
+    updateUrl();
+  });
+
+  qualityFilter.addEventListener('change', () => {
+    updateActiveFilters();
     currentPage = 1;
     if (currentQuery) performSearch();
     updateUrl();
   });
 
   sortFilter.addEventListener('change', () => {
+    updateActiveFilters();
     currentPage = 1;
     if (currentQuery) performSearch();
     updateUrl();
   });
 
   dateFilter.addEventListener('change', () => {
+    updateActiveFilters();
     currentPage = 1;
     if (currentQuery) performSearch();
     updateUrl();
@@ -607,6 +785,7 @@ const categories = await getCategories();
   clearFiltersBtn!.addEventListener('click', () => {
     searchInput.value = '';
     categoryFilter.value = '';
+    qualityFilter.value = '';
     dateFilter.value = '';
     sortFilter.value = 'relevance';
     currentQuery = '';
@@ -615,6 +794,8 @@ const categories = await getCategories();
     paginationContainer!.classList.add('hidden');
     noResultsDiv!.classList.add('hidden');
     suggestionsDiv!.classList.add('hidden');
+    didYouMeanDiv!.classList.add('hidden');
+    updateActiveFilters();
     updateUrl();
   });
 
