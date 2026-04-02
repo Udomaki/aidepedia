@@ -1,0 +1,219 @@
+---
+interface Props {
+  contentType: 'article' | 'comment' | 'user_profile';
+  contentId: number;
+  isLoggedIn: boolean;
+}
+
+const { contentType, contentId, isLoggedIn } = Astro.props;
+---
+
+<button
+  id="flag-btn"
+  data-content-type={contentType}
+  data-content-id={contentId}
+  data-logged-in={isLoggedIn}
+  class="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-medium"
+>
+  🚩 Flag Content
+</button>
+
+<!-- Flag Modal -->
+<div id="flag-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div class="p-6">
+      <h2 class="text-2xl font-bold text-gray-900 mb-4">Flag Content for Review</h2>
+      <p class="text-gray-600 mb-4">
+        Help us maintain quality by flagging inappropriate content.
+      </p>
+
+      <form id="flag-form" class="space-y-4">
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+          
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="inappropriate" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Inappropriate</div>
+              <div class="text-sm text-gray-500">Offensive or unsuitable content</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="inaccurate" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Inaccurate</div>
+              <div class="text-sm text-gray-500">Factually incorrect or misleading</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="spam" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Spam</div>
+              <div class="text-sm text-gray-500">Misleading or repetitive content</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="harassment" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Harassment</div>
+              <div class="text-sm text-gray-500">Targeted abuse or bullying</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="misinformation" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Misinformation</div>
+              <div class="text-sm text-gray-500">False or misleading information</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="copyright" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Copyright Violation</div>
+              <div class="text-sm text-gray-500">Unauthorized use of copyrighted material</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="reason" value="other" required class="w-4 h-4 text-orange-600" />
+            <div>
+              <div class="font-medium text-gray-900">Other</div>
+              <div class="text-sm text-gray-500">Please specify below</div>
+            </div>
+          </label>
+        </div>
+
+        <div>
+          <label for="severity" class="block text-sm font-medium text-gray-700 mb-1">
+            Severity Level
+          </label>
+          <select
+            id="severity"
+            name="severity"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          >
+            <option value="low">Low - Minor issue</option>
+            <option value="medium" selected>Medium - Needs attention</option>
+            <option value="high">High - Serious issue</option>
+            <option value="critical">Critical - Urgent attention needed</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+            Additional details (optional)
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows="3"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            placeholder="Provide more context about the issue..."
+          ></textarea>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            type="button"
+            id="cancel-flag"
+            class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+          >
+            Submit Flag
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const flagBtn = document.getElementById('flag-btn');
+  const flagModal = document.getElementById('flag-modal');
+  const flagForm = document.getElementById('flag-form');
+  const cancelBtn = document.getElementById('cancel-flag');
+
+  if (flagBtn) {
+    flagBtn.addEventListener('click', () => {
+      const isLoggedIn = flagBtn.getAttribute('data-logged-in');
+      if (isLoggedIn === 'false') {
+        alert('Please log in to flag content');
+        window.location.href = '/auth/signin';
+        return;
+      }
+      flagModal?.classList.remove('hidden');
+      flagModal?.classList.add('flex');
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      flagModal?.classList.add('hidden');
+      flagModal?.classList.remove('flex');
+      flagForm?.reset();
+    });
+  }
+
+  if (flagForm) {
+    flagForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(flagForm as HTMLFormElement);
+      const reason = formData.get('reason');
+      const severity = formData.get('severity');
+      const description = formData.get('description');
+      
+      const contentType = flagBtn?.getAttribute('data-content-type');
+      const contentId = flagBtn?.getAttribute('data-content-id');
+
+      try {
+        const response = await fetch('/api/v1/moderation/flags', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contentType,
+            contentId: parseInt(contentId || '0'),
+            reason,
+            severity,
+            description: description || null,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert('Thank you for flagging this content. Our moderators will review it shortly.');
+          flagModal?.classList.add('hidden');
+          flagModal?.classList.remove('flex');
+          flagForm.reset();
+        } else {
+          alert(result.error || 'Failed to submit flag');
+        }
+      } catch (error) {
+        console.error('Error submitting flag:', error);
+        alert('Failed to submit flag. Please try again.');
+      }
+    });
+  }
+
+  // Close modal on outside click
+  flagModal?.addEventListener('click', (e) => {
+    if (e.target === flagModal) {
+      flagModal.classList.add('hidden');
+      flagModal.classList.remove('flex');
+      flagForm?.reset();
+    }
+  });
+</script>
