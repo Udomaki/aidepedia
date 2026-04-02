@@ -420,3 +420,52 @@ export interface ArticleDraftWithArticle extends ArticleDraft {
     excerpt: string | null;
   } | null;
 }
+
+// Saved search types
+export interface SavedSearch {
+  id: number;
+  userId: number;
+  name: string;
+  query: string;
+  filters?: {
+    category?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    tags?: string[];
+    authorId?: number;
+    minVotes?: number;
+    maxVotes?: number;
+    articleLength?: 'short' | 'medium' | 'long';
+    status?: string;
+  } | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NewSavedSearch {
+  userId: number;
+  name: string;
+  query: string;
+  filters?: SavedSearch['filters'];
+}
+
+// Advanced search query params
+export interface AdvancedSearchParams extends ArticleQueryParams {
+  // Faceted search
+  authorId?: number;
+  authorReputationTier?: 'contributor' | 'editor' | 'senior_editor' | 'admin';
+  
+  // Advanced filters
+  articleLength?: 'short' | 'medium' | 'long';
+  minReadingTime?: number;
+  maxReadingTime?: number;
+  minRevisionCount?: number;
+  maxRevisionCount?: number;
+  minVotes?: number;
+  maxVotes?: number;
+  voteFilter?: 'highly_voted' | 'controversial' | 'new';
+  
+  // Search metadata
+  useFTS?: boolean; // Use PostgreSQL full-text search
+  highlightResults?: boolean;
+}

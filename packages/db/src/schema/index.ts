@@ -621,3 +621,27 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// Saved searches for users
+export const saved_searches = pgTable('saved_searches', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  query: text('query').notNull(),
+  filters: jsonb('filters').$type<{
+    category?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    tags?: string[];
+    authorId?: number;
+    minVotes?: number;
+    maxVotes?: number;
+    articleLength?: 'short' | 'medium' | 'long';
+    status?: string;
+  }>(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('saved_search_user_idx').on(table.userId),
+  createdAtIdx: index('saved_search_created_at_idx').on(table.createdAt),
+}));
