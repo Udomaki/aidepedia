@@ -5,7 +5,6 @@
 import { db } from '@aidepedia/db';
 import { webhooks, webhook_deliveries } from '@aidepedia/db/schema';
 import { eq } from '@aidepedia/db';
-import crypto from 'crypto';
 
 /**
  * Supported webhook events
@@ -37,13 +36,28 @@ export interface DeliveryResult {
 }
 
 /**
- * Generate HMAC signature for webhook payload
+ * Generate HMAC signature for webhook payload (edge-compatible)
  */
-function generateSignature(secret: string, payload: string): string {
-  return crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
+async function generateSignature(secret: string, payload: string): Promise<string> {
+  // Use Web Crypto API which works in both Node.js and edge runtimes
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(payload);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  
+  // Convert to hex string
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**
@@ -57,7 +71,7 @@ async function deliverWebhook(
   payload: WebhookPayload
 ): Promise<DeliveryResult> {
   const payloadString = JSON.stringify(payload);
-  const signature = generateSignature(secret, payloadString);
+  const signature = await generateSignature(secret, payloadString);
   const maxAttempts = 3;
   let lastError: string | undefined;
 

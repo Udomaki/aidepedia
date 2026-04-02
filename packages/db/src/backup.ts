@@ -1,13 +1,44 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { db, backups } from './index';
 import { desc, lt, and, eq } from 'drizzle-orm';
-import { Readable } from 'stream';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, unlink, readFile } from 'fs/promises';
-import { join } from 'path';
 
-const execAsync = promisify(exec);
+// Node.js-specific imports - only load when needed
+let Readable: any = null;
+let execAsync: any = null;
+let writeFile: any = null;
+let unlink: any = null;
+let readFile: any = null;
+let join: any = null;
+
+// Check if we're in an edge runtime
+const isEdgeRuntime = typeof process === 'undefined' || !process.versions?.node;
+
+// Lazy load Node.js modules only when needed
+async function loadNodeModules() {
+  if (isEdgeRuntime) {
+    throw new Error('Backup operations are not supported in edge runtime. Please use a Node.js environment for backup operations.');
+  }
+  
+  if (!Readable) {
+    const stream = await import('stream');
+    Readable = stream.Readable;
+  }
+  if (!execAsync) {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    execAsync = promisify(exec);
+  }
+  if (!writeFile) {
+    const fs = await import('fs/promises');
+    writeFile = fs.writeFile;
+    unlink = fs.unlink;
+    readFile = fs.readFile;
+  }
+  if (!join) {
+    const path = await import('path');
+    join = path.join;
+  }
+}
 
 // S3 client configuration
 const s3Client = new S3Client({
@@ -39,6 +70,9 @@ interface BackupMetadata {
  * Create a database backup
  */
 export async function createBackup(userId?: number): Promise<BackupMetadata> {
+  // Load Node.js modules (will throw in edge runtime)
+  await loadNodeModules();
+  
   // Create backup record
   const [backup] = await db
     .insert(backups)
@@ -150,6 +184,9 @@ export async function getBackup(backupId: number): Promise<BackupMetadata | null
  * Restore from a backup
  */
 export async function restoreBackup(backupId: number): Promise<void> {
+  // Load Node.js modules (will throw in edge runtime)
+  await loadNodeModules();
+  
   const backup = await getBackup(backupId);
 
   if (!backup) {
@@ -179,7 +216,7 @@ export async function restoreBackup(backupId: number): Promise<void> {
 
     // Save to temp file
     const restorePath = join('/tmp', `restore-${backup.filename}`);
-    const stream = response.Body as Readable;
+    const stream = response.Body as typeof Readable;
     const chunks: Buffer[] = [];
 
     for await (const chunk of stream) {

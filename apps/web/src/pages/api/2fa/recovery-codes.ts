@@ -1,13 +1,15 @@
 import type { APIRoute } from 'astro';
 import { getSession } from '../../../lib/auth';
 import { db, users, eq } from '@aidepedia/db';
-import { randomBytes } from 'crypto';
 
-// Generate recovery codes
-function generateRecoveryCodes(count: number = 10): string[] {
+// Generate recovery codes (edge-compatible)
+async function generateRecoveryCodes(count: number = 10): Promise<string[]> {
   const codes: string[] = [];
   for (let i = 0; i < count; i++) {
-    const code = randomBytes(4).toString('hex').toUpperCase();
+    // Use Web Crypto API which works in both Node.js and edge runtimes
+    const buffer = new Uint8Array(4);
+    crypto.getRandomValues(buffer);
+    const code = Array.from(buffer, byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
     codes.push(`${code.slice(0, 4)}-${code.slice(4)}`);
   }
   return codes;
@@ -39,7 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Generate new recovery codes
-    const recoveryCodes = generateRecoveryCodes(10);
+    const recoveryCodes = await generateRecoveryCodes(10);
 
     // Update user with new recovery codes
     await db
