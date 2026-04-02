@@ -675,3 +675,119 @@ export * from './quality';
 
 // Export recommendations tables
 export * from './recommendations';
+
+// AI Article Generation - Outlines
+export const article_outlines = pgTable('article_outlines', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 500 }).notNull(),
+  outline: jsonb('outline').notNull().$type<{
+    sections: Array<{
+      heading: string;
+      points: string[];
+      subsections?: Array<{
+        heading: string;
+        points: string[];
+      }>;
+    }>;
+  }>(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: varchar('status', {
+    enum: ['draft', 'generating', 'generated', 'failed'],
+    length: 20
+  }).notNull().default('draft'),
+  generatedArticleId: integer('generated_article_id').references(() => articles.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('outline_user_idx').on(table.userId),
+  statusIdx: index('outline_status_idx').on(table.status),
+  createdAtIdx: index('outline_created_at_idx').on(table.createdAt),
+}));
+
+// AI Article Generation - Citations
+export const article_citations = pgTable('article_citations', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  source: varchar('source', { length: 500 }).notNull(),
+  title: varchar('title', { length: 500 }),
+  authors: text('authors').array().default([]),
+  publicationDate: varchar('publication_date', { length: 50 }),
+  url: varchar('url', { length: 1000 }),
+  doi: varchar('doi', { length: 255 }),
+  citationFormat: varchar('citation_format', {
+    enum: ['apa', 'mla'],
+    length: 10
+  }).notNull().default('apa'),
+  citationText: text('citation_text').notNull(),
+  qualityScore: integer('quality_score').default(0), // 0-100
+  qualityFlags: text('quality_flags').array().default([]), // e.g., 'missing_author', 'no_date'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('citation_article_idx').on(table.articleId),
+  formatIdx: index('citation_format_idx').on(table.citationFormat),
+}));
+
+// AI Article Generation - Quality Scores
+export const article_quality_scores = pgTable('article_quality_scores', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  overallScore: integer('overall_score').notNull(), // 0-100
+  
+  // Individual scores
+  completenessScore: integer('completeness_score').notNull(), // 0-100
+  citationQualityScore: integer('citation_quality_score').notNull(), // 0-100
+  structureScore: integer('structure_score').notNull(), // 0-100
+  readabilityScore: integer('readability_score').notNull(), // 0-100
+  
+  // Issues flagged
+  issues: jsonb('issues').notNull().$type<Array<{
+    type: string;
+    severity: 'low' | 'medium' | 'high';
+    message: string;
+    section?: string;
+  }>>(),
+  
+  // Metadata
+  wordCount: integer('word_count'),
+  sectionCount: integer('section_count'),
+  citationCount: integer('citation_count'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('quality_article_idx').on(table.articleId),
+  overallScoreIdx: index('quality_overall_score_idx').on(table.overallScore),
+  createdAtIdx: index('quality_created_at_idx').on(table.createdAt),
+}));
+
+// Article Review Workflow
+export const article_reviews = pgTable('article_reviews', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  reviewerId: integer('reviewer_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  status: varchar('status', {
+    enum: ['pending', 'approved', 'rejected', 'changes_requested'],
+    length: 20
+  }).notNull().default('pending'),
+  
+  comments: text('comments'),
+  
+  // Review checklist
+  checklist: jsonb('checklist').$type<{
+    accurate: boolean;
+    wellWritten: boolean;
+    properlySourced: boolean;
+    neutralPOV: boolean;
+    comprehensive: boolean;
+  }>(),
+  
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('review_article_idx').on(table.articleId),
+  reviewerIdx: index('review_reviewer_idx').on(table.reviewerId),
+  statusIdx: index('review_status_idx').on(table.status),
+  createdAtIdx: index('review_created_at_idx').on(table.createdAt),
+}));

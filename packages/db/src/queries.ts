@@ -5951,3 +5951,119 @@ function selectVariant(
   // Fallback to first variant
   return variants[0].name;
 }
+
+/**
+ * AI Article Generation Queries
+ */
+
+/**
+ * Save citations for an article
+ */
+export async function saveArticleCitations(
+  articleId: number,
+  citations: Array<{
+    source: string;
+    title?: string;
+    authors?: string[];
+    publicationDate?: string;
+    url?: string;
+    doi?: string;
+    citationFormat: 'apa' | 'mla';
+    citationText: string;
+    qualityScore: number;
+    qualityFlags: string[];
+  }>
+): Promise<void> {
+  const { article_citations } = await import('./schema/index');
+  
+  for (const citation of citations) {
+    await db.insert(article_citations).values({
+      articleId,
+      ...citation
+    });
+  }
+}
+
+/**
+ * Get citations for an article
+ */
+export async function getArticleCitations(articleId: number) {
+  const { article_citations } = await import('./schema/index');
+  
+  return db.select()
+    .from(article_citations)
+    .where(eq(article_citations.articleId, articleId));
+}
+
+/**
+ * Save quality score for an article
+ */
+export async function saveArticleQualityScore(
+  articleId: number,
+  score: {
+    overallScore: number;
+    completenessScore: number;
+    citationQualityScore: number;
+    structureScore: number;
+    readabilityScore: number;
+    issues: Array<{
+      type: string;
+      severity: 'low' | 'medium' | 'high';
+      message: string;
+      section?: string;
+    }>;
+    wordCount: number;
+    sectionCount: number;
+    citationCount: number;
+  }
+): Promise<void> {
+  const { article_quality_scores } = await import('./schema/index');
+  
+  await db.insert(article_quality_scores).values({
+    articleId,
+    ...score
+  });
+}
+
+/**
+ * Get latest quality score for an article
+ */
+export async function getArticleQualityScore(articleId: number) {
+  const { article_quality_scores } = await import('./schema/index');
+  
+  const [score] = await db.select()
+    .from(article_quality_scores)
+    .where(eq(article_quality_scores.articleId, articleId))
+    .orderBy(desc(article_quality_scores.createdAt))
+    .limit(1);
+  
+  return score;
+}
+
+/**
+ * Get pending article reviews
+ */
+export async function getPendingArticleReviews(limit: number = 20) {
+  const { article_reviews } = await import('./schema/index');
+  
+  return db.select()
+    .from(article_reviews)
+    .where(eq(article_reviews.status, 'pending'))
+    .orderBy(article_reviews.createdAt)
+    .limit(limit);
+}
+
+/**
+ * Get review for article
+ */
+export async function getArticleReview(articleId: number) {
+  const { article_reviews } = await import('./schema/index');
+  
+  const [review] = await db.select()
+    .from(article_reviews)
+    .where(eq(article_reviews.articleId, articleId))
+    .orderBy(desc(article_reviews.createdAt))
+    .limit(1);
+  
+  return review;
+}
