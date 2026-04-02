@@ -1,0 +1,20 @@
+{
+  "home": "ホーム",
+  "articles": "記事",
+  "categories": "カテゴリー",
+  "about": "概要",
+  "contact": "お問い合わせ",
+  "login": "ログイン",
+  "logout": "ログアウト",
+  "profile": "プロフィール",
+  "settings": "設定",
+  "dashboard": "ダッシュボード",
+  "createArticle": "記事を作成",
+  "myArticles": "自分の記事",
+  "bookmarks": "ブックマーク",
+  "notifications": "通知",
+  "help": "ヘルプ",
+  "faq": "よくある質問",
+  "privacy": "プライバシーポリシー",
+  "terms": "利用規約"
+}

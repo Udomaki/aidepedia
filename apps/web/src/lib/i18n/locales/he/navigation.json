@@ -1,0 +1,20 @@
+{
+  "home": "דף הבית",
+  "articles": "מאמרים",
+  "categories": "קטגוריות",
+  "about": "אודות",
+  "contact": "צור קשר",
+  "login": "התחברות",
+  "logout": "התנתקות",
+  "profile": "פרופיל",
+  "settings": "הגדרות",
+  "dashboard": "לוח בקרה",
+  "createArticle": "צור מאמר",
+  "myArticles": "המאמרים שלי",
+  "bookmarks": "סימניות",
+  "notifications": "התראות",
+  "help": "עזרה",
+  "faq": "שאלות נפוצות",
+  "privacy": "מדיניות פרטיות",
+  "terms": "תנאי שימוש"
+}

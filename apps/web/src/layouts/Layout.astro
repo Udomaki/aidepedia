@@ -1,7 +1,10 @@
 ---
 import { getSession } from '../lib/auth';
+import { getDirection, isRtl } from '../lib/i18n/rtl-utils';
+import { extractLanguageFromPath, getLanguageAlternates } from '../lib/i18n/routing';
 import '../styles/global.css';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import PWAInstall from '../components/PWAInstall.astro';
 import OfflineStatus from '../components/OfflineStatus.astro';
 import KeyboardShortcuts from '../components/KeyboardShortcuts.astro';
@@ -42,10 +45,15 @@ const {
 const session = await getSession(Astro.request);
 const user = session?.user;
 const siteName = 'AIdepedia';
+
+// i18n support
+const currentLanguage = Astro.locals.language || extractLanguageFromPath(Astro.url.pathname);
+const direction = getDirection(currentLanguage);
+const languageAlternates = getLanguageAlternates(Astro.url.pathname);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={currentLanguage} dir={direction}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -58,6 +66,12 @@ const siteName = 'AIdepedia';
     
     <!-- Canonical URL -->
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    
+    <!-- Alternate language versions for SEO -->
+    {languageAlternates.map(({ lang, url }) => (
+      <link rel="alternate" hreflang={lang} href={url} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href={canonicalUrl || url} />
     
     <title>{title} - AIdepedia</title>
     
@@ -166,6 +180,7 @@ const siteName = 'AIdepedia';
               </a>
             )}
             <ThemeToggle />
+            <LanguageSwitcher currentLanguage={currentLanguage} />
           </div>
         </div>
       </div>

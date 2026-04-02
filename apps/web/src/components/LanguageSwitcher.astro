@@ -1,0 +1,111 @@
+---
+import { languages, isRtl } from '../lib/i18n/config';
+
+interface Props {
+  currentLanguage?: string;
+  class?: string;
+}
+
+const { currentLanguage = 'en', class: className = '' } = Astro.props;
+
+const languageList = Object.entries(languages).map(([code, name]) => ({
+  code,
+  name,
+  isRtl: isRtl(code),
+}));
+---
+
+<div class:list={['language-switcher', className]}>
+  <label for="language-selector" class="sr-only">Select Language</label>
+  <select 
+    id="language-selector"
+    class="language-select"
+    data-current={currentLanguage}
+  >
+    {languageList.map(({ code, name }) => (
+      <option value={code} selected={code === currentLanguage}>
+        {name}
+      </option>
+    ))}
+  </select>
+</div>
+
+<style>
+  .language-switcher {
+    position: relative;
+  }
+
+  .language-select {
+    appearance: none;
+    background-color: var(--bg-secondary, #f3f4f6);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 0.5rem;
+    padding: 0.5rem 2rem 0.5rem 1rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.5em;
+  }
+
+  .language-select:hover {
+    border-color: var(--accent-color, #3b82f6);
+  }
+
+  .language-select:focus {
+    outline: none;
+    border-color: var(--accent-color, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  /* RTL Support */
+  :global([dir="rtl"]) .language-select {
+    padding: 0.5rem 1rem 0.5rem 2rem;
+    background-position: left 0.5rem center;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+</style>
+
+<script>
+  const selector = document.getElementById('language-selector') as HTMLSelectElement;
+  
+  if (selector) {
+    selector.addEventListener('change', (e) => {
+      const target = e.target as HTMLSelectElement;
+      const newLang = target.value;
+      const currentPath = window.location.pathname;
+      
+      // Store preference
+      localStorage.setItem('preferred-language', newLang);
+      
+      // Build new URL with language prefix
+      const pathParts = currentPath.split('/').filter(Boolean);
+      const currentLang = pathParts[0];
+      
+      // Check if current path starts with a language code
+      const langCodes = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'he'];
+      
+      if (langCodes.includes(currentLang)) {
+        // Replace existing language code
+        pathParts[0] = newLang;
+        window.location.pathname = '/' + pathParts.join('/');
+      } else {
+        // Add language code to beginning
+        window.location.pathname = '/' + newLang + currentPath;
+      }
+    });
+  }
+</script>
