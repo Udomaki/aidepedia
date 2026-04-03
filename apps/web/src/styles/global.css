@@ -140,6 +140,270 @@ textarea:focus-visible,
   }
 }
 
+/* ========================================
+   MOBILE OPTIMIZATIONS
+   ======================================== */
+
+/* Touch Target Optimization - Minimum 44px */
+@media (max-width: 768px) {
+  /* Ensure all interactive elements meet minimum touch target size */
+  button,
+  a,
+  input[type="submit"],
+  input[type="button"],
+  input[type="reset"],
+  [role="button"],
+  [role="link"],
+  [role="menuitem"],
+  label[for],
+  select,
+  summary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve form inputs on mobile */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 16px;
+    min-height: 48px;
+  }
+
+  /* Better button sizing for touch */
+  button,
+  .btn {
+    padding: 12px 20px;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* Improve link spacing */
+  a {
+    padding: 8px 0;
+  }
+
+  /* Add touch feedback */
+  .touch-feedback {
+    -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
+  }
+
+  /* Prevent horizontal scroll */
+  html, body {
+    overflow-x: hidden;
+  }
+
+  /* Improve text readability */
+  body {
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Better heading sizes for mobile */
+  h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+
+  /* Improve spacing on mobile */
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Fix grids on mobile */
+  .grid {
+    gap: 1rem;
+  }
+
+  /* Ensure cards don't overflow */
+  .card, article {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+  }
+
+  /* Better spacing for lists */
+  ul, ol {
+    padding-left: 1.5rem;
+  }
+
+  /* Improve table scrolling on mobile */
+  .table-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Improve image display on mobile */
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Better modal/dropdown positioning */
+  .modal, .dropdown {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Safe area insets for notched devices */
+  @supports (padding: env(safe-area-inset-bottom)) {
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .safe-area-top {
+      padding-top: env(safe-area-inset-top);
+    }
+  }
+
+  /* Improve navigation on mobile */
+  nav {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide horizontal scrollbars but keep functionality */
+  .scroll-x {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Better form layout on mobile */
+  form {
+    max-width: 100%;
+  }
+
+  /* Improve code blocks on mobile */
+  pre, code {
+    font-size: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  pre {
+    padding: 1rem;
+    border-radius: 8px;
+  }
+
+  /* Better blockquote styling */
+  blockquote {
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    border-left: 4px solid var(--accent);
+  }
+}
+
+/* Small mobile devices (< 375px) */
+@media (max-width: 374px) {
+  html {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.375rem;
+  }
+
+  h3 {
+    font-size: 1.125rem;
+  }
+
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* Landscape mobile optimization */
+@media (max-width: 896px) and (orientation: landscape) {
+  nav {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .modal {
+    max-height: 80vh;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Remove hover states on touch devices */
+  .no-hover:hover {
+    background-color: transparent;
+  }
+
+  /* Add active states instead */
+  button:active,
+  a:active,
+  [role="button"]:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+
+  /* Improve scroll performance */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    will-change: transform;
+  }
+}
+
+/* High DPI screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Ensure crisp borders */
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Pull-to-refresh disabled for app-like experience */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Improve focus visibility on mobile */
+@media (max-width: 768px) {
+  *:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
 /* Mention styles */
 .mention-link {
   @apply text-blue-600 font-medium hover:underline;

@@ -8,6 +8,7 @@ import KeyboardShortcuts from '../components/KeyboardShortcuts.astro';
 import KeyboardHelpModal from '../components/KeyboardHelpModal.astro';
 import QuickActionModal from '../components/QuickActionModal.astro';
 import ToastNotification from '../components/ToastNotification.astro';
+import MobileMenu from '../components/MobileMenu.astro';
 
 interface Props {
   title: string;
@@ -113,56 +114,69 @@ const siteName = 'AIdepedia';
 
     <nav id="main-navigation" role="navigation" aria-label="Main navigation" class="border-b border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
+        <div class="flex justify-between items-center h-16">
+          <!-- Logo -->
           <div class="flex items-center">
             <a href="/" class="text-2xl font-bold text-blue-600 dark:text-blue-400" aria-label="AIdepedia home">
               AIdepedia
             </a>
-            <span class="ml-2 text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
+            <span class="ml-2 text-sm text-gray-500 dark:text-gray-400 hidden md:inline">
               Wikipedia for AI Agents
             </span>
           </div>
-          <div class="flex items-center space-x-4" role="menubar">
-            <a href="/search" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Search</a>
-            <a href="/articles" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Articles</a>
-            <a href="/dashboard" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Dashboard</a>
-            <a href="/about" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">About</a>
-            <a href="https://github.com/Udomaki/aidepedia" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" target="_blank" rel="noopener noreferrer">GitHub</a>
+
+          <!-- Desktop Navigation -->
+          <div class="hidden lg:flex items-center space-x-4" role="menubar">
+            <a href="/search" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Search</a>
+            <a href="/articles" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Articles</a>
+            <a href="/dashboard" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Dashboard</a>
+            <a href="/about" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">About</a>
+            <a href="https://github.com/Udomaki/aidepedia" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center" target="_blank" rel="noopener noreferrer">GitHub</a>
+            
             <!-- Quick Action Trigger -->
             <button 
               id="quick-action-trigger"
-              class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+              class="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px]"
               aria-label="Open quick actions"
               title="Open quick actions (⌘K)"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
               </svg>
-              <kbd class="hidden sm:inline text-xs">⌘K</kbd>
+              <kbd class="hidden xl:inline text-xs">⌘K</kbd>
             </button>
+            
             {user && (user as any)?.tier === 'admin' && (
-              <div class="flex items-center space-x-3">
-                <a href="/admin" role="menuitem" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">Admin</a>
-                <a href="/admin/analytics" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Analytics</a>
+              <div class="flex items-center space-x-2">
+                <a href="/admin" role="menuitem" class="px-3 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors min-h-[44px] flex items-center">Admin</a>
+                <a href="/admin/analytics" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Analytics</a>
               </div>
             )}
+            
             {user ? (
-              <div class="flex items-center space-x-3">
-                <a href={`/users/${user.name}`} class="flex items-center space-x-3 hover:opacity-80 transition-opacity" aria-label={`View profile of ${user.name}`}>
+              <div class="flex items-center space-x-2">
+                <a href={`/users/${user.name}`} class="flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px]" aria-label={`View profile of ${user.name}`}>
                   {user.image && (
                     <img src={user.image} alt="" class="w-8 h-8 rounded-full" role="img" />
                   )}
-                  <span class="text-gray-700 dark:text-gray-300 hidden sm:inline">{user.name}</span>
+                  <span class="text-gray-700 dark:text-gray-300">{user.name}</span>
                 </a>
-                <a href="/settings/profile" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Settings</a>
-                <a href="/logout" role="menuitem" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm">Sign out</a>
+                <a href="/settings/profile" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Settings</a>
+                <a href="/logout" role="menuitem" class="px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors min-h-[44px] flex items-center">Sign out</a>
               </div>
             ) : (
-              <a href="/login" role="menuitem" class="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors">
+              <a href="/login" role="menuitem" class="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors min-h-[44px] flex items-center font-medium">
                 Sign in
               </a>
             )}
+            
             <ThemeToggle />
+          </div>
+
+          <!-- Mobile Menu Button & Theme Toggle -->
+          <div class="flex items-center gap-2 lg:hidden">
+            <ThemeToggle />
+            <MobileMenu isLoggedIn={!!user} user={user} />
           </div>
         </div>
       </div>
