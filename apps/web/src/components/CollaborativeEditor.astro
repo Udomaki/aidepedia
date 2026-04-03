@@ -1,0 +1,399 @@
+---
+/**
+ * CollaborativeEditor Component
+ * Real-time collaborative text editor with cursor tracking
+ */
+import CollaborationPresence from './CollaborationPresence.astro';
+import CollaborationCursor from './CollaborationCursor.astro';
+import CollaborationStatus from './CollaborationStatus.astro';
+import type { CollabUser } from '../lib/collab/types';
+
+interface Props {
+  articleSlug: string;
+  initialContent?: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userAvatar?: string;
+}
+
+const { articleSlug, initialContent = '', userId, userName, userEmail, userAvatar } = Astro.props;
+---
+
+<div class="collaborative-editor">
+  <div class="editor-main">
+    <div class="editor-toolbar">
+      <CollaborationStatus connected={false} userCount={0} />
+    </div>
+    
+    <div class="editor-container">
+      <div class="editor-wrapper">
+        <textarea
+          id="collab-content"
+          name="content"
+          class="editor-textarea"
+          placeholder="Start writing..."
+          spellcheck="true"
+        >{initialContent}</textarea>
+        <CollaborationCursor users={[]} />
+      </div>
+    </div>
+  </div>
+  
+  <div class="editor-sidebar">
+    <CollaborationPresence users={[]} localUser={{
+      id: userId,
+      name: userName,
+      email: userEmail,
+      avatar: userAvatar,
+      color: '#3b82f6',
+      status: 'viewing',
+      lastActive: Date.now(),
+    }} />
+  </div>
+</div>
+
+<style>
+  .collaborative-editor {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .editor-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .editor-container {
+    position: relative;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .editor-wrapper {
+    position: relative;
+    min-height: 500px;
+  }
+
+  .editor-textarea {
+    width: 100%;
+    min-height: 500px;
+    padding: 1rem;
+    border: none;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+  }
+
+  .editor-textarea:focus {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+  }
+
+  .editor-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 1024px) {
+    .collaborative-editor {
+      flex-direction: column;
+    }
+
+    .editor-sidebar {
+      width: 100%;
+    }
+  }
+</style>
+
+<script define:vars={{ articleSlug, userId, userName, userEmail, userAvatar }}>
+  import { CollaborationManager } from '../lib/collab/collaboration-manager';
+
+  class CollaborativeEditorController {
+    constructor() {
+      this.textarea = document.getElementById('collab-content');
+      this.manager = null;
+      this.ytext = null;
+      this.lastContent = '';
+      this.isLocalChange = false;
+      
+      this.init();
+    }
+
+    async init() {
+      if (!this.textarea) return;
+
+      // Initialize collaboration manager
+      this.manager = new CollaborationManager({
+        articleSlug,
+        userId,
+        userName,
+        userEmail,
+        userAvatar,
+      });
+
+      // Set up state change handler
+      this.manager.onStateUpdate((state) => {
+        this.updateUI(state);
+      });
+
+      // Connect to collaboration server
+      try {
+        await this.manager.connect();
+        
+        // Get Y.Text instance
+        this.ytext = this.manager.getText('content');
+        
+        // Set initial content if empty
+        if (this.ytext.toString() === '' && this.textarea.value) {
+          this.ytext.insert(0, this.textarea.value);
+        }
+
+        // Sync textarea with Y.Text
+        this.syncFromYText();
+        
+        // Observe Y.Text changes
+        this.ytext.observe((event) => {
+          if (!this.isLocalChange) {
+            this.syncFromYText();
+          }
+        });
+
+        // Listen to textarea changes
+        this.textarea.addEventListener('input', () => {
+          this.handleLocalChange();
+        });
+
+        // Track cursor position
+        this.textarea.addEventListener('click', () => {
+          this.updateCursor();
+        });
+
+        this.textarea.addEventListener('keyup', () => {
+          this.updateCursor();
+        });
+
+        // Track selection
+        this.textarea.addEventListener('select', () => {
+          this.updateSelection();
+        });
+
+        // Update status
+        this.textarea.addEventListener('focus', () => {
+          this.manager.updateStatus('editing');
+        });
+
+        this.textarea.addEventListener('blur', () => {
+          this.manager.updateStatus('viewing');
+        });
+
+        // Notify that editor is ready
+        document.dispatchEvent(new CustomEvent('collab:editor-ready', {
+          detail: { editor: this.textarea },
+        }));
+
+      } catch (error) {
+        console.error('Failed to initialize collaboration:', error);
+        // Continue in offline mode
+        this.manager.updateStatus('idle');
+      }
+    }
+
+    handleLocalChange() {
+      if (!this.ytext) return;
+
+      const newContent = this.textarea.value;
+      const oldContent = this.lastContent;
+
+      // Find the difference
+      const diff = this.findDiff(oldContent, newContent);
+      
+      if (diff) {
+        this.isLocalChange = true;
+        
+        // Apply change to Y.Text
+        if (diff.type === 'insert') {
+          this.ytext.insert(diff.position, diff.content);
+        } else if (diff.type === 'delete') {
+          this.ytext.delete(diff.position, diff.length);
+        }
+        
+        this.lastContent = newContent;
+        this.isLocalChange = false;
+      }
+    }
+
+    findDiff(oldText, newText) {
+      // Simple diff algorithm - can be optimized
+      const oldLen = oldText.length;
+      const newLen = newText.length;
+
+      if (newLen > oldLen) {
+        // Insertion
+        for (let i = 0; i < Math.min(oldLen, newLen); i++) {
+          if (oldText[i] !== newText[i]) {
+            return {
+              type: 'insert',
+              position: i,
+              content: newText.substring(i, i + (newLen - oldLen)),
+            };
+          }
+        }
+        // Appended at end
+        return {
+          type: 'insert',
+          position: oldLen,
+          content: newText.substring(oldLen),
+        };
+      } else if (newLen < oldLen) {
+        // Deletion
+        for (let i = 0; i < newLen; i++) {
+          if (oldText[i] !== newText[i]) {
+            return {
+              type: 'delete',
+              position: i,
+              length: oldLen - newLen,
+            };
+          }
+        }
+        // Deleted from end
+        return {
+          type: 'delete',
+          position: newLen,
+          length: oldLen - newLen,
+        };
+      }
+
+      return null;
+    }
+
+    syncFromYText() {
+      if (!this.ytext || !this.textarea) return;
+
+      const content = this.ytext.toString();
+      const cursorPos = this.textarea.selectionStart;
+
+      this.isLocalChange = true;
+      this.textarea.value = content;
+      this.lastContent = content;
+      
+      // Restore cursor position
+      this.textarea.setSelectionRange(cursorPos, cursorPos);
+      
+      this.isLocalChange = false;
+    }
+
+    updateCursor() {
+      if (!this.textarea || !this.manager) return;
+
+      const offset = this.textarea.selectionStart;
+      const text = this.textarea.value.substring(0, offset);
+      const lines = text.split('\n');
+      
+      const cursor = {
+        line: lines.length,
+        column: lines[lines.length - 1].length,
+        offset,
+      };
+
+      this.manager.updateCursor(cursor);
+    }
+
+    updateSelection() {
+      if (!this.textarea || !this.manager) return;
+
+      const startOffset = this.textarea.selectionStart;
+      const endOffset = this.textarea.selectionEnd;
+
+      if (startOffset === endOffset) {
+        this.manager.updateSelection(null);
+        return;
+      }
+
+      const text = this.textarea.value;
+      const startText = text.substring(0, startOffset);
+      const endText = text.substring(0, endOffset);
+      
+      const startLines = startText.split('\n');
+      const endLines = endText.split('\n');
+
+      const selection = {
+        start: {
+          line: startLines.length,
+          column: startLines[startLines.length - 1].length,
+          offset: startOffset,
+        },
+        end: {
+          line: endLines.length,
+          column: endLines[endLines.length - 1].length,
+          offset: endOffset,
+        },
+      };
+
+      this.manager.updateSelection(selection);
+    }
+
+    updateUI(state) {
+      // Update status indicator
+      document.dispatchEvent(new CustomEvent('collab:status-update', {
+        detail: {
+          connected: state.connected,
+          userCount: state.users.length,
+          offline: !state.connected,
+        },
+      }));
+
+      // Update presence panel
+      const presenceEl = document.querySelector('.collab-presence');
+      if (presenceEl) {
+        const countEl = presenceEl.querySelector('.presence-count');
+        if (countEl) {
+          countEl.textContent = state.users.length + 1; // +1 for local user
+        }
+      }
+
+      // Update cursors
+      document.dispatchEvent(new CustomEvent('collab:update-cursors', {
+        detail: { users: state.users },
+      }));
+    }
+
+    followUser(userId) {
+      if (!this.manager) return;
+
+      const state = this.manager.getState();
+      const user = state.users.find(u => u.id === userId);
+      
+      if (user && user.cursor) {
+        // Move cursor to user's position
+        this.textarea.setSelectionRange(user.cursor.offset, user.cursor.offset);
+        this.textarea.focus();
+        
+        // Scroll to position
+        const lineHeight = parseInt(getComputedStyle(this.textarea).lineHeight) || 20;
+        const scrollTop = (user.cursor.line - 5) * lineHeight; // Show 5 lines above
+        this.textarea.scrollTop = Math.max(0, scrollTop);
+      }
+    }
+  }
+
+  // Initialize editor
+  const editor = new CollaborativeEditorController();
+
+  // Handle follow user events
+  document.addEventListener('collab:follow-user', (e) => {
+    editor.followUser(e.detail.userId);
+  });
+</script>

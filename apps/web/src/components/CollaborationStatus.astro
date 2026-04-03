@@ -1,0 +1,131 @@
+---
+/**
+ * CollaborationStatus Component
+ * Shows connection status and sync state
+ */
+interface Props {
+  connected: boolean;
+  syncing?: boolean;
+  offline?: boolean;
+  userCount?: number;
+}
+
+const { connected, syncing, offline, userCount = 0 } = Astro.props;
+---
+
+<div class="collab-status" id="collab-status">
+  <div class={`status-indicator ${connected ? 'connected' : 'disconnected'}`}>
+    <span class="status-dot"></span>
+    <span class="status-text">
+      {connected ? (
+        syncing ? 'Syncing...' : `${userCount} collaborator${userCount !== 1 ? 's' : ''} online`
+      ) : (
+        offline ? 'Offline - changes will sync when connected' : 'Connecting...'
+      )}
+    </span>
+  </div>
+  
+  {offline && (
+    <div class="offline-queue">
+      <span class="queue-icon">📤</span>
+      <span class="queue-text">Changes queued for sync</span>
+    </div>
+  )}
+</div>
+
+<style>
+  .collab-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.875rem;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .status-indicator.connected .status-dot {
+    background-color: #10b981;
+  }
+
+  .status-indicator.disconnected .status-dot {
+    background-color: #f59e0b;
+    animation: pulse-fast 1s ease-in-out infinite;
+  }
+
+  .status-text {
+    color: #6b7280;
+  }
+
+  .offline-queue {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background: #fef3c7;
+    border-radius: 4px;
+    color: #92400e;
+    font-size: 0.75rem;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes pulse-fast {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+</style>
+
+<script>
+  // Update status dynamically
+  document.addEventListener('collab:status-update', ((e: CustomEvent) => {
+    const statusEl = document.getElementById('collab-status');
+    if (!statusEl) return;
+
+    const { connected, syncing, offline, userCount } = e.detail;
+    
+    const indicator = statusEl.querySelector('.status-indicator');
+    const textEl = statusEl.querySelector('.status-text');
+    const dotEl = statusEl.querySelector('.status-dot');
+
+    if (indicator && textEl && dotEl) {
+      indicator.classList.toggle('connected', connected);
+      indicator.classList.toggle('disconnected', !connected);
+
+      if (connected) {
+        textEl.textContent = syncing 
+          ? 'Syncing...' 
+          : `${userCount} collaborator${userCount !== 1 ? 's' : ''} online`;
+      } else {
+        textEl.textContent = offline 
+          ? 'Offline - changes will sync when connected' 
+          : 'Connecting...';
+      }
+    }
+  }) as EventListener);
+</script>

@@ -1,0 +1,186 @@
+---
+/**
+ * CollaborationCursor Component
+ * Displays remote users' cursors and selections
+ */
+import type { CollabUser } from '../lib/collab/types';
+
+interface Props {
+  users: CollabUser[];
+}
+
+const { users } = Astro.props;
+---
+
+<div class="collab-cursors" id="collab-cursors">
+  <!-- Cursors will be dynamically inserted here -->
+</div>
+
+<style>
+  .collab-cursors {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .remote-cursor {
+    position: absolute;
+    pointer-events: none;
+    transition: all 0.1s ease-out;
+  }
+
+  .cursor-caret {
+    width: 2px;
+    height: 20px;
+    position: relative;
+  }
+
+  .cursor-label {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transform: translateX(-50%);
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .remote-selection {
+    position: absolute;
+    opacity: 0.2;
+    pointer-events: none;
+    border-radius: 2px;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @keyframes blink {
+    0%, 50% {
+      opacity: 1;
+    }
+    51%, 100% {
+      opacity: 0;
+    }
+  }
+</style>
+
+<script define:vars={{ users }}>
+  // Cursor overlay manager
+  class CursorOverlay {
+    constructor() {
+      this.container = document.getElementById('collab-cursors');
+      this.cursors = new Map();
+      this.editor = null;
+      this.init();
+    }
+
+    init() {
+      // Listen for cursor updates
+      document.addEventListener('collab:update-cursors', (e) => {
+        this.updateCursors(e.detail.users);
+      });
+
+      // Listen for editor ready
+      document.addEventListener('collab:editor-ready', (e) => {
+        this.editor = e.detail.editor;
+      });
+    }
+
+    updateCursors(users) {
+      if (!this.container) return;
+
+      // Remove cursors for users who left
+      this.cursors.forEach((_, userId) => {
+        if (!users.find((u) => u.id === userId)) {
+          this.removeCursor(userId);
+        }
+      });
+
+      // Add or update cursors
+      users.forEach((user) => {
+        if (user.cursor) {
+          this.updateCursor(user);
+        }
+      });
+    }
+
+    updateCursor(user) {
+      let cursorEl = this.cursors.get(user.id);
+
+      if (!cursorEl) {
+        // Create cursor element
+        cursorEl = document.createElement('div');
+        cursorEl.className = 'remote-cursor';
+        cursorEl.id = `cursor-${user.id}`;
+        cursorEl.innerHTML = `
+          <div class="cursor-caret" style="background-color: ${user.color}"></div>
+          <div class="cursor-label" style="background-color: ${user.color}">${user.name}</div>
+        `;
+        this.container.appendChild(cursorEl);
+        this.cursors.set(user.id, cursorEl);
+      }
+
+      // Calculate position from cursor data
+      if (this.editor && user.cursor) {
+        const position = this.getCursorPosition(user.cursor);
+        if (position) {
+          cursorEl.style.left = `${position.left}px`;
+          cursorEl.style.top = `${position.top}px`;
+        }
+      }
+    }
+
+    removeCursor(userId) {
+      const cursorEl = this.cursors.get(userId);
+      if (cursorEl) {
+        cursorEl.remove();
+        this.cursors.delete(userId);
+      }
+    }
+
+    getCursorPosition(cursor) {
+      if (!this.editor) return null;
+
+      // This will be implemented based on the editor type
+      // For now, return a simple calculation
+      const textarea = this.editor;
+      const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
+      const paddingTop = parseInt(getComputedStyle(textarea).paddingTop) || 0;
+      const paddingLeft = parseInt(getComputedStyle(textarea).paddingLeft) || 0;
+
+      // Calculate position from offset
+      const text = textarea.value.substring(0, cursor.offset);
+      const lines = text.split('\n');
+      const lineIndex = lines.length - 1;
+      const columnIndex = lines[lines.length - 1].length;
+
+      // Approximate position
+      const top = paddingTop + (lineIndex * lineHeight);
+      const charWidth = 8; // Approximate monospace char width
+      const left = paddingLeft + (columnIndex * charWidth);
+
+      return { top, left };
+    }
+  }
+
+  // Initialize cursor overlay
+  new CursorOverlay();
+</script>
