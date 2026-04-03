@@ -819,3 +819,6 @@ export const api_quotas = pgTable('api_quotas', {
   tierIdx: index('api_quota_tier_idx').on(table.tier),
   windowIdx: index('api_quota_window_idx').on(table.windowStart),
 }));
+
+// Export monetization schema
+export * from './monetization';
