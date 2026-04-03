@@ -1,5 +1,8 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
+// Branding tables for white-label functionality
+export * from './branding';
+
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),

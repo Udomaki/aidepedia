@@ -1,0 +1,575 @@
+---
+/**
+ * ThemeEditor - Visual theme builder for white-label customization
+ * Allows organizations to customize their branding, colors, fonts, and more
+ */
+
+interface Props {
+  organizationId: number;
+  branding?: {
+    primaryColor?: string;
+    secondaryColor?: string;
+    accentColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    fontHeading?: string;
+    fontBody?: string;
+    themePreset?: string;
+    logoUrl?: string;
+    customCss?: string;
+  };
+}
+
+const { organizationId, branding = {} } = Astro.props;
+
+// Default values
+const defaultBranding = {
+  primaryColor: '#3B82F6',
+  secondaryColor: '#1E40AF',
+  accentColor: '#F59E0B',
+  backgroundColor: '#FFFFFF',
+  textColor: '#1F2937',
+  fontHeading: 'Inter',
+  fontBody: 'Inter',
+  themePreset: 'light',
+  logoUrl: '',
+  customCss: '',
+};
+
+const currentBranding = { ...defaultBranding, ...branding };
+
+// Available fonts
+const fonts = [
+  'Inter',
+  'Roboto',
+  'Open Sans',
+  'Lato',
+  'Montserrat',
+  'Poppins',
+  'Source Sans Pro',
+  'Nunito',
+  'Ubuntu',
+  'Playfair Display',
+];
+
+// Theme presets
+const presets = [
+  { name: 'Light Default', value: 'light' },
+  { name: 'Dark Mode', value: 'dark' },
+  { name: 'Custom', value: 'custom' },
+];
+---
+
+<div class="theme-editor bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8">
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Theme Editor</h2>
+    <p class="text-gray-600 dark:text-gray-400">Customize your organization's branding and appearance</p>
+  </div>
+
+  <!-- Preset Selection -->
+  <div class="mb-8">
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+      Theme Preset
+    </label>
+    <div class="grid grid-cols-3 gap-3">
+      {presets.map((preset) => (
+        <button
+          type="button"
+          class="preset-btn px-4 py-3 rounded-lg border-2 transition-all"
+          data-preset={preset.value}
+          class:list={[
+            currentBranding.themePreset === preset.value
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+              : 'border-gray-200 dark:border-slate-700 hover:border-blue-300',
+          ]}
+        >
+          <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {preset.name}
+          </span>
+        </button>
+      ))}
+    </div>
+  </div>
+
+  <!-- Colors Section -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+      </svg>
+      Colors
+    </h3>
+    
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <!-- Primary Color -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Primary
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            type="color"
+            id="primaryColor"
+            value={currentBranding.primaryColor}
+            class="w-12 h-12 rounded-lg border-2 border-gray-200 dark:border-slate-700 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={currentBranding.primaryColor}
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 text-sm font-mono"
+            data-color-input="primaryColor"
+          />
+        </div>
+      </div>
+
+      <!-- Secondary Color -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Secondary
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            type="color"
+            id="secondaryColor"
+            value={currentBranding.secondaryColor}
+            class="w-12 h-12 rounded-lg border-2 border-gray-200 dark:border-slate-700 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={currentBranding.secondaryColor}
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 text-sm font-mono"
+            data-color-input="secondaryColor"
+          />
+        </div>
+      </div>
+
+      <!-- Accent Color -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Accent
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            type="color"
+            id="accentColor"
+            value={currentBranding.accentColor}
+            class="w-12 h-12 rounded-lg border-2 border-gray-200 dark:border-slate-700 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={currentBranding.accentColor}
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 text-sm font-mono"
+            data-color-input="accentColor"
+          />
+        </div>
+      </div>
+
+      <!-- Background Color -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Background
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            type="color"
+            id="backgroundColor"
+            value={currentBranding.backgroundColor}
+            class="w-12 h-12 rounded-lg border-2 border-gray-200 dark:border-slate-700 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={currentBranding.backgroundColor}
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 text-sm font-mono"
+            data-color-input="backgroundColor"
+          />
+        </div>
+      </div>
+
+      <!-- Text Color -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Text
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            type="color"
+            id="textColor"
+            value={currentBranding.textColor}
+            class="w-12 h-12 rounded-lg border-2 border-gray-200 dark:border-slate-700 cursor-pointer"
+          />
+          <input
+            type="text"
+            value={currentBranding.textColor}
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 text-sm font-mono"
+            data-color-input="textColor"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Typography Section -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+      </svg>
+      Typography
+    </h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Heading Font -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Heading Font
+        </label>
+        <select
+          id="fontHeading"
+          class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+        >
+          {fonts.map((font) => (
+            <option value={font} selected={currentBranding.fontHeading === font}>
+              {font}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <!-- Body Font -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Body Font
+        </label>
+        <select
+          id="fontBody"
+          class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+        >
+          {fonts.map((font) => (
+            <option value={font} selected={currentBranding.fontBody === font}>
+              {font}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logo Upload -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+      Logo
+    </h3>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Logo URL
+      </label>
+      <input
+        type="url"
+        id="logoUrl"
+        value={currentBranding.logoUrl}
+        placeholder="https://example.com/logo.png"
+        class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+      />
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        Enter a URL to your logo image (recommended size: 200x60px)
+      </p>
+    </div>
+  </div>
+
+  <!-- Custom CSS -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+      </svg>
+      Custom CSS
+    </h3>
+
+    <div>
+      <textarea
+        id="customCss"
+        rows="6"
+        placeholder="/* Add custom CSS here */"
+        class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 font-mono text-sm"
+      >{currentBranding.customCss}</textarea>
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        Add custom CSS for advanced styling
+      </p>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="mb-8 p-6 rounded-xl border-2 border-gray-200 dark:border-slate-700">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+      Live Preview
+    </h3>
+    <div id="themePreview" class="p-4 rounded-lg transition-all">
+      <h4 class="text-2xl font-bold mb-2">Preview Heading</h4>
+      <p class="mb-4">This is how your body text will look with the selected fonts and colors.</p>
+      <button class="px-4 py-2 rounded-lg font-medium">
+        Sample Button
+      </button>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-slate-700">
+    <button
+      type="button"
+      id="resetBtn"
+      class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium"
+    >
+      Reset to Defaults
+    </button>
+    <div class="flex items-center gap-3">
+      <button
+        type="button"
+        id="exportBtn"
+        class="px-6 py-2 border border-gray-200 dark:border-slate-700 rounded-lg font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+      >
+        Export Theme
+      </button>
+      <button
+        type="button"
+        id="saveBtn"
+        class="px-6 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-700 dark:hover:bg-blue-600"
+      >
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ organizationId }}>
+  // Theme Editor Logic
+  class ThemeEditor {
+    constructor(organizationId) {
+      this.organizationId = organizationId;
+      this.initializeElements();
+      this.bindEvents();
+      this.updatePreview();
+    }
+
+    initializeElements() {
+      this.colorInputs = document.querySelectorAll('input[type="color"]');
+      this.colorTextInputs = document.querySelectorAll('[data-color-input]');
+      this.fontSelects = document.querySelectorAll('select');
+      this.logoInput = document.getElementById('logoUrl');
+      this.cssTextarea = document.getElementById('customCss');
+      this.preview = document.getElementById('themePreview');
+      this.saveBtn = document.getElementById('saveBtn');
+      this.resetBtn = document.getElementById('resetBtn');
+      this.exportBtn = document.getElementById('exportBtn');
+      this.presetBtns = document.querySelectorAll('.preset-btn');
+    }
+
+    bindEvents() {
+      // Color inputs sync
+      this.colorInputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+          const textInput = document.querySelector(`[data-color-input="${e.target.id}"]`);
+          if (textInput) textInput.value = e.target.value;
+          this.updatePreview();
+        });
+      });
+
+      // Text inputs sync
+      this.colorTextInputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+          const colorInput = document.getElementById(e.target.dataset.colorInput);
+          if (colorInput) colorInput.value = e.target.value;
+          this.updatePreview();
+        });
+      });
+
+      // Font changes
+      this.fontSelects.forEach(select => {
+        select.addEventListener('change', () => this.updatePreview());
+      });
+
+      // Preset buttons
+      this.presetBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          this.applyPreset(e.target.dataset.preset);
+        });
+      });
+
+      // Save button
+      this.saveBtn.addEventListener('click', () => this.saveTheme());
+
+      // Reset button
+      this.resetBtn.addEventListener('click', () => this.resetTheme());
+
+      // Export button
+      this.exportBtn.addEventListener('click', () => this.exportTheme());
+    }
+
+    updatePreview() {
+      const colors = {
+        primary: document.getElementById('primaryColor').value,
+        secondary: document.getElementById('secondaryColor').value,
+        accent: document.getElementById('accentColor').value,
+        background: document.getElementById('backgroundColor').value,
+        text: document.getElementById('textColor').value,
+      };
+
+      const fonts = {
+        heading: document.getElementById('fontHeading').value,
+        body: document.getElementById('fontBody').value,
+      };
+
+      this.preview.style.backgroundColor = colors.background;
+      this.preview.style.color = colors.text;
+      this.preview.style.fontFamily = fonts.body;
+
+      const heading = this.preview.querySelector('h4');
+      heading.style.fontFamily = fonts.heading;
+      heading.style.color = colors.primary;
+
+      const button = this.preview.querySelector('button');
+      button.style.backgroundColor = colors.primary;
+      button.style.color = '#FFFFFF';
+    }
+
+    async applyPreset(preset) {
+      // Update button states
+      this.presetBtns.forEach(btn => {
+        btn.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        btn.classList.add('border-gray-200', 'dark:border-slate-700');
+      });
+
+      const activeBtn = document.querySelector(`[data-preset="${preset}"]`);
+      activeBtn.classList.remove('border-gray-200', 'dark:border-slate-700');
+      activeBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+
+      // Apply preset colors
+      const presets = {
+        light: {
+          primary: '#3B82F6',
+          secondary: '#1E40AF',
+          accent: '#F59E0B',
+          background: '#FFFFFF',
+          text: '#1F2937',
+        },
+        dark: {
+          primary: '#60A5FA',
+          secondary: '#3B82F6',
+          accent: '#FBBF24',
+          background: '#111827',
+          text: '#F9FAFB',
+        },
+        custom: null,
+      };
+
+      if (presets[preset]) {
+        Object.entries(presets[preset]).forEach(([key, value]) => {
+          const colorInput = document.getElementById(`${key}Color`);
+          const textInput = document.querySelector(`[data-color-input="${key}Color"]`);
+          if (colorInput) colorInput.value = value;
+          if (textInput) textInput.value = value;
+        });
+        this.updatePreview();
+      }
+    }
+
+    async saveTheme() {
+      const theme = {
+        organizationId: this.organizationId,
+        branding: {
+          primaryColor: document.getElementById('primaryColor').value,
+          secondaryColor: document.getElementById('secondaryColor').value,
+          accentColor: document.getElementById('accentColor').value,
+          backgroundColor: document.getElementById('backgroundColor').value,
+          textColor: document.getElementById('textColor').value,
+          fontHeading: document.getElementById('fontHeading').value,
+          fontBody: document.getElementById('fontBody').value,
+          logoUrl: this.logoInput.value,
+          customCss: this.cssTextarea.value,
+        },
+      };
+
+      try {
+        this.saveBtn.disabled = true;
+        this.saveBtn.textContent = 'Saving...';
+
+        const response = await fetch('/api/v1/branding', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(theme),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert('Theme saved successfully!');
+        } else {
+          throw new Error(result.error?.message || 'Failed to save theme');
+        }
+      } catch (error) {
+        console.error('Error saving theme:', error);
+        alert('Failed to save theme: ' + error.message);
+      } finally {
+        this.saveBtn.disabled = false;
+        this.saveBtn.textContent = 'Save Changes';
+      }
+    }
+
+    async resetTheme() {
+      if (confirm('Are you sure you want to reset to default theme?')) {
+        try {
+          const response = await fetch(`/api/v1/branding?organizationId=${this.organizationId}`, {
+            method: 'DELETE',
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            this.applyPreset('light');
+            alert('Theme reset to defaults');
+          } else {
+            throw new Error(result.error?.message || 'Failed to reset theme');
+          }
+        } catch (error) {
+          console.error('Error resetting theme:', error);
+          alert('Failed to reset theme: ' + error.message);
+        }
+      }
+    }
+
+    async exportTheme() {
+      const theme = {
+        colors: {
+          primary: document.getElementById('primaryColor').value,
+          secondary: document.getElementById('secondaryColor').value,
+          accent: document.getElementById('accentColor').value,
+          background: document.getElementById('backgroundColor').value,
+          text: document.getElementById('textColor').value,
+        },
+        fonts: {
+          heading: document.getElementById('fontHeading').value,
+          body: document.getElementById('fontBody').value,
+        },
+        customCss: this.cssTextarea.value,
+      };
+
+      const dataStr = JSON.stringify(theme, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'theme-export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // Initialize theme editor
+  new ThemeEditor(organizationId);
+</script>

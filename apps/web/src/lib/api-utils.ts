@@ -4,12 +4,15 @@
  */
 
 import type { APIRoute } from 'astro';
+import { db, eq, and } from '@aidepedia/db';
+import { organization_members } from '@aidepedia/db/schema';
 import { 
   getVersionHeaders, 
   extractVersion, 
   logDeprecatedUsage,
   isSunset 
 } from './api-version';
+import { getSession } from './auth';
 
 /**
  * Standard API response wrapper
@@ -197,4 +200,43 @@ export function transformCategoryForApi(category: any) {
     description: category.description,
     articleCount: category.articleCount || 0,
   };
+}
+
+/**
+ * Require authentication - returns session or null
+ */
+export async function requireAuth(request: Request) {
+  try {
+    const session = await getSession(request);
+    return session;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Check if user is organization admin
+ */
+export async function requireOrganizationAdmin(userId: number, organizationId: number): Promise<boolean> {
+  try {
+    const [membership] = await db
+      .select()
+      .from(organization_members)
+      .where(
+        and(
+          eq(organization_members.organizationId, organizationId),
+          eq(organization_members.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!membership) {
+      return false;
+    }
+
+    return membership.role === 'owner' || membership.role === 'admin';
+  } catch (error) {
+    console.error('Error checking organization admin:', error);
+    return false;
+  }
 }
