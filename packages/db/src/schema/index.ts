@@ -1,5 +1,8 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
+// Export versioning tables
+export * from './versioning';
+
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
