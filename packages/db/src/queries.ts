@@ -16,6 +16,7 @@ import type {
   ThreadedComment,
   Comment,
   Notification,
+  NewNotification,
   Tag,
   NewTag,
   EditSuggestion,
@@ -31,6 +32,7 @@ import type {
   ContentReportWithDetails,
   ContentReportQueryParams,
   ReportStatus,
+  ContentType,
   ArticleVote,
   NewArticleVote,
 } from './types';
@@ -3038,7 +3040,6 @@ export async function updateTag(id: number, data: Partial<NewTag>): Promise<Tag>
       .update(tags)
       .set({
         ...data,
-        updatedAt: new Date(),
       })
       .where(eq(tags.id, id))
       .returning();
@@ -3087,11 +3088,7 @@ export async function getTagsWithAnalytics(): Promise<Array<Tag & { articleCount
         id: tags.id,
         name: tags.name,
         slug: tags.slug,
-        description: tags.description,
-        usageCount: tags.usageCount,
-        parentId: tags.parentId,
         createdAt: tags.createdAt,
-        updatedAt: tags.updatedAt,
         articleCount: count(article_tags.articleId),
       })
       .from(tags)
@@ -3154,23 +3151,6 @@ export async function mergeTags(sourceId: number, targetId: number): Promise<{ a
           )
         );
     }
-
-    // Update usage counts
-    await db
-      .update(tags)
-      .set({ usageCount: 0, updatedAt: new Date() })
-      .where(eq(tags.id, sourceId));
-
-    // Recalculate target tag usage count
-    const [targetCount] = await db
-      .select({ count: count() })
-      .from(article_tags)
-      .where(eq(article_tags.tagId, targetId));
-
-    await db
-      .update(tags)
-      .set({ usageCount: targetCount.count, updatedAt: new Date() })
-      .where(eq(tags.id, targetId));
 
     return { articlesUpdated };
   } catch (error) {
@@ -3858,7 +3838,7 @@ export async function getTrafficStats(days: number = 7): Promise<{
     ORDER BY date DESC
   `);
 
-  return result.rows.map(row => ({
+  return result.map((row: any) => ({
     date: row.date as string,
     views: Number(row.views),
     visitors: Number(row.visitors),
@@ -3900,7 +3880,7 @@ export async function getTopArticlesByViews(
     LIMIT ${limit}
   `);
 
-  return result.rows.map(row => ({
+  return result.map((row: any) => ({
     articleId: row.articleId as number | null,
     path: row.path as string,
     title: row.title as string | null,
@@ -3935,7 +3915,7 @@ export async function getTrafficSources(
     LIMIT ${limit}
   `);
 
-  return result.rows.map(row => ({
+  return result.map((row: any) => ({
     referrer: row.referrer as string,
     count: Number(row.count),
   }));
@@ -3965,7 +3945,7 @@ export async function getGeographicDistribution(
     LIMIT ${limit}
   `);
 
-  return result.rows.map(row => ({
+  return result.map((row: any) => ({
     countryCode: row.countryCode as string,
     count: Number(row.count),
   }));
@@ -3995,7 +3975,7 @@ export async function getAnalyticsSummary(days: number = 7): Promise<{
     WHERE created_at >= ${threshold}
   `);
 
-  const row = result.rows[0];
+  const row = result[0] as any;
   return {
     totalViews: Number(row.totalViews),
     uniqueVisitors: Number(row.uniqueVisitors),
@@ -4243,7 +4223,6 @@ export async function getAuditResourceTypes(): Promise<string[]> {
 // System Settings Queries
 // ============================================
 
-import { system_settings } from './schema/index';
 import type { SystemSetting, MaintenanceModeSettings, NewSystemSetting } from './types';
 
 /**
@@ -4404,8 +4383,10 @@ export async function getContentReportById(id: number): Promise<ContentReportWit
         .limit(1);
       if (article) {
         content = {
-          type: 'article' as const,
-          ...article,
+          type: 'article' as ContentType,
+          id: article.id,
+          title: article.title,
+          excerpt: article.excerpt ?? undefined,
         };
       }
     } else if (report.contentType === 'comment') {
@@ -4419,8 +4400,9 @@ export async function getContentReportById(id: number): Promise<ContentReportWit
         .limit(1);
       if (comment) {
         content = {
-          type: 'comment' as const,
-          ...comment,
+          type: 'comment' as ContentType,
+          id: comment.id,
+          excerpt: comment.excerpt,
         };
       }
     }
@@ -4533,7 +4515,9 @@ export async function listContentReports(
           if (article) {
             content = {
               type: 'article' as const,
-              ...article,
+              id: article.id,
+              title: article.title,
+              excerpt: article.excerpt ?? undefined,
             };
           }
         } else if (report.contentType === 'comment') {
@@ -4854,7 +4838,6 @@ export async function getBlockedByUserIds(userId: number): Promise<number[]> {
 // Article Reaction Queries
 // ============================================
 
-import { article_reactions } from './schema/index';
 
 /**
  * Available reaction emojis
@@ -5096,8 +5079,9 @@ export async function getArticleStats(articleId: number, days: number = 30): Pro
         AND created_at >= ${threshold}
     `);
 
-    const bounceRate = bounceStats.rows[0]?.total > 0 
-      ? (Number(bounceStats.rows[0].bounced) / Number(bounceStats.rows[0].total)) * 100 
+    const bounceStatsRow = bounceStats[0] as any;
+    const bounceRate = bounceStatsRow?.total > 0 
+      ? (Number(bounceStatsRow.bounced) / Number(bounceStatsRow.total)) * 100 
       : null;
 
     // Get views over time (daily)
@@ -5136,7 +5120,7 @@ export async function getArticleStats(articleId: number, days: number = 30): Pro
       .from(comments)
       .where(eq(comments.articleId, articleId));
 
-    const row = basicStats.rows[0];
+    const row = basicStats[0] as any;
 
     return {
       totalViews: Number(row?.totalViews || 0),
@@ -5144,12 +5128,12 @@ export async function getArticleStats(articleId: number, days: number = 30): Pro
       avgReadTimeSeconds: row?.avgReadTimeSeconds ? Number(row.avgReadTimeSeconds) : null,
       avgScrollDepth: row?.avgScrollDepth ? Number(row.avgScrollDepth) : null,
       bounceRate: bounceRate,
-      viewsOverTime: viewsOverTime.rows.map(r => ({
+      viewsOverTime: (viewsOverTime as any[]).map((r: any) => ({
         date: r.date as string,
         views: Number(r.views),
         visitors: Number(r.visitors),
       })),
-      topReferrers: topReferrers.rows.map(r => ({
+      topReferrers: (topReferrers as any[]).map((r: any) => ({
         referrer: r.referrer as string,
         count: Number(r.count),
       })),
@@ -5278,7 +5262,7 @@ export async function getAuthorStats(userId: number, days: number = 30): Promise
 
     // Get reaction counts per article for top articles
     const topArticlesWithReactions = await Promise.all(
-      topArticlesData.rows.map(async (row) => {
+      (topArticlesData as any[]).map(async (row: any) => {
         const [{ reactionCount }] = await db
           .select({ reactionCount: count() })
           .from(article_reactions)
@@ -5313,7 +5297,7 @@ export async function getAuthorStats(userId: number, days: number = 30): Promise
       LIMIT 5
     `);
 
-    const row = basicStats.rows[0];
+    const row = basicStats[0] as any;
 
     return {
       totalViews: Number(row?.totalViews || 0),
@@ -5324,13 +5308,13 @@ export async function getAuthorStats(userId: number, days: number = 30): Promise
       totalComments: Number(totalComments),
       avgReadTimeSeconds: row?.avgReadTimeSeconds ? Number(row.avgReadTimeSeconds) : null,
       avgScrollDepth: row?.avgScrollDepth ? Number(row.avgScrollDepth) : null,
-      viewsOverTime: viewsOverTime.rows.map(r => ({
+      viewsOverTime: (viewsOverTime as any[]).map((r: any) => ({
         date: r.date as string,
         views: Number(r.views),
         visitors: Number(r.visitors),
       })),
       topArticles: topArticlesWithReactions,
-      recentArticles: recentArticlesData.rows.map(r => ({
+      recentArticles: (recentArticlesData as any[]).map((r: any) => ({
         id: r.id as number,
         slug: r.slug as string,
         title: r.title as string,
@@ -5360,7 +5344,6 @@ export async function incrementArticleViewCount(articleId: number): Promise<void
 // Article Draft Queries
 // ============================================
 
-import { article_drafts } from './schema/index';
 import type { ArticleDraft, NewArticleDraft, ArticleDraftWithArticle } from './types';
 
 /**
@@ -5609,7 +5592,7 @@ export async function createExperiment(data: {
  * List all experiments
  */
 export async function listExperiments(params: {
-  status?: string;
+  status?: 'draft' | 'running' | 'paused' | 'completed';
   page?: number;
   limit?: number;
 } = {}): Promise<PaginatedResult<any>> {
@@ -5623,7 +5606,7 @@ export async function listExperiments(params: {
       conditions.push(eq(experiments.status, params.status));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = conditions.length > 0 ? and(...conditions as any) : undefined;
 
     const [data, [{ total }]] = await Promise.all([
       db
