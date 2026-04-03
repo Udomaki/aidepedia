@@ -1,0 +1,177 @@
+---
+interface Props {
+  articleSlug: string;
+  articleTitle: string;
+  isLoggedIn: boolean;
+}
+
+const { articleSlug, articleTitle, isLoggedIn } = Astro.props;
+---
+
+<div class="relative inline-block">
+  <button
+    id="export-btn"
+    class="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+  >
+    <span class="text-xl">📥</span>
+    <span>Export</span>
+  </button>
+
+  <!-- Export Dropdown -->
+  <div id="export-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+    <div class="p-4 border-b border-gray-200">
+      <h3 class="text-lg font-bold text-gray-900">Export Article</h3>
+      <p class="text-sm text-gray-600 mt-1">{articleTitle}</p>
+    </div>
+
+    <!-- Export Options -->
+    <div class="p-4 space-y-4">
+      <!-- Format Selection -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Format</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            class="format-btn px-3 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg font-medium text-sm"
+            data-format="json"
+          >
+            JSON
+          </button>
+          <button
+            class="format-btn px-3 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50"
+            data-format="markdown"
+          >
+            Markdown
+          </button>
+          <button
+            class="format-btn px-3 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50"
+            data-format="pdf"
+          >
+            PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            id="include-metadata"
+            checked
+            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <span class="text-sm text-gray-700">Include metadata</span>
+        </label>
+
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            id="include-images"
+            checked
+            class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <span class="text-sm text-gray-700">Include images (if available)</span>
+        </label>
+      </div>
+
+      <!-- Export Button -->
+      <button
+        id="download-export-btn"
+        class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+      >
+        Download Export
+      </button>
+    </div>
+
+    <!-- Export History Link (logged in only) -->
+    {isLoggedIn && (
+      <div class="p-4 bg-gray-50 border-t border-gray-200">
+        <a
+          href="/export-history"
+          class="text-sm text-blue-600 hover:text-blue-700 font-medium"
+        >
+          View your export history →
+        </a>
+      </div>
+    )}
+  </div>
+</div>
+
+<script define:vars={{ articleSlug, articleTitle, isLoggedIn }}>
+  const exportBtn = document.getElementById('export-btn');
+  const exportDropdown = document.getElementById('export-dropdown');
+  const formatBtns = document.querySelectorAll('.format-btn');
+  const downloadBtn = document.getElementById('download-export-btn');
+  const includeMetadataCheckbox = document.getElementById('include-metadata');
+  const includeImagesCheckbox = document.getElementById('include-images');
+
+  let selectedFormat = 'json';
+
+  // Toggle dropdown
+  exportBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportDropdown?.classList.toggle('hidden');
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!exportDropdown?.contains(e.target) && !exportBtn?.contains(e.target)) {
+      exportDropdown?.classList.add('hidden');
+    }
+  });
+
+  // Format selection
+  formatBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      formatBtns.forEach(b => {
+        b.classList.remove('border-blue-500', 'bg-blue-50', 'text-blue-700', 'border-2');
+        b.classList.add('border-gray-300', 'text-gray-700', 'border');
+      });
+      
+      btn.classList.remove('border-gray-300', 'text-gray-700', 'border');
+      btn.classList.add('border-blue-500', 'bg-blue-50', 'text-blue-700', 'border-2');
+      
+      selectedFormat = btn.dataset.format;
+    });
+  });
+
+  // Download export
+  downloadBtn?.addEventListener('click', async () => {
+    const includeMetadata = includeMetadataCheckbox?.checked ?? true;
+    const includeImages = includeImagesCheckbox?.checked ?? true;
+
+    const params = new URLSearchParams({
+      format: selectedFormat,
+      includeMetadata: includeMetadata.toString(),
+      includeImages: includeImages.toString(),
+    });
+
+    const downloadUrl = `/api/v1/articles/${articleSlug}/export?${params}`;
+
+    try {
+      // Record export in history (if logged in)
+      if (isLoggedIn) {
+        await fetch('/api/v1/export/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articleSlug,
+            articleTitle,
+            format: selectedFormat,
+            includeMetadata,
+            includeImages,
+          }),
+        });
+      }
+
+      // Trigger download
+      window.location.href = downloadUrl;
+      
+      // Close dropdown
+      exportDropdown?.classList.add('hidden');
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export article. Please try again.');
+    }
+  });
+</script>
