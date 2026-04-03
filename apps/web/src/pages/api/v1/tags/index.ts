@@ -1,5 +1,9 @@
 import type { APIRoute } from 'astro';
-import { getTags, createTag } from '@aidepedia/db';
+import { 
+  getTagsWithAnalytics,
+  createTag,
+} from '@aidepedia/db';
+import { generateTagSlug } from '../../../../lib/tagging';
 import { 
   successResponse, 
   errorResponse, 
@@ -8,17 +12,22 @@ import {
 
 /**
  * GET /api/v1/tags
- * List all tags
+ * List all tags with analytics
  */
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ url }) => {
   try {
-    const tags = await getTags();
+    const tags = await getTagsWithAnalytics();
 
     const tagData = tags.map(tag => ({
       id: tag.id,
       name: tag.name,
       slug: tag.slug,
-      createdAt: tag.createdAt?.toISOString?.() || tag.createdAt,
+      description: tag.description,
+      usageCount: tag.usageCount,
+      articleCount: tag.articleCount,
+      parentId: tag.parentId,
+      createdAt: tag.createdAt,
+      updatedAt: tag.updatedAt,
     }));
 
     return successResponse(tagData, {
@@ -26,6 +35,7 @@ export const GET: APIRoute = async () => {
     });
   } catch (error) {
     console.error('Error fetching tags:', error);
+    
     return errorResponse(
       'INTERNAL_ERROR',
       'Failed to fetch tags',
@@ -41,26 +51,37 @@ export const GET: APIRoute = async () => {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const { name, slug } = body;
+    const { name, description, parentId } = body;
 
-    if (!name || !slug) {
-      return errorResponse(
-        'VALIDATION_ERROR',
-        'Name and slug are required',
-        400
-      );
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return errorResponse('VALIDATION_ERROR', 'Tag name is required', 400);
     }
 
-    const tag = await createTag({ name, slug });
+    const slug = generateTagSlug(name);
+
+    const tag = await createTag({
+      name: name.trim(),
+      slug,
+      description: description?.trim() || null,
+      parentId: parentId || null,
+      usageCount: 0,
+    });
 
     return successResponse({
       id: tag.id,
       name: tag.name,
       slug: tag.slug,
-      createdAt: tag.createdAt?.toISOString?.() || tag.createdAt,
+      description: tag.description,
+      parentId: tag.parentId,
+      createdAt: tag.createdAt,
     }, undefined, 201);
   } catch (error) {
     console.error('Error creating tag:', error);
+    
+    if (error instanceof Error && error.message.includes('duplicate')) {
+      return errorResponse('VALIDATION_ERROR', 'Tag already exists', 400);
+    }
+    
     return errorResponse(
       'INTERNAL_ERROR',
       'Failed to create tag',

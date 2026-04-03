@@ -176,12 +176,19 @@ export interface Tag {
   id: number;
   name: string;
   slug: string;
-  createdAt: Date;
+  description: string | null;
+  usageCount: number | null;
+  parentId: number | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 }
 
 export interface NewTag {
   name: string;
   slug: string;
+  description?: string | null;
+  usageCount?: number;
+  parentId?: number | null;
 }
 
 export interface ArticleTag {
