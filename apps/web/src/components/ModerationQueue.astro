@@ -1,0 +1,321 @@
+---
+/**
+ * ModerationQueue Component
+ * Displays and manages the moderation queue for admins
+ */
+
+export interface Props {
+  initialData?: any;
+}
+
+const { initialData } = Astro.props;
+---
+
+<div id="moderation-queue" class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h2 class="text-2xl font-bold text-gray-900">Moderation Queue</h2>
+    <div class="flex gap-2">
+      <button
+        id="refresh-btn"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="flex flex-wrap gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <select
+          id="status-filter"
+          class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="pending">Pending</option>
+          <option value="in_review">In Review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <select
+          id="type-filter"
+          class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Types</option>
+          <option value="spam">Spam</option>
+          <option value="duplicate">Duplicate</option>
+          <option value="plagiarism">Plagiarism</option>
+          <option value="quality">Quality</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Summary -->
+  <div id="stats-summary" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm font-medium text-gray-500">Pending</div>
+      <div class="text-2xl font-bold text-yellow-600" id="pending-count">-</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm font-medium text-gray-500">Spam Detected</div>
+      <div class="text-2xl font-bold text-red-600" id="spam-count">-</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm font-medium text-gray-500">Duplicates</div>
+      <div class="text-2xl font-bold text-orange-600" id="duplicate-count">-</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm font-medium text-gray-500">Avg Queue Time</div>
+      <div class="text-2xl font-bold text-blue-600" id="avg-time">-</div>
+    </div>
+  </div>
+
+  <!-- Queue Items -->
+  <div id="queue-items" class="space-y-4">
+    <div class="text-center py-8 text-gray-500">Loading...</div>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" class="flex items-center justify-between bg-white rounded-lg shadow p-4 hidden">
+    <button
+      id="prev-page"
+      class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Previous
+    </button>
+    <div id="page-info" class="text-sm text-gray-600"></div>
+    <button
+      id="next-page"
+      class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Next
+    </button>
+  </div>
+</div>
+
+<!-- Item Detail Modal -->
+<div id="detail-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+  <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-gray-900">Review Content</h3>
+        <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentPage = 1;
+  const limit = 20;
+  let currentStatus = 'pending';
+  let currentType = '';
+
+  async function loadQueue() {
+    try {
+      const params = new URLSearchParams({
+        status: currentStatus,
+        limit: limit.toString(),
+        offset: ((currentPage - 1) * limit).toString(),
+      });
+      
+      if (currentType) {
+        params.append('type', currentType);
+      }
+
+      const response = await fetch(`/api/v1/admin/moderation/queue?${params}`);
+      const data = await response.json();
+
+      if (data.success) {
+        renderQueue(data.data);
+        renderPagination(data.data.pagination);
+      }
+    } catch (error) {
+      console.error('Error loading queue:', error);
+      document.getElementById('queue-items')!.innerHTML = 
+        '<div class="text-center py-8 text-red-500">Error loading moderation queue</div>';
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const response = await fetch('/api/v1/admin/moderation/analytics');
+      const data = await response.json();
+
+      if (data.success) {
+        const stats = data.data;
+        document.getElementById('pending-count')!.textContent = stats.queue.pending;
+        document.getElementById('spam-count')!.textContent = stats.spam.pending;
+        document.getElementById('duplicate-count')!.textContent = stats.duplicates.pending;
+        document.getElementById('avg-time')!.textContent = `${stats.queue.avgQueueTimeHours}h`;
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  }
+
+  function renderQueue(data: any) {
+    const container = document.getElementById('queue-items')!;
+    
+    if (data.items.length === 0) {
+      container.innerHTML = '<div class="text-center py-8 text-gray-500">No items in queue</div>';
+      return;
+    }
+
+    container.innerHTML = data.items.map((item: any) => `
+      <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-1 text-xs font-medium rounded ${
+                item.queueType === 'spam' ? 'bg-red-100 text-red-700' :
+                item.queueType === 'duplicate' ? 'bg-orange-100 text-orange-700' :
+                'bg-blue-100 text-blue-700'
+              }">
+                ${item.queueType.toUpperCase()}
+              </span>
+              ${item.priority >= 8 ? '<span class="px-2 py-1 text-xs font-medium rounded bg-red-600 text-white">HIGH PRIORITY</span>' : ''}
+            </div>
+            <h4 class="text-lg font-semibold text-gray-900 mb-1">${item.article.title}</h4>
+            <p class="text-sm text-gray-600 mb-2">${item.reason}</p>
+            <div class="text-xs text-gray-500">
+              Created: ${new Date(item.createdAt).toLocaleString()}
+            </div>
+          </div>
+          <div class="flex gap-2 ml-4">
+            <button
+              onclick="reviewItem(${item.id})"
+              class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            >
+              Review
+            </button>
+            <button
+              onclick="approveItem(${item.id})"
+              class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+            >
+              Approve
+            </button>
+            <button
+              onclick="rejectItem(${item.id})"
+              class="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderPagination(pagination: any) {
+    const container = document.getElementById('pagination')!;
+    const pageInfo = document.getElementById('page-info')!;
+    const prevBtn = document.getElementById('prev-page') as HTMLButtonElement;
+    const nextBtn = document.getElementById('next-page') as HTMLButtonElement;
+
+    if (pagination.total > limit) {
+      container.classList.remove('hidden');
+      pageInfo.textContent = `Page ${currentPage} of ${Math.ceil(pagination.total / limit)} (${pagination.total} total)`;
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = !pagination.hasMore;
+    } else {
+      container.classList.add('hidden');
+    }
+  }
+
+  async function approveItem(id: number) {
+    if (!confirm('Are you sure you want to approve this content?')) return;
+
+    try {
+      const response = await fetch(`/api/v1/admin/moderation/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        loadQueue();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Error approving item:', error);
+      alert('Failed to approve item');
+    }
+  }
+
+  async function rejectItem(id: number) {
+    const reason = prompt('Rejection reason (optional):');
+    
+    try {
+      const response = await fetch(`/api/v1/admin/moderation/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (response.ok) {
+        loadQueue();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Error rejecting item:', error);
+      alert('Failed to reject item');
+    }
+  }
+
+  async function reviewItem(id: number) {
+    // For now, just show a placeholder
+    alert('Review functionality coming soon!');
+  }
+
+  // Event listeners
+  document.getElementById('refresh-btn')!.addEventListener('click', () => {
+    loadQueue();
+    loadStats();
+  });
+
+  document.getElementById('status-filter')!.addEventListener('change', (e) => {
+    currentStatus = (e.target as HTMLSelectElement).value;
+    currentPage = 1;
+    loadQueue();
+  });
+
+  document.getElementById('type-filter')!.addEventListener('change', (e) => {
+    currentType = (e.target as HTMLSelectElement).value;
+    currentPage = 1;
+    loadQueue();
+  });
+
+  document.getElementById('prev-page')!.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      loadQueue();
+    }
+  });
+
+  document.getElementById('next-page')!.addEventListener('click', () => {
+    currentPage++;
+    loadQueue();
+  });
+
+  document.getElementById('close-modal')!.addEventListener('click', () => {
+    document.getElementById('detail-modal')!.classList.add('hidden');
+  });
+
+  // Initial load
+  loadQueue();
+  loadStats();
+</script>
