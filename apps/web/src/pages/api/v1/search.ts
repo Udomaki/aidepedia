@@ -23,6 +23,8 @@ import {
  * - category: Filter by category slug
  * - dateFrom: Filter by date (ISO string or 'today', 'week', 'month', 'year')
  * - dateTo: Filter by date (ISO string)
+ * - lang: Filter by language code (e.g., 'en', 'es', 'fr')
+ * - searchAllLanguages: Search across all languages (boolean)
  * 
  * Searches in article titles and content
  */
@@ -37,6 +39,8 @@ export const GET: APIRoute = async ({ url }) => {
     const { page, limit } = getPaginationParams(url);
     const categorySlug = url.searchParams.get('category');
     const dateFilter = url.searchParams.get('dateFrom') || url.searchParams.get('date');
+    const languageCode = url.searchParams.get('lang') || 'en';
+    const searchAllLanguages = url.searchParams.get('searchAllLanguages') === 'true';
 
     // Build query params
     const params: any = {
@@ -46,6 +50,8 @@ export const GET: APIRoute = async ({ url }) => {
       limit,
       sortBy: 'quality',
       sortOrder: 'desc',
+      languageCode,
+      searchAllLanguages,
     };
 
     // Handle category filter (by slug)
