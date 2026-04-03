@@ -1,0 +1,284 @@
+---
+/**
+ * Related Articles Component
+ * Displays related articles on article detail pages
+ */
+
+interface Props {
+  articleSlug: string;
+  articleId?: number;
+  limit?: number;
+}
+
+const { articleSlug, articleId, limit = 5 } = Astro.props;
+---
+
+<div class="related-articles" id="related-articles" data-slug={articleSlug} data-limit={limit}>
+  <h3 class="related-title">Related Articles</h3>
+  
+  <div class="related-loading" id="related-loading">
+    <div class="spinner-small"></div>
+  </div>
+  
+  <div class="related-list" id="related-list" style="display: none;">
+    <!-- Related articles will be loaded here -->
+  </div>
+  
+  <div class="related-empty" id="related-empty" style="display: none;">
+    <p>No related articles found</p>
+  </div>
+  
+  <div class="related-error" id="related-error" style="display: none;">
+    <p>Failed to load related articles</p>
+  </div>
+</div>
+
+<style>
+  .related-articles {
+    margin: 2rem 0;
+  }
+  
+  .related-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary-color, #0066cc);
+  }
+  
+  .related-loading {
+    text-align: center;
+    padding: 1rem;
+  }
+  
+  .spinner-small {
+    border: 2px solid var(--border-color, #e1e1e1);
+    border-top: 2px solid var(--primary-color, #0066cc);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .related-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+    transition: background-color 0.2s;
+  }
+  
+  .related-item:last-child {
+    border-bottom: none;
+  }
+  
+  .related-item:hover {
+    background-color: var(--bg-hover, #f9f9f9);
+    margin: 0 -0.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  
+  .related-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  
+  .related-article-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary, #1a1a1a);
+    margin-bottom: 0.25rem;
+    transition: color 0.2s;
+  }
+  
+  .related-link:hover .related-article-title {
+    color: var(--primary-color, #0066cc);
+  }
+  
+  .related-excerpt {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #666);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .related-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-tertiary, #999);
+  }
+  
+  .related-similarity {
+    font-size: 0.75rem;
+    color: var(--primary-color, #0066cc);
+    font-style: italic;
+  }
+  
+  .related-empty,
+  .related-error {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--text-secondary, #666);
+    font-size: 0.9rem;
+  }
+</style>
+
+<script>
+  class RelatedArticles {
+    private container: HTMLElement;
+    private listEl: HTMLElement;
+    private loadingEl: HTMLElement;
+    private emptyEl: HTMLElement;
+    private errorEl: HTMLElement;
+    private slug: string;
+    private limit: number;
+  
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.listEl = container.querySelector('#related-list')!;
+      this.loadingEl = container.querySelector('#related-loading')!;
+      this.emptyEl = container.querySelector('#related-empty')!;
+      this.errorEl = container.querySelector('#related-error')!;
+      this.slug = container.dataset.slug || '';
+      this.limit = parseInt(container.dataset.limit || '5');
+      
+      this.load();
+    }
+    
+    private async load() {
+      try {
+        this.loadingEl.style.display = 'block';
+        
+        const response = await fetch(`/api/v1/articles/${this.slug}/related?limit=${this.limit}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch related articles');
+        }
+        
+        const data = await response.json();
+        
+        this.loadingEl.style.display = 'none';
+        
+        if (data.relatedArticles.length === 0) {
+          this.emptyEl.style.display = 'block';
+          return;
+        }
+        
+        this.listEl.style.display = 'block';
+        
+        // Render related articles
+        data.relatedArticles.forEach((rel: any) => {
+          const item = this.createRelatedItem(rel);
+          this.listEl.appendChild(item);
+        });
+        
+      } catch (error) {
+        console.error('Error loading related articles:', error);
+        this.loadingEl.style.display = 'none';
+        this.errorEl.style.display = 'block';
+      }
+    }
+    
+    private createRelatedItem(rel: any): HTMLElement {
+      const item = document.createElement('div');
+      item.className = 'related-item';
+      
+      const link = document.createElement('a');
+      link.href = `/articles/${rel.article.slug}`;
+      link.className = 'related-link';
+      
+      const title = document.createElement('h4');
+      title.className = 'related-article-title';
+      title.textContent = rel.article.title;
+      
+      link.appendChild(title);
+      
+      if (rel.article.excerpt) {
+        const excerpt = document.createElement('p');
+        excerpt.className = 'related-excerpt';
+        excerpt.textContent = rel.article.excerpt;
+        link.appendChild(excerpt);
+      }
+      
+      const meta = document.createElement('div');
+      meta.className = 'related-meta';
+      
+      if (rel.article.readingTime) {
+        const readingTime = document.createElement('span');
+        readingTime.textContent = `${rel.article.readingTime} min`;
+        meta.appendChild(readingTime);
+      }
+      
+      if (rel.article.viewCount) {
+        const views = document.createElement('span');
+        views.textContent = `${this.formatNumber(rel.article.viewCount)} views`;
+        meta.appendChild(views);
+      }
+      
+      link.appendChild(meta);
+      
+      // Show similarity score (optional)
+      if (rel.similarity > 0) {
+        const similarity = document.createElement('div');
+        similarity.className = 'related-similarity';
+        const similarityPercent = Math.round(rel.similarity);
+        similarity.textContent = `${similarityPercent}% similar`;
+        link.appendChild(similarity);
+      }
+      
+      item.appendChild(link);
+      
+      // Track click
+      link.addEventListener('click', () => {
+        this.trackInteraction(rel.article.id);
+      });
+      
+      return item;
+    }
+    
+    private async trackInteraction(articleId: number) {
+      try {
+        await fetch('/api/v1/recommendations/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articleId,
+            interactionType: 'view',
+            source: 'related',
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to track interaction:', error);
+      }
+    }
+    
+    private formatNumber(num: number): string {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+      }
+      return num.toString();
+    }
+  }
+  
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('related-articles');
+    if (container) {
+      new RelatedArticles(container);
+    }
+  });
+</script>

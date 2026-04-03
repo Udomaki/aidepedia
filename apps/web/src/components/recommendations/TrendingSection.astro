@@ -1,0 +1,445 @@
+---
+/**
+ * Trending Section Component
+ * Displays trending articles with time window options
+ */
+
+interface Props {
+  window?: '24h' | '7d' | '30d';
+  categoryId?: number;
+  limit?: number;
+  showTimeWindowSelector?: boolean;
+}
+
+const { 
+  window: timeWindow = '7d', 
+  categoryId, 
+  limit = 10,
+  showTimeWindowSelector = true 
+} = Astro.props;
+---
+
+<div class="trending-section" id="trending-section" data-window={timeWindow} data-category-id={categoryId} data-limit={limit}>
+  <div class="trending-header">
+    <h2 class="trending-title">
+      <span class="trending-icon">🔥</span>
+      Trending
+    </h2>
+    
+    {showTimeWindowSelector && (
+      <div class="time-window-selector">
+        <button class="time-window-btn active" data-window="24h">24h</button>
+        <button class="time-window-btn" data-window="7d">7 days</button>
+        <button class="time-window-btn" data-window="30d">30 days</button>
+      </div>
+    )}
+  </div>
+  
+  <div class="trending-loading" id="trending-loading">
+    <div class="spinner"></div>
+    <p>Loading trending articles...</p>
+  </div>
+  
+  <div class="trending-list" id="trending-list" style="display: none;">
+    <!-- Trending articles will be loaded here -->
+  </div>
+  
+  <div class="trending-empty" id="trending-empty" style="display: none;">
+    <p>No trending articles in this time period</p>
+  </div>
+  
+  <div class="trending-error" id="trending-error" style="display: none;">
+    <p>Failed to load trending articles</p>
+    <button class="retry-btn" id="trending-retry">Retry</button>
+  </div>
+</div>
+
+<style>
+  .trending-section {
+    margin: 2rem 0;
+  }
+  
+  .trending-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .trending-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .trending-icon {
+    font-size: 1.5rem;
+  }
+  
+  .time-window-selector {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .time-window-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color, #e1e1e1);
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .time-window-btn:hover {
+    border-color: var(--primary-color, #0066cc);
+    color: var(--primary-color, #0066cc);
+  }
+  
+  .time-window-btn.active {
+    background: var(--primary-color, #0066cc);
+    color: white;
+    border-color: var(--primary-color, #0066cc);
+  }
+  
+  .trending-loading {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  
+  .spinner {
+    border: 3px solid var(--border-color, #e1e1e1);
+    border-top: 3px solid var(--primary-color, #0066cc);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .trending-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color, #e1e1e1);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+  
+  .trending-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+  
+  .trending-rank {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color, #0066cc);
+    min-width: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .trending-content {
+    flex: 1;
+  }
+  
+  .trending-article-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary, #1a1a1a);
+    margin-bottom: 0.5rem;
+    text-decoration: none;
+    display: block;
+  }
+  
+  .trending-article-title:hover {
+    color: var(--primary-color, #0066cc);
+  }
+  
+  .trending-excerpt {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #666);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .trending-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-tertiary, #999);
+  }
+  
+  .trending-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .trending-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--badge-bg, #fff3cd);
+    color: var(--badge-color, #856404);
+    font-size: 0.75rem;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  
+  .trending-empty,
+  .trending-error {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary, #666);
+  }
+  
+  .retry-btn {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--primary-color, #0066cc);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  
+  .retry-btn:hover {
+    background: var(--primary-color-dark, #0052a3);
+  }
+</style>
+
+<script>
+  class TrendingSection {
+    private container: HTMLElement;
+    private listEl: HTMLElement;
+    private loadingEl: HTMLElement;
+    private emptyEl: HTMLElement;
+    private errorEl: HTMLElement;
+    private retryBtn: HTMLElement;
+    private windowButtons: NodeListOf<HTMLButtonElement>;
+    private currentWindow: '24h' | '7d' | '30d';
+    private categoryId?: number;
+    private limit: number;
+  
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.listEl = container.querySelector('#trending-list')!;
+      this.loadingEl = container.querySelector('#trending-loading')!;
+      this.emptyEl = container.querySelector('#trending-empty')!;
+      this.errorEl = container.querySelector('#trending-error')!;
+      this.retryBtn = container.querySelector('#trending-retry')!;
+      this.windowButtons = container.querySelectorAll('.time-window-btn');
+      
+      this.currentWindow = (container.dataset.window || '7d') as '24h' | '7d' | '30d';
+      this.categoryId = container.dataset.categoryId 
+        ? parseInt(container.dataset.categoryId) 
+        : undefined;
+      this.limit = parseInt(container.dataset.limit || '10');
+      
+      this.init();
+    }
+    
+    private async init() {
+      // Time window selector
+      this.windowButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const target = e.currentTarget as HTMLButtonElement;
+          const window = target.dataset.window as '24h' | '7d' | '30d';
+          this.changeWindow(window);
+        });
+      });
+      
+      // Retry button
+      this.retryBtn.addEventListener('click', () => this.load());
+      
+      // Initial load
+      await this.load();
+    }
+    
+    private changeWindow(window: '24h' | '7d' | '30d') {
+      this.currentWindow = window;
+      
+      // Update active button
+      this.windowButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.window === window);
+      });
+      
+      // Reload
+      this.load();
+    }
+    
+    private async load() {
+      try {
+        this.loadingEl.style.display = 'block';
+        this.errorEl.style.display = 'none';
+        this.listEl.style.display = 'none';
+        
+        let url = `/api/v1/recommendations/trending?window=${this.currentWindow}&limit=${this.limit}`;
+        if (this.categoryId) {
+          url += `&categoryId=${this.categoryId}`;
+        }
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch trending articles');
+        }
+        
+        const data = await response.json();
+        
+        this.loadingEl.style.display = 'none';
+        
+        if (data.trending.length === 0) {
+          this.emptyEl.style.display = 'block';
+          return;
+        }
+        
+        this.emptyEl.style.display = 'none';
+        this.listEl.style.display = 'block';
+        this.listEl.innerHTML = '';
+        
+        // Render trending articles
+        data.trending.forEach((item: any) => {
+          const el = this.createTrendingItem(item);
+          this.listEl.appendChild(el);
+        });
+        
+      } catch (error) {
+        console.error('Error loading trending articles:', error);
+        this.loadingEl.style.display = 'none';
+        this.errorEl.style.display = 'block';
+      }
+    }
+    
+    private createTrendingItem(item: any): HTMLElement {
+      const container = document.createElement('div');
+      container.className = 'trending-item';
+      
+      const rank = document.createElement('div');
+      rank.className = 'trending-rank';
+      rank.textContent = `#${item.rank}`;
+      
+      const content = document.createElement('div');
+      content.className = 'trending-content';
+      
+      const link = document.createElement('a');
+      link.href = `/articles/${item.article.slug}`;
+      link.className = 'trending-article-title';
+      link.textContent = item.article.title;
+      
+      content.appendChild(link);
+      
+      if (item.article.excerpt) {
+        const excerpt = document.createElement('p');
+        excerpt.className = 'trending-excerpt';
+        excerpt.textContent = item.article.excerpt;
+        content.appendChild(excerpt);
+      }
+      
+      const meta = document.createElement('div');
+      meta.className = 'trending-meta';
+      
+      // View velocity
+      if (item.viewVelocity > 0) {
+        const views = document.createElement('span');
+        views.className = 'trending-stat';
+        views.innerHTML = `<span>👁</span> ${this.formatVelocity(item.viewVelocity)} views/h`;
+        meta.appendChild(views);
+      }
+      
+      // Upvotes
+      if (item.article.upvotes > 0) {
+        const upvotes = document.createElement('span');
+        upvotes.className = 'trending-stat';
+        upvotes.innerHTML = `<span>👍</span> ${this.formatNumber(item.article.upvotes)}`;
+        meta.appendChild(upvotes);
+      }
+      
+      // Reading time
+      if (item.article.readingTime) {
+        const time = document.createElement('span');
+        time.className = 'trending-stat';
+        time.textContent = `${item.article.readingTime} min read`;
+        meta.appendChild(time);
+      }
+      
+      content.appendChild(meta);
+      
+      // Hot badge for top 3
+      if (item.rank <= 3 && item.viewVelocity > 10) {
+        const badge = document.createElement('span');
+        badge.className = 'trending-badge';
+        badge.textContent = '🔥 Hot';
+        content.appendChild(badge);
+      }
+      
+      container.appendChild(rank);
+      container.appendChild(content);
+      
+      // Track click
+      container.addEventListener('click', () => {
+        this.trackInteraction(item.article.id);
+      });
+      
+      return container;
+    }
+    
+    private async trackInteraction(articleId: number) {
+      try {
+        await fetch('/api/v1/recommendations/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articleId,
+            interactionType: 'view',
+            source: 'trending',
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to track interaction:', error);
+      }
+    }
+    
+    private formatVelocity(velocity: number): string {
+      if (velocity >= 100) {
+        return Math.round(velocity).toString();
+      }
+      return velocity.toFixed(1);
+    }
+    
+    private formatNumber(num: number): string {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+      }
+      return num.toString();
+    }
+  }
+  
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('trending-section');
+    if (container) {
+      new TrendingSection(container);
+    }
+  });
+</script>
