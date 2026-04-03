@@ -3,6 +3,7 @@ import { getSession } from 'auth-astro/server';
 import { rateLimitMiddleware } from './rate-limit';
 import { apiVersionMiddleware } from './api-version';
 import { performanceMiddleware } from './performance';
+import { cacheMiddleware } from './cache';
 import { getMaintenanceModeSettings } from '@aidepedia/db/queries';
 
 // Routes that require authentication
@@ -231,9 +232,10 @@ const authMiddleware = defineMiddleware(async (context, next) => {
 });
 
 export const onRequest = sequence(
-  performanceMiddleware,
   rateLimitMiddleware,
   apiVersionMiddleware,
   maintenanceMiddleware,
-  authMiddleware
+  authMiddleware,
+  cacheMiddleware,
+  performanceMiddleware
 );
