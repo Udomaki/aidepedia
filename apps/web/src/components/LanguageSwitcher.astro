@@ -1,0 +1,98 @@
+---
+// OC-121: Language Switcher Component
+
+import { SUPPORTED_LANGUAGES, getLanguage, type Language } from '../lib/i18n';
+
+interface Props {
+  currentLanguage: string;
+  currentPath: string;
+}
+
+const { currentLanguage, currentPath } = Astro.props;
+
+// Get path without language prefix for building new URLs
+function getPathWithoutLang(path: string): string {
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length > 0 && /^[a-z]{2}(-[A-Z]{2})?$/.test(segments[0])) {
+    return '/' + segments.slice(1).join('/');
+  }
+  return path;
+}
+
+const pathWithoutLang = getPathWithoutLang(currentPath);
+---
+
+<div class="language-switcher relative inline-block">
+  <button
+    id="language-dropdown-btn"
+    class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    aria-expanded="false"
+    aria-haspopup="true"
+  >
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path>
+    </svg>
+    <span>{getLanguage(currentLanguage)?.nativeName || currentLanguage}</span>
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </button>
+
+  <div
+    id="language-dropdown"
+    class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50"
+    role="menu"
+    aria-orientation="vertical"
+  >
+    <div class="py-2 max-h-96 overflow-y-auto">
+      {SUPPORTED_LANGUAGES.map((lang: Language) => (
+        <a
+          href={lang.code === 'en' ? pathWithoutLang : `/${lang.code}${pathWithoutLang}`}
+          class={`flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700 ${
+            currentLanguage === lang.code 
+              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-700 dark:text-gray-300'
+          }`}
+          role="menuitem"
+        >
+          <div class="flex items-center gap-3">
+            <span class="font-medium">{lang.nativeName}</span>
+            <span class="text-gray-500 dark:text-gray-400">{lang.name}</span>
+          </div>
+          {currentLanguage === lang.code && (
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+          )}
+        </a>
+      ))}
+    </div>
+  </div>
+</div>
+
+<script>
+  const button = document.getElementById('language-dropdown-btn');
+  const dropdown = document.getElementById('language-dropdown');
+  
+  button?.addEventListener('click', () => {
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', (!isExpanded).toString());
+    dropdown?.classList.toggle('hidden');
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!button?.contains(e.target as Node) && !dropdown?.contains(e.target as Node)) {
+      button?.setAttribute('aria-expanded', 'false');
+      dropdown?.classList.add('hidden');
+    }
+  });
+  
+  // Close dropdown on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      button?.setAttribute('aria-expanded', 'false');
+      dropdown?.classList.add('hidden');
+    }
+  });
+</script>

@@ -621,3 +621,169 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// OC-121: Multi-language Support (i18n)
+
+// Supported languages configuration
+export const languages = pgTable('languages', {
+  code: varchar('code', { length: 10 }).notNull().primaryKey(), // e.g., 'en', 'es', 'zh-CN'
+  name: varchar('name', { length: 100 }).notNull(), // e.g., 'English', 'Spanish'
+  nativeName: varchar('native_name', { length: 100 }).notNull(), // e.g., 'English', 'Español'
+  direction: varchar('direction', { enum: ['ltr', 'rtl'], length: 3 }).notNull().default('ltr'),
+  enabled: boolean('enabled').notNull().default(true),
+  isDefault: boolean('is_default').notNull().default(false),
+  displayOrder: integer('display_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Article translations
+export const article_translations = pgTable('article_translations', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 500 }).notNull(),
+  content: text('content').notNull(),
+  excerpt: text('excerpt'),
+  slug: varchar('slug', { length: 255 }).notNull(),
+  
+  status: varchar('status', {
+    enum: ['draft', 'pending_review', 'published', 'rejected'],
+    length: 20
+  }).notNull().default('draft'),
+  
+  translatorId: integer('translator_id').references(() => editors.id, { onDelete: 'set null' }),
+  reviewerId: integer('reviewer_id').references(() => editors.id, { onDelete: 'set null' }),
+  
+  qualityScore: integer('quality_score').default(0),
+  viewCount: integer('view_count').default(0),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  publishedAt: timestamp('published_at'),
+}, (table) => ({
+  articleIdx: index('article_translation_article_idx').on(table.articleId),
+  languageIdx: index('article_translation_language_idx').on(table.languageCode),
+  slugIdx: index('article_translation_slug_idx').on(table.slug),
+  statusIdx: index('article_translation_status_idx').on(table.status),
+  uniqueArticleLanguage: index('article_translation_unique_idx').on(table.articleId, table.languageCode),
+}));
+
+// Category translations
+export const category_translations = pgTable('category_translations', {
+  id: serial('id').primaryKey(),
+  categoryId: integer('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  categoryIdx: index('category_translation_category_idx').on(table.categoryId),
+  languageIdx: index('category_translation_language_idx').on(table.languageCode),
+  slugIdx: index('category_translation_slug_idx').on(table.slug),
+  uniqueCategoryLanguage: index('category_translation_unique_idx').on(table.categoryId, table.languageCode),
+}));
+
+// Tag translations
+export const tag_translations = pgTable('tag_translations', {
+  id: serial('id').primaryKey(),
+  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  tagIdx: index('tag_translation_tag_idx').on(table.tagId),
+  languageIdx: index('tag_translation_language_idx').on(table.languageCode),
+  slugIdx: index('tag_translation_slug_idx').on(table.slug),
+  uniqueTagLanguage: index('tag_translation_unique_idx').on(table.tagId, table.languageCode),
+}));
+
+// UI translations for interface strings
+export const ui_translations = pgTable('ui_translations', {
+  id: serial('id').primaryKey(),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  key: varchar('key', { length: 255 }).notNull(), // e.g., 'nav.home', 'article.readMore'
+  value: text('value').notNull(),
+  context: varchar('context', { length: 100 }), // Optional context for translators
+  
+  status: varchar('status', {
+    enum: ['draft', 'pending_review', 'approved'],
+    length: 20
+  }).notNull().default('draft'),
+  
+  translatorId: integer('translator_id').references(() => editors.id, { onDelete: 'set null' }),
+  reviewerId: integer('reviewer_id').references(() => editors.id, { onDelete: 'set null' }),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  languageIdx: index('ui_translation_language_idx').on(table.languageCode),
+  keyIdx: index('ui_translation_key_idx').on(table.key),
+  uniqueLanguageKey: index('ui_translation_unique_idx').on(table.languageCode, table.key),
+}));
+
+// Translation quality analytics
+export const translation_analytics = pgTable('translation_analytics', {
+  id: serial('id').primaryKey(),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  date: timestamp('date').notNull(),
+  
+  totalTranslations: integer('total_translations').default(0),
+  publishedTranslations: integer('published_translations').default(0),
+  pendingReview: integer('pending_review').default(0),
+  
+  avgQualityScore: integer('avg_quality_score'),
+  totalViews: integer('total_views').default(0),
+  
+  topTranslators: jsonb('top_translators').$type<Array<{ id: number; count: number }>>(),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  languageIdx: index('translation_analytics_language_idx').on(table.languageCode),
+  dateIdx: index('translation_analytics_date_idx').on(table.date),
+  uniqueLanguageDate: index('translation_analytics_unique_idx').on(table.languageCode, table.date),
+}));
+
+// User language preferences
+export const user_languages = pgTable('user_languages', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  isPreferred: boolean('is_preferred').default(false),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('user_language_user_idx').on(table.userId),
+  languageIdx: index('user_language_language_idx').on(table.languageCode),
+  uniqueUserLanguage: index('user_language_unique_idx').on(table.userId, table.languageCode),
+}));
+
+// Translation editor role extension
+export const translation_editors = pgTable('translation_editors', {
+  id: serial('id').primaryKey(),
+  editorId: integer('editor_id').notNull().references(() => editors.id, { onDelete: 'cascade' }),
+  languageCode: varchar('language_code', { length: 10 }).notNull().references(() => languages.code, { onDelete: 'cascade' }),
+  role: varchar('role', {
+    enum: ['translator', 'reviewer', 'admin'],
+    length: 20
+  }).notNull().default('translator'),
+  
+  translationsCount: integer('translations_count').default(0),
+  reviewsCount: integer('reviews_count').default(0),
+  avgQualityScore: integer('avg_quality_score'),
+  
+  isActive: boolean('is_active').default(true),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  editorIdx: index('translation_editor_editor_idx').on(table.editorId),
+  languageIdx: index('translation_editor_language_idx').on(table.languageCode),
+  uniqueEditorLanguage: index('translation_editor_unique_idx').on(table.editorId, table.languageCode),
+}));

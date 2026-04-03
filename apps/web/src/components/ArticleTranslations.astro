@@ -1,0 +1,133 @@
+---
+// OC-121: Article Translations Component
+
+import { SUPPORTED_LANGUAGES, getLanguage } from '../lib/i18n';
+
+interface Props {
+  articleId: number;
+  articleSlug: string;
+  currentLanguage: string;
+  translations: Array<{
+    languageCode: string;
+    status: string;
+    title: string;
+    slug: string;
+  }>;
+}
+
+const { articleId, articleSlug, currentLanguage, translations } = Astro.props;
+
+// Get languages that have translations
+const translatedLanguages = new Set(translations.map(t => t.languageCode));
+const availableTranslations = translations.filter(t => t.status === 'published');
+---
+
+<div class="article-translations bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 shadow-sm">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      Translations
+    </h3>
+    <span class="text-sm text-gray-500 dark:text-gray-400">
+      {availableTranslations.length} of {SUPPORTED_LANGUAGES.length} languages
+    </span>
+  </div>
+
+  <!-- Current language -->
+  <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+    <div class="flex items-center gap-2">
+      <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+      </svg>
+      <span class="text-sm font-medium text-blue-900 dark:text-blue-100">
+        Reading in: {getLanguage(currentLanguage)?.nativeName || currentLanguage}
+      </span>
+    </div>
+  </div>
+
+  <!-- Available translations -->
+  {availableTranslations.length > 0 && (
+    <div class="mb-4">
+      <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Available in:
+      </p>
+      <div class="space-y-2">
+        {availableTranslations.map((translation) => {
+          const lang = getLanguage(translation.languageCode);
+          return (
+            <a
+              href={translation.languageCode === 'en' 
+                ? `/articles/${translation.slug}` 
+                : `/${translation.languageCode}/articles/${translation.slug}`
+              }
+              class="flex items-center justify-between p-3 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              <div class="flex items-center gap-3">
+                <span class="font-medium text-gray-900 dark:text-gray-100">
+                  {lang?.nativeName || translation.languageCode}
+                </span>
+                {translation.languageCode !== 'en' && (
+                  <span class="text-sm text-gray-500 dark:text-gray-400">
+                    {lang?.name}
+                  </span>
+                )}
+              </div>
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  )}
+
+  <!-- Missing translations -->
+  {SUPPORTED_LANGUAGES.filter(lang => !translatedLanguages.has(lang.code)).length > 0 && (
+    <div>
+      <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Help translate to:
+      </p>
+      <div class="flex flex-wrap gap-2">
+        {SUPPORTED_LANGUAGES
+          .filter(lang => !translatedLanguages.has(lang.code))
+          .slice(0, 5)
+          .map((lang) => (
+            <button
+              class="px-3 py-1 text-sm bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+              data-translate-action
+              data-article-id={articleId}
+              data-language={lang.code}
+            >
+              {lang.nativeName}
+            </button>
+          ))
+        }
+        {SUPPORTED_LANGUAGES.filter(lang => !translatedLanguages.has(lang.code)).length > 5 && (
+          <span class="px-3 py-1 text-sm text-gray-500 dark:text-gray-400">
+            +{SUPPORTED_LANGUAGES.filter(lang => !translatedLanguages.has(lang.code)).length - 5} more
+          </span>
+        )}
+      </div>
+    </div>
+  )}
+
+  {availableTranslations.length === 0 && currentLanguage === 'en' && (
+    <p class="text-sm text-gray-500 dark:text-gray-400 italic">
+      No translations available yet. Be the first to translate this article!
+    </p>
+  )}
+</div>
+
+<script>
+  // Handle translation action buttons
+  document.querySelectorAll('[data-translate-action]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const target = e.currentTarget as HTMLElement;
+      const articleId = target.dataset.articleId;
+      const language = target.dataset.language;
+      
+      // Redirect to translation page (to be implemented)
+      window.location.href = `/translate/article/${articleId}?lang=${language}`;
+    });
+  });
+</script>

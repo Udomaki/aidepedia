@@ -8,6 +8,8 @@ import KeyboardShortcuts from '../components/KeyboardShortcuts.astro';
 import KeyboardHelpModal from '../components/KeyboardHelpModal.astro';
 import QuickActionModal from '../components/QuickActionModal.astro';
 import ToastNotification from '../components/ToastNotification.astro';
+import LanguageSwitcher from '../components/LanguageSwitcher.astro';
+import { getHtmlLang, getHtmlDir, createTranslator } from '../lib/i18n';
 
 interface Props {
   title: string;
@@ -22,6 +24,7 @@ interface Props {
   modifiedTime?: Date;
   canEdit?: boolean;
   articleSlug?: string;
+  language?: string;
 }
 
 const { 
@@ -36,16 +39,24 @@ const {
   publishedTime,
   modifiedTime,
   canEdit = false,
-  articleSlug
+  articleSlug,
+  language = 'en'
 } = Astro.props;
 
 const session = await getSession(Astro.request);
 const user = session?.user;
 const siteName = 'AIdepedia';
+
+// Get translation function
+const t = createTranslator(language);
+
+// Get HTML attributes for i18n
+const htmlLang = getHtmlLang(language);
+const htmlDir = getHtmlDir(language);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={htmlLang} dir={htmlDir}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -165,6 +176,7 @@ const siteName = 'AIdepedia';
                 Sign in
               </a>
             )}
+            <LanguageSwitcher currentLanguage={language} currentPath={Astro.url.pathname} />
             <ThemeToggle />
           </div>
         </div>
