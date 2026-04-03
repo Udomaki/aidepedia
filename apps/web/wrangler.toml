@@ -9,3 +9,39 @@ directory = "./dist"
 
 [observability]
 enabled = true
+
+# CDN & Edge Caching Configuration
+# See README.md for Cloudflare dashboard setup instructions
+
+# Environment variables (set via Cloudflare dashboard or wrangler secret)
+# [vars]
+# CLOUDFLARE_ZONE_ID = "your-zone-id"
+# CLOUDFLARE_API_TOKEN = "your-api-token"  # Use wrangler secret for this!
+
+# Performance optimization rules
+# Note: These are configured in Cloudflare dashboard:
+# - Brotli compression: Speed > Optimization > Content Optimization
+# - HTTP/3 (QUIC): Network > Edge Network > HTTP/3
+# - Minification: Speed > Optimization > Content Optimization
+# - Image Optimization: Speed > Optimization > Image Resizing
+
+# Cache rules (configured via Page Rules in Cloudflare dashboard):
+# Pattern: *aidepedia.com/api/*
+#   - Cache Level: Bypass
+#   - Disable Performance
+#
+# Pattern: *aidepedia.com/articles/*
+#   - Cache Level: Cache Everything
+#   - Edge Cache TTL: 1 hour
+#   - Browser Cache TTL: 1 hour
+#   - Stale-While-Revalidate: 1 day
+#
+# Pattern: *aidepedia.com/*.js
+# Pattern: *aidepedia.com/*.css
+# Pattern: *aidepedia.com/_astro/*
+#   - Cache Level: Cache Everything
+#   - Edge Cache TTL: 1 year
+#   - Browser Cache TTL: 1 year
+#
+# Pattern: *aidepedia.com/search*
+#   - Cache Level: Bypass
