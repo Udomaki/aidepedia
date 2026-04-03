@@ -10,6 +10,7 @@ import type {
   comments,
   article_reactions,
   feature_flags,
+  article_summaries,
 } from './schema/index';
 
 // Category types
@@ -418,5 +419,18 @@ export interface ArticleDraftWithArticle extends ArticleDraft {
     title: string;
     content: string;
     excerpt: string | null;
+  } | null;
+}
+
+// Article summary types
+export type ArticleSummary = typeof article_summaries.$inferSelect;
+export type NewArticleSummary = typeof article_summaries.$inferInsert;
+export type SummaryStyle = 'brief' | 'detailed' | 'bullets';
+
+export interface ArticleSummaryWithArticle extends ArticleSummary {
+  article?: {
+    id: number;
+    slug: string;
+    title: string;
   } | null;
 }

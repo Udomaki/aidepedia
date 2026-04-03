@@ -1,0 +1,173 @@
+---
+/**
+ * GenerateSummaryButton Component
+ * Button for editors to generate/regenerate article summaries
+ */
+
+interface Props {
+  articleSlug: string;
+  articleId: number;
+  hasExistingSummary?: boolean;
+  style?: 'brief' | 'detailed' | 'bullets';
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  label?: string;
+}
+
+const {
+  articleSlug,
+  articleId,
+  hasExistingSummary = false,
+  style = 'detailed',
+  variant = 'secondary',
+  size = 'md',
+  label
+} = Astro.props;
+
+// Button text
+const buttonText = label || (hasExistingSummary ? 'Regenerate Summary' : 'Generate Summary');
+
+// Size classes
+const sizeClasses = {
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-5 py-2.5 text-base'
+};
+
+// Variant classes
+const variantClasses = {
+  primary: 'bg-blue-600 hover:bg-blue-700 text-white border-transparent',
+  secondary: 'bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600',
+  ghost: 'bg-transparent hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-slate-600'
+};
+---
+
+<button
+  data-generate-summary
+  data-article-slug={articleSlug}
+  data-article-id={articleId}
+  data-summary-style={style}
+  class:list={[
+    'inline-flex items-center gap-2 font-medium rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed',
+    sizeClasses[size],
+    variantClasses[variant]
+  ]}
+  aria-label={buttonText}
+  type="button"
+>
+  <!-- Sparkles Icon -->
+  <svg
+    class="w-4 h-4"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+    />
+  </svg>
+
+  <span>{buttonText}</span>
+
+  <!-- Loading Spinner (hidden by default) -->
+  <svg
+    data-loading-spinner
+    class="w-4 h-4 animate-spin hidden"
+    fill="none"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <circle
+      class="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      stroke-width="4"
+    ></circle>
+    <path
+      class="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    ></path>
+  </svg>
+</button>
+
+<script>
+  // Client-side script to handle summary generation
+  document.addEventListener('astro:page-load', () => {
+    const button = document.querySelector('[data-generate-summary]') as HTMLButtonElement;
+
+    if (!button) return;
+
+    button.addEventListener('click', async () => {
+      const articleSlug = button.dataset.articleSlug;
+      const summaryStyle = button.dataset.summaryStyle || 'detailed';
+      const spinner = button.querySelector('[data-loading-spinner]') as SVGElement;
+      const label = button.querySelector('span:not([data-loading-spinner])') as HTMLElement;
+
+      // Show loading state
+      button.disabled = true;
+      spinner?.classList.remove('hidden');
+      if (label) label.textContent = 'Generating...';
+
+      try {
+        const response = await fetch(`/api/v1/articles/${articleSlug}/summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            style: summaryStyle,
+            force: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate summary');
+        }
+
+        const data = await response.json();
+
+        // Dispatch custom event with summary data
+        window.dispatchEvent(
+          new CustomEvent('summary-generated', {
+            detail: {
+              articleSlug,
+              summary: data.data.summary,
+              keyPoints: data.data.keyPoints,
+              style: data.data.style,
+              model: data.data.model,
+            },
+          })
+        );
+
+        // Show success message
+        if (label) label.textContent = 'Generated!';
+
+        // Reset button after delay
+        setTimeout(() => {
+          button.disabled = false;
+          spinner?.classList.add('hidden');
+          if (label) label.textContent = 'Regenerate Summary';
+        }, 2000);
+      } catch (error) {
+        console.error('Error generating summary:', error);
+
+        // Show error state
+        if (label) label.textContent = 'Failed';
+
+        // Reset button after delay
+        setTimeout(() => {
+          button.disabled = false;
+          spinner?.classList.add('hidden');
+          if (label) label.textContent = 'Generate Summary';
+        }, 2000);
+      }
+    });
+  });
+</script>
