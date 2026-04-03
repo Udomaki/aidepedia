@@ -1,281 +1,124 @@
-import type { APIRoute } from 'astro';
-import { db, users, organizations, organizationMembers, scimGroups, scimGroupMembers, ssoAuditLog, eq, and, like } from '@aidepedia/db';
-import { nanoid } from 'nanoid';
+import type { APIContext } from 'astro';
+import {
+  handleScimUser,
+  createScimUserListResponse,
+  createScimError,
+  validateScimToken,
+  parseScimQuery,
+} from '../../../../lib/auth/scim';
+import { getOrganizationByDomain, findUserByEmail, organization_members } from '@aidepedia/db';
 
-// SCIM 2.0 User endpoints
-
-interface SCIMUser {
-  schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'];
-  id: string;
-  externalId?: string;
-  userName: string;
-  name?: {
-    givenName?: string;
-    familyName?: string;
-    formatted?: string;
-  };
-  displayName?: string;
-  emails: Array<{
-    value: string;
-    type?: string;
-    primary?: boolean;
-  }>;
-  active: boolean;
-  groups?: Array<{
-    value: string;
-    display: string;
-    type?: string;
-  }>;
-  meta?: {
-    resourceType: 'User';
-    location?: string;
-  };
-}
-
-interface SCIMListResponse {
-  schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'];
-  totalResults: number;
-  startIndex: number;
-  itemsPerPage: number;
-  Resources: SCIMUser[];
-}
-
-interface SCIMError {
-  schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'];
-  status: string;
-  detail?: string;
-}
-
-// Validate SCIM bearer token
-async function validateSCIMToken(authHeader: string | null): Promise<typeof organizations.$inferSelect | null> {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  const token = authHeader.substring(7);
-  
-  const [org] = await db
-    .select()
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.scimEnabled, true),
-        eq(organizations.scimBearerToken, token)
-      )
-    )
-    .limit(1);
-  
-  return org || null;
-}
-
-// Convert database user to SCIM format
-function userToSCIM(user: typeof users.$inferSelect, member: typeof organizationMembers.$inferSelect): SCIMUser {
-  return {
-    schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
-    id: String(user.id),
-    externalId: member.scimExternalId || undefined,
-    userName: user.email,
-    name: {
-      givenName: user.name?.split(' ')[0],
-      familyName: user.name?.split(' ').slice(1).join(' '),
-      formatted: user.name,
-    },
-    displayName: user.name || undefined,
-    emails: [{
-      value: user.email,
-      type: 'work',
-      primary: true,
-    }],
-    active: true,
-    meta: {
-      resourceType: 'User',
-    },
-  };
-}
-
-// GET /api/scim/v2/Users - List users
-export const GET: APIRoute = async ({ request, url }) => {
-  const org = await validateSCIMToken(request.headers.get('Authorization'));
-  
-  if (!org) {
-    return new Response(JSON.stringify({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '401',
-      detail: 'Invalid or missing bearer token',
-    } as SCIMError), {
-      status: 401,
-      headers: { 'Content-Type': 'application/scim+json' },
-    });
-  }
-  
+export async function GET({ request, params }: APIContext) {
   try {
-    const startIndex = parseInt(url.searchParams.get('startIndex') || '1');
-    const count = parseInt(url.searchParams.get('count') || '100');
-    const filter = url.searchParams.get('filter');
+    // Extract organization ID from path or header
+    const orgId = parseInt(params.orgId as string);
     
-    // Get organization members with user data
-    const members = await db
-      .select({
-        user: users,
-        member: organizationMembers,
-      })
-      .from(organizationMembers)
-      .innerJoin(users, eq(organizationMembers.userId, users.id))
-      .where(eq(organizationMembers.organizationId, org.id))
-      .limit(count)
-      .offset(startIndex - 1);
-    
-    // Apply filter if provided
-    let filteredMembers = members;
-    if (filter && filter.includes('userName')) {
-      const emailMatch = filter.match(/userName eq "(.+?)"/);
-      if (emailMatch) {
-        const email = emailMatch[1];
-        filteredMembers = members.filter(m => m.user.email === email);
-      }
-    }
-    
-    const scimUsers = filteredMembers.map(({ user, member }) => userToSCIM(user, member));
-    
-    const response: SCIMListResponse = {
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
-      totalResults: scimUsers.length,
-      startIndex,
-      itemsPerPage: count,
-      Resources: scimUsers,
-    };
-    
-    return new Response(JSON.stringify(response), {
-      headers: { 'Content-Type': 'application/scim+json' },
-    });
-  } catch (error) {
-    console.error('SCIM list users error:', error);
-    return new Response(JSON.stringify({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '500',
-      detail: 'Internal server error',
-    } as SCIMError), {
-      status: 500,
-      headers: { 'Content-Type': 'application/scim+json' },
-    });
-  }
-};
-
-// POST /api/scim/v2/Users - Create user
-export const POST: APIRoute = async ({ request }) => {
-  const org = await validateSCIMToken(request.headers.get('Authorization'));
-  
-  if (!org) {
-    return new Response(JSON.stringify({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '401',
-      detail: 'Invalid or missing bearer token',
-    } as SCIMError), {
-      status: 401,
-      headers: { 'Content-Type': 'application/scim+json' },
-    });
-  }
-  
-  try {
-    const scimUser = await request.json() as SCIMUser;
-    
-    // Check if user already exists
-    const [existingUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, scimUser.userName))
-      .limit(1);
-    
-    let user;
-    
-    if (existingUser) {
-      // User exists, add to organization if not already a member
-      user = existingUser;
-      
-      const [existingMember] = await db
-        .select()
-        .from(organizationMembers)
-        .where(
-          and(
-            eq(organizationMembers.organizationId, org.id),
-            eq(organizationMembers.userId, user.id)
-          )
-        )
-        .limit(1);
-      
-      if (!existingMember) {
-        await db.insert(organizationMembers).values({
-          organizationId: org.id,
-          userId: user.id,
-          role: 'member',
-          scimExternalId: scimUser.externalId,
-          scimSyncedAt: new Date(),
-        });
-      }
-    } else {
-      // Create new user
-      const [newUser] = await db.insert(users).values({
-        email: scimUser.userName,
-        name: scimUser.displayName || scimUser.name?.formatted,
-        emailVerified: new Date(), // Trust IdP email verification
-      }).returning();
-      
-      user = newUser;
-      
-      // Add to organization
-      await db.insert(organizationMembers).values({
-        organizationId: org.id,
-        userId: user.id,
-        role: 'member',
-        scimExternalId: scimUser.externalId,
-        scimSyncedAt: new Date(),
+    // Validate SCIM token
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify(createScimError(401, 'Missing or invalid authorization header')), {
+        status: 401,
+        headers: { 'Content-Type': 'application/scim+json' },
       });
     }
+
+    const token = authHeader.substring(7);
+    const isValid = await validateScimToken(orgId, token);
     
-    // Get member record
-    const [member] = await db
-      .select()
-      .from(organizationMembers)
-      .where(
-        and(
-          eq(organizationMembers.organizationId, org.id),
-          eq(organizationMembers.userId, user.id)
-        )
-      )
-      .limit(1);
-    
-    // Log provisioning event
-    await db.insert(ssoAuditLog).values({
-      organizationId: org.id,
-      userId: user.id,
-      eventType: 'scim_user_provisioned',
-      provider: 'scim',
-      success: true,
-      eventData: { email: user.email, externalId: scimUser.externalId },
-    });
-    
-    return new Response(JSON.stringify(userToSCIM(user, member)), {
-      status: 201,
+    if (!isValid) {
+      return new Response(JSON.stringify(createScimError(401, 'Invalid SCIM token')), {
+        status: 401,
+        headers: { 'Content-Type': 'application/scim+json' },
+      });
+    }
+
+    // Parse query parameters
+    const query = parseScimQuery(new URL(request.url).searchParams);
+
+    // TODO: Implement actual user listing with pagination and filtering
+    // For now, return empty list
+    const response = createScimUserListResponse([], query.startIndex, 0);
+
+    return new Response(JSON.stringify(response), {
+      status: 200,
       headers: { 'Content-Type': 'application/scim+json' },
     });
   } catch (error) {
-    console.error('SCIM create user error:', error);
-    
-    await db.insert(ssoAuditLog).values({
-      organizationId: org.id,
-      eventType: 'scim_user_provisioned',
-      provider: 'scim',
-      success: false,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-    
-    return new Response(JSON.stringify({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '500',
-      detail: 'Failed to create user',
-    } as SCIMError), {
+    console.error('SCIM GET /Users error:', error);
+    return new Response(JSON.stringify(createScimError(500, error instanceof Error ? error.message : 'Internal server error')), {
       status: 500,
       headers: { 'Content-Type': 'application/scim+json' },
     });
   }
-};
+}
+
+export async function POST({ request, params }: APIContext) {
+  try {
+    const orgId = parseInt(params.orgId as string);
+    
+    // Validate SCIM token
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify(createScimError(401, 'Missing or invalid authorization header')), {
+        status: 401,
+        headers: { 'Content-Type': 'application/scim+json' },
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const isValid = await validateScimToken(orgId, token);
+    
+    if (!isValid) {
+      return new Response(JSON.stringify(createScimError(401, 'Invalid SCIM token')), {
+        status: 401,
+        headers: { 'Content-Type': 'application/scim+json' },
+      });
+    }
+
+    // Parse SCIM user
+    const scimUser = await request.json();
+
+    // Validate required fields
+    if (!scimUser.userName && !scimUser.emails?.[0]?.value) {
+      return new Response(JSON.stringify(createScimError(400, 'userName or email is required')), {
+        status: 400,
+        headers: { 'Content-Type': 'application/scim+json' },
+      });
+    }
+
+    // Provision user
+    const result = await handleScimUser(orgId, scimUser);
+
+    // Return created user
+    const response = {
+      schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+      id: result.userId.toString(),
+      externalId: scimUser.externalId,
+      userName: scimUser.userName || scimUser.emails[0].value,
+      name: scimUser.name,
+      displayName: scimUser.displayName,
+      emails: scimUser.emails,
+      active: true,
+      meta: {
+        resourceType: 'User',
+        created: new Date().toISOString(),
+        lastModified: new Date().toISOString(),
+        location: `${new URL(request.url).origin}/api/scim/v2/organizations/${orgId}/Users/${result.userId}`,
+      },
+    };
+
+    return new Response(JSON.stringify(response), {
+      status: result.created ? 201 : 200,
+      headers: { 
+        'Content-Type': 'application/scim+json',
+        'Location': response.meta.location,
+      },
+    });
+  } catch (error) {
+    console.error('SCIM POST /Users error:', error);
+    return new Response(JSON.stringify(createScimError(500, error instanceof Error ? error.message : 'Internal server error')), {
+      status: 500,
+      headers: { 'Content-Type': 'application/scim+json' },
+    });
+  }
+}

@@ -15,6 +15,7 @@ export * from './webhooks';
 export * from './backup';
 export * from './reading-time';
 export * from './queries/moderation';
+export * from './queries/sso';
 
 // Re-export drizzle-orm operators for convenience
 export { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, avg, ne, not } from 'drizzle-orm';

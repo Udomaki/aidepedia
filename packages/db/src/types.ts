@@ -512,3 +512,6 @@ export interface QualityAnalytics {
   topArticles: Array<{ articleId: number; title: string; score: number }>;
   lowestArticles: Array<{ articleId: number; title: string; score: number; issues: string[] }>;
 }
+
+// Re-export SSO types
+export * from './types/sso';

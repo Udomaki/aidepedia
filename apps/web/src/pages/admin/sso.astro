@@ -1,0 +1,457 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getSsoConfiguration, getIdentityProviders, getSsoStats } from '@aidepedia/db';
+
+export const prerender = false;
+
+const organizationId = 1; // TODO: Get from context/params
+
+const ssoConfig = await getSsoConfiguration(organizationId);
+const identityProviders = await getIdentityProviders(organizationId);
+const stats = await getSsoStats(organizationId);
+---
+
+<Layout title="SSO Configuration - Admin">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">SSO Configuration</h1>
+      <p class="mt-2 text-gray-600">Configure Single Sign-On (SSO) for your organization</p>
+    </div>
+
+    <!-- SSO Statistics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm font-medium text-gray-500">Total Sessions</div>
+        <div class="mt-2 text-3xl font-bold text-gray-900">{stats.totalSessions}</div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm font-medium text-gray-500">Active Sessions</div>
+        <div class="mt-2 text-3xl font-bold text-green-600">{stats.activeSessions}</div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm font-medium text-gray-500">SAML Logins</div>
+        <div class="mt-2 text-3xl font-bold text-blue-600">{stats.samlLogins}</div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm font-medium text-gray-500">OIDC Logins</div>
+        <div class="mt-2 text-3xl font-bold text-purple-600">{stats.oidcLogins}</div>
+      </div>
+    </div>
+
+    <!-- SSO Configuration -->
+    <div class="bg-white rounded-lg shadow mb-8">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">SSO Settings</h2>
+      </div>
+      <div class="p-6">
+        <form id="sso-config-form" class="space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <label for="sso-enabled" class="font-medium text-gray-700">Enable SSO</label>
+              <p class="text-sm text-gray-500">Allow users to sign in via SSO</p>
+            </div>
+            <button
+              type="button"
+              id="sso-enabled"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-200 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              role="switch"
+              aria-checked={ssoConfig?.ssoEnabled}
+            >
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <label for="sso-required" class="font-medium text-gray-700">Require SSO</label>
+              <p class="text-sm text-gray-500">Force all users to authenticate via SSO</p>
+            </div>
+            <button
+              type="button"
+              id="sso-required"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-200 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              role="switch"
+              aria-checked={ssoConfig?.ssoRequired}
+            >
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+            </button>
+          </div>
+
+          <div>
+            <label for="sso-provider" class="block font-medium text-gray-700 mb-2">SSO Provider Type</label>
+            <select
+              id="sso-provider"
+              name="ssoProvider"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="" selected={!ssoConfig?.ssoProvider}>Select provider type</option>
+              <option value="saml" selected={ssoConfig?.ssoProvider === 'saml'}>SAML 2.0</option>
+              <option value="oidc" selected={ssoConfig?.ssoProvider === 'oidc'}>OpenID Connect (OIDC)</option>
+              <option value="both" selected={ssoConfig?.ssoProvider === 'both'}>Both SAML and OIDC</option>
+            </select>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Save Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- SAML Configuration -->
+    <div id="saml-config" class="bg-white rounded-lg shadow mb-8 hidden">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">SAML Configuration</h2>
+      </div>
+      <div class="p-6">
+        <form id="saml-config-form" class="space-y-6">
+          <div>
+            <label for="saml-metadata-url" class="block font-medium text-gray-700 mb-2">
+              Metadata URL
+            </label>
+            <input
+              type="url"
+              id="saml-metadata-url"
+              name="samlMetadataUrl"
+              value={ssoConfig?.saml?.metadataUrl}
+              placeholder="https://your-idp.com/metadata"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            />
+            <p class="mt-1 text-sm text-gray-500">
+              Enter the metadata URL from your Identity Provider (IdP)
+            </p>
+          </div>
+
+          <div>
+            <label for="saml-metadata-xml" class="block font-medium text-gray-700 mb-2">
+              Or paste metadata XML
+            </label>
+            <textarea
+              id="saml-metadata-xml"
+              name="samlMetadataXml"
+              rows={6}
+              placeholder="Paste your SAML metadata XML here"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono text-xs"
+            >{ssoConfig?.saml?.metadataXml}</textarea>
+          </div>
+
+          <div class="bg-gray-50 rounded-lg p-4">
+            <h3 class="font-medium text-gray-900 mb-2">Manual Configuration</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="saml-entry-point" class="block text-sm font-medium text-gray-700 mb-1">
+                  Entry Point
+                </label>
+                <input
+                  type="url"
+                  id="saml-entry-point"
+                  name="samlEntryPoint"
+                  value={ssoConfig?.saml?.entryPoint}
+                  placeholder="https://sso.example.com/saml"
+                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label for="saml-issuer" class="block text-sm font-medium text-gray-700 mb-1">
+                  Issuer / Entity ID
+                </label>
+                <input
+                  type="text"
+                  id="saml-issuer"
+                  name="samlIssuer"
+                  value={ssoConfig?.saml?.issuer}
+                  placeholder="your-entity-id"
+                  class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+            <div class="mt-4">
+              <label for="saml-certificate" class="block text-sm font-medium text-gray-700 mb-1">
+                X.509 Certificate
+              </label>
+              <textarea
+                id="saml-certificate"
+                name="samlCertificate"
+                rows={4}
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono text-xs"
+              >{ssoConfig?.saml?.certificate}</textarea>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Save SAML Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- OIDC Configuration -->
+    <div id="oidc-config" class="bg-white rounded-lg shadow mb-8 hidden">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">OIDC Configuration</h2>
+      </div>
+      <div class="p-6">
+        <form id="oidc-config-form" class="space-y-6">
+          <div>
+            <label for="oidc-discovery-url" class="block font-medium text-gray-700 mb-2">
+              Discovery URL
+            </label>
+            <input
+              type="url"
+              id="oidc-discovery-url"
+              name="oidcDiscoveryUrl"
+              value={ssoConfig?.oidc?.discoveryUrl}
+              placeholder="https://your-idp.com/.well-known/openid-configuration"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            />
+            <p class="mt-1 text-sm text-gray-500">
+              Enter the OpenID Connect discovery URL (usually ends with /.well-known/openid-configuration)
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="oidc-client-id" class="block font-medium text-gray-700 mb-2">
+                Client ID
+              </label>
+              <input
+                type="text"
+                id="oidc-client-id"
+                name="oidcClientId"
+                value={ssoConfig?.oidc?.clientId}
+                placeholder="your-client-id"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
+            <div>
+              <label for="oidc-client-secret" class="block font-medium text-gray-700 mb-2">
+                Client Secret
+              </label>
+              <input
+                type="password"
+                id="oidc-client-secret"
+                name="oidcClientSecret"
+                value={ssoConfig?.oidc?.clientSecret}
+                placeholder="your-client-secret"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Save OIDC Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- SCIM Configuration -->
+    <div class="bg-white rounded-lg shadow mb-8">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">SCIM Provisioning</h2>
+      </div>
+      <div class="p-6">
+        <form id="scim-config-form" class="space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <label for="scim-enabled" class="font-medium text-gray-700">Enable SCIM</label>
+              <p class="text-sm text-gray-500">Allow automated user provisioning via SCIM</p>
+            </div>
+            <button
+              type="button"
+              id="scim-enabled"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-200 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              role="switch"
+              aria-checked={ssoConfig?.scim?.enabled}
+            >
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+            </button>
+          </div>
+
+          <div>
+            <label for="scim-bearer-token" class="block font-medium text-gray-700 mb-2">
+              Bearer Token
+            </label>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                id="scim-bearer-token"
+                name="scimBearerToken"
+                value={ssoConfig?.scim?.bearerToken}
+                readOnly
+                class="mt-1 flex-1 rounded-md border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono"
+              />
+              <button
+                type="button"
+                id="generate-scim-token"
+                class="mt-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                Generate New Token
+              </button>
+            </div>
+            <p class="mt-1 text-sm text-gray-500">
+              Use this token for SCIM API authentication
+            </p>
+          </div>
+
+          <div class="bg-blue-50 rounded-lg p-4">
+            <h3 class="font-medium text-blue-900 mb-2">SCIM Endpoints</h3>
+            <div class="space-y-2 text-sm font-mono">
+              <div>
+                <span class="text-gray-600">Users:</span>{' '}
+                <span class="text-blue-700">/api/scim/v2/organizations/{organizationId}/Users</span>
+              </div>
+              <div>
+                <span class="text-gray-600">Groups:</span>{' '}
+                <span class="text-blue-700">/api/scim/v2/organizations/{organizationId}/Groups</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Save SCIM Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Identity Providers List -->
+    <div class="bg-white rounded-lg shadow">
+      <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-gray-900">Identity Providers</h2>
+        <button
+          type="button"
+          id="add-idp"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Add Identity Provider
+        </button>
+      </div>
+      <div class="p-6">
+        {identityProviders.length === 0 ? (
+          <p class="text-gray-500 text-center py-8">No identity providers configured</p>
+        ) : (
+          <div class="space-y-4">
+            {identityProviders.map((idp) => (
+              <div class="border rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <div class="font-medium text-gray-900">{idp.name}</div>
+                  <div class="text-sm text-gray-500">
+                    {idp.type.toUpperCase()} • {idp.domain || 'No domain'} • {idp.isActive ? 'Active' : 'Inactive'}
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="text-blue-600 hover:text-blue-800"
+                    data-id={idp.id}
+                    onclick="editIdp(this.dataset.id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="text-red-600 hover:text-red-800"
+                    data-id={idp.id}
+                    onclick="deleteIdp(this.dataset.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Toggle switches
+  document.querySelectorAll('[role="switch"]').forEach(toggle => {
+    toggle.addEventListener('click', function() {
+      const checked = this.getAttribute('aria-checked') === 'true';
+      this.setAttribute('aria-checked', (!checked).toString());
+      
+      if (checked) {
+        this.classList.remove('bg-blue-600');
+        this.classList.add('bg-gray-200');
+        this.querySelector('span').classList.remove('translate-x-5');
+        this.querySelector('span').classList.add('translate-x-0');
+      } else {
+        this.classList.add('bg-blue-600');
+        this.classList.remove('bg-gray-200');
+        this.querySelector('span').classList.add('translate-x-5');
+        this.querySelector('span').classList.remove('translate-x-0');
+      }
+    });
+  });
+
+  // Show/hide config sections based on provider type
+  function updateProviderVisibility() {
+    const provider = document.querySelector<HTMLSelectElement>('#sso-provider')?.value;
+    const samlConfig = document.getElementById('saml-config');
+    const oidcConfig = document.getElementById('oidc-config');
+    
+    samlConfig?.classList.toggle('hidden', !['saml', 'both'].includes(provider || ''));
+    oidcConfig?.classList.toggle('hidden', !['oidc', 'both'].includes(provider || ''));
+  }
+
+  document.querySelector('#sso-provider')?.addEventListener('change', updateProviderVisibility);
+  updateProviderVisibility();
+
+  // Generate SCIM token
+  document.querySelector('#generate-scim-token')?.addEventListener('click', () => {
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    (document.querySelector('#scim-bearer-token') as HTMLInputElement).value = token;
+  });
+
+  // Form submissions
+  document.querySelector('#sso-config-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // TODO: Implement API call
+    alert('SSO configuration saved');
+  });
+
+  document.querySelector('#saml-config-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // TODO: Implement API call
+    alert('SAML configuration saved');
+  });
+
+  document.querySelector('#oidc-config-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // TODO: Implement API call
+    alert('OIDC configuration saved');
+  });
+
+  document.querySelector('#scim-config-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // TODO: Implement API call
+    alert('SCIM configuration saved');
+  });
+</script>
