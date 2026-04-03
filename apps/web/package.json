@@ -23,6 +23,7 @@
     "nanoid": "^5.1.7",
     "otplib": "^13.4.0",
     "qrcode": "^1.5.4",
+    "recharts": "^3.8.1",
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {

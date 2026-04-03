@@ -1,0 +1,480 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+---
+
+<Layout title="Custom Analytics Dashboard">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">Custom Dashboards</h1>
+        <p class="text-gray-600">
+          Build custom analytics dashboards with drag-and-drop widgets
+        </p>
+      </div>
+      <button
+        id="create-dashboard-btn"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+      >
+        Create Dashboard
+      </button>
+    </div>
+
+    <!-- Dashboard List -->
+    <div id="dashboards-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Dashboards will be loaded here -->
+    </div>
+
+    <!-- Dashboard Builder Modal -->
+    <div id="dashboard-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div class="flex items-center gap-4">
+            <input
+              type="text"
+              id="dashboard-name"
+              placeholder="Dashboard Name"
+              class="text-xl font-bold border-none outline-none"
+            />
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" id="dashboard-public" class="rounded" />
+              Public
+            </label>
+          </div>
+          <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="flex-1 flex overflow-hidden">
+          <!-- Widget Library -->
+          <div class="w-64 border-r border-gray-200 p-4 overflow-y-auto">
+            <h3 class="font-semibold text-gray-900 mb-4">Widget Library</h3>
+
+            <div class="space-y-3">
+              <!-- Chart Widgets -->
+              <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Charts</h4>
+                <div class="space-y-2">
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="chart" data-subtype="line">
+                    <div class="font-medium text-gray-900">Line Chart</div>
+                    <div class="text-xs text-gray-500">Trend over time</div>
+                  </button>
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="chart" data-subtype="bar">
+                    <div class="font-medium text-gray-900">Bar Chart</div>
+                    <div class="text-xs text-gray-500">Compare values</div>
+                  </button>
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="chart" data-subtype="pie">
+                    <div class="font-medium text-gray-900">Pie Chart</div>
+                    <div class="text-xs text-gray-500">Show distribution</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Metric Widgets -->
+              <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Metrics</h4>
+                <div class="space-y-2">
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="metric" data-subtype="single">
+                    <div class="font-medium text-gray-900">Single Metric</div>
+                    <div class="text-xs text-gray-500">One key number</div>
+                  </button>
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="metric" data-subtype="trend">
+                    <div class="font-medium text-gray-900">Metric with Trend</div>
+                    <div class="text-xs text-gray-500">Number with trend line</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Table Widgets -->
+              <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Tables</h4>
+                <div class="space-y-2">
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="table" data-subtype="simple">
+                    <div class="font-medium text-gray-900">Simple Table</div>
+                    <div class="text-xs text-gray-500">Basic data table</div>
+                  </button>
+                  <button class="widget-template w-full p-3 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors" data-type="table" data-subtype="sortable">
+                    <div class="font-medium text-gray-900">Sortable Table</div>
+                    <div class="text-xs text-gray-500">Interactive sorting</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Canvas -->
+          <div class="flex-1 p-6 overflow-y-auto bg-gray-50">
+            <div
+              id="dashboard-canvas"
+              class="min-h-[600px] bg-white rounded-lg border-2 border-dashed border-gray-300 p-4 grid grid-cols-12 gap-4 auto-rows-min"
+            >
+              <!-- Widgets will be dropped here -->
+              <div class="col-span-12 text-center text-gray-400 py-12">
+                Click a widget from the library to add it to your dashboard
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            id="cancel-dashboard"
+            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            id="save-dashboard"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            Save Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget Configuration Modal -->
+    <div id="widget-config-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900">Configure Widget</h3>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+            <input
+              type="text"
+              id="widget-title"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Data Source</label>
+            <select
+              id="widget-datasource"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="usage">Usage Analytics</option>
+              <option value="content">Content Analytics</option>
+              <option value="user">User Analytics</option>
+              <option value="revenue">Revenue Analytics</option>
+              <option value="retention">Retention Analytics</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Metric</label>
+            <select
+              id="widget-metric"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="views">Page Views</option>
+              <option value="users">Active Users</option>
+              <option value="articles">Articles Created</option>
+              <option value="api">API Calls</option>
+            </select>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            id="cancel-widget-config"
+            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            id="save-widget-config"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Dashboard management
+  let currentWidgets: any[] = [];
+  let editingWidgetId: string | null = null;
+
+  // Load dashboards on page load
+  async function loadDashboards() {
+    try {
+      const response = await fetch('/api/v1/analytics/dashboards');
+      const data = await response.json();
+
+      if (data.success) {
+        renderDashboards(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading dashboards:', error);
+    }
+  }
+
+  function renderDashboards(dashboards: any[]) {
+    const container = document.getElementById('dashboards-list');
+    if (!container) return;
+
+    if (dashboards.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full text-center py-12 text-gray-500">
+          <p class="text-lg">No dashboards yet</p>
+          <p class="text-sm">Click "Create Dashboard" to get started</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = dashboards.map(d => `
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+        <div class="flex justify-between items-start mb-4">
+          <h3 class="text-lg font-bold text-gray-900">${d.name}</h3>
+          ${d.isPublic ? '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Public</span>' : ''}
+        </div>
+        <p class="text-sm text-gray-600 mb-4">${d.description || 'No description'}</p>
+        <div class="text-xs text-gray-500 mb-4">${d.widgets?.length || 0} widgets</div>
+        <div class="flex gap-2">
+          <a
+            href="/dashboard/analytics/${d.id}"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white text-center rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            View
+          </a>
+          <button
+            onclick="deleteDashboard(${d.id})"
+            class="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Create dashboard modal
+  const modal = document.getElementById('dashboard-modal');
+  const createBtn = document.getElementById('create-dashboard-btn');
+  const closeModalBtn = document.getElementById('close-modal');
+  const cancelBtn = document.getElementById('cancel-dashboard');
+  const saveBtn = document.getElementById('save-dashboard');
+  const canvas = document.getElementById('dashboard-canvas');
+
+  if (createBtn) {
+    createBtn.addEventListener('click', () => {
+      modal?.classList.remove('hidden');
+    });
+  }
+
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', () => {
+      modal?.classList.add('hidden');
+      resetDashboardBuilder();
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      modal?.classList.add('hidden');
+      resetDashboardBuilder();
+    });
+  }
+
+  // Widget templates
+  document.querySelectorAll('.widget-template').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const type = btn.getAttribute('data-type');
+      const subtype = btn.getAttribute('data-subtype');
+      addWidget(type, subtype);
+    });
+  });
+
+  function addWidget(type: string | null, subtype: string | null) {
+    if (!type || !subtype) return;
+
+    const widgetId = `widget-${Date.now()}`;
+    const widget = {
+      id: widgetId,
+      type,
+      subtype,
+      title: `${subtype.charAt(0).toUpperCase() + subtype.slice(1)} ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+      config: {},
+      position: { x: 0, y: currentWidgets.length, w: 6, h: 4 },
+    };
+
+    currentWidgets.push(widget);
+    renderWidget(widget);
+  }
+
+  function renderWidget(widget: any) {
+    const canvas = document.getElementById('dashboard-canvas');
+    if (!canvas) return;
+
+    // Remove placeholder if it exists
+    const placeholder = canvas.querySelector('.text-center');
+    if (placeholder) {
+      placeholder.remove();
+    }
+
+    const widgetEl = document.createElement('div');
+    widgetEl.id = widget.id;
+    widgetEl.className = 'col-span-6 bg-white border border-gray-300 rounded-lg p-4 relative group';
+    widgetEl.innerHTML = `
+      <button class="absolute top-2 right-2 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" onclick="removeWidget('${widget.id}')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <h4 class="font-semibold text-gray-900 mb-2">${widget.title}</h4>
+      <div class="text-sm text-gray-500">${widget.type} - ${widget.subtype}</div>
+      <button class="mt-2 text-sm text-blue-600 hover:text-blue-700" onclick="configureWidget('${widget.id}')">Configure</button>
+    `;
+
+    canvas.appendChild(widgetEl);
+  }
+
+  // Make functions available globally
+  (window as any).removeWidget = (id: string) => {
+    currentWidgets = currentWidgets.filter(w => w.id !== id);
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  };
+
+  (window as any).configureWidget = (id: string) => {
+    editingWidgetId = id;
+    const widget = currentWidgets.find(w => w.id === id);
+    if (!widget) return;
+
+    const configModal = document.getElementById('widget-config-modal');
+    const titleInput = document.getElementById('widget-title') as HTMLInputElement;
+
+    if (titleInput) {
+      titleInput.value = widget.title;
+    }
+
+    configModal?.classList.remove('hidden');
+  };
+
+  (window as any).deleteDashboard = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this dashboard?')) return;
+
+    try {
+      const response = await fetch(`/api/v1/analytics/dashboards/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        loadDashboards();
+      }
+    } catch (error) {
+      console.error('Error deleting dashboard:', error);
+    }
+  };
+
+  // Widget configuration
+  const widgetConfigModal = document.getElementById('widget-config-modal');
+  const cancelWidgetConfigBtn = document.getElementById('cancel-widget-config');
+  const saveWidgetConfigBtn = document.getElementById('save-widget-config');
+
+  if (cancelWidgetConfigBtn) {
+    cancelWidgetConfigBtn.addEventListener('click', () => {
+      widgetConfigModal?.classList.add('hidden');
+      editingWidgetId = null;
+    });
+  }
+
+  if (saveWidgetConfigBtn) {
+    saveWidgetConfigBtn.addEventListener('click', () => {
+      if (!editingWidgetId) return;
+
+      const widget = currentWidgets.find(w => w.id === editingWidgetId);
+      if (!widget) return;
+
+      const titleInput = document.getElementById('widget-title') as HTMLInputElement;
+      const datasourceSelect = document.getElementById('widget-datasource') as HTMLSelectElement;
+      const metricSelect = document.getElementById('widget-metric') as HTMLSelectElement;
+
+      widget.title = titleInput?.value || widget.title;
+      widget.config = {
+        datasource: datasourceSelect?.value,
+        metric: metricSelect?.value,
+      };
+
+      // Re-render widget
+      const el = document.getElementById(editingWidgetId);
+      if (el) {
+        const titleEl = el.querySelector('h4');
+        if (titleEl) {
+          titleEl.textContent = widget.title;
+        }
+      }
+
+      widgetConfigModal?.classList.add('hidden');
+      editingWidgetId = null;
+    });
+  }
+
+  // Save dashboard
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const nameInput = document.getElementById('dashboard-name') as HTMLInputElement;
+      const publicCheckbox = document.getElementById('dashboard-public') as HTMLInputElement;
+
+      const name = nameInput?.value || 'Untitled Dashboard';
+      const isPublic = publicCheckbox?.checked || false;
+
+      try {
+        const response = await fetch('/api/v1/analytics/dashboards', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            isPublic,
+            widgets: currentWidgets,
+          }),
+        });
+
+        if (response.ok) {
+          modal?.classList.add('hidden');
+          resetDashboardBuilder();
+          loadDashboards();
+        }
+      } catch (error) {
+        console.error('Error saving dashboard:', error);
+      }
+    });
+  }
+
+  function resetDashboardBuilder() {
+    currentWidgets = [];
+    const canvas = document.getElementById('dashboard-canvas');
+    if (canvas) {
+      canvas.innerHTML = `
+        <div class="col-span-12 text-center text-gray-400 py-12">
+          Click a widget from the library to add it to your dashboard
+        </div>
+      `;
+    }
+    const nameInput = document.getElementById('dashboard-name') as HTMLInputElement;
+    if (nameInput) {
+      nameInput.value = '';
+    }
+    const publicCheckbox = document.getElementById('dashboard-public') as HTMLInputElement;
+    if (publicCheckbox) {
+      publicCheckbox.checked = false;
+    }
+  }
+
+  // Initialize
+  loadDashboards();
+</script>
