@@ -621,3 +621,34 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// AI Article Summaries
+export const article_summaries = pgTable('article_summaries', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+
+  // Summary content
+  summary: text('summary').notNull(),
+  keyPoints: text('key_points').array().notNull(),
+
+  // Summary style/metadata
+  style: varchar('style', {
+    enum: ['brief', 'detailed', 'bullets'],
+    length: 20
+  }).notNull().default('detailed'),
+
+  // Generation metadata
+  model: varchar('model', { length: 100 }).notNull(), // e.g., 'claude-sonnet-4-6'
+  generatedAt: timestamp('generated_at').defaultNow(),
+  articleHash: varchar('article_hash', { length: 64 }).notNull(), // Hash of article content for cache invalidation
+
+  // Statistics
+  wordCount: integer('word_count').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('summary_article_idx').on(table.articleId),
+  articleHashIdx: index('summary_article_hash_idx').on(table.articleHash),
+  styleIdx: index('summary_style_idx').on(table.style),
+}));
