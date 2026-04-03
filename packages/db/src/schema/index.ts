@@ -1,5 +1,8 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
+// Quality scoring tables
+export * from './quality';
+
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
