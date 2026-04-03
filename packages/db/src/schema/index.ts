@@ -675,3 +675,6 @@ export const article_summaries = pgTable('article_summaries', {
   articleHashIdx: index('summary_article_hash_idx').on(table.articleHash),
   styleIdx: index('summary_style_idx').on(table.style),
 }));
+
+// Recommendation system tables
+export * from './recommendations';

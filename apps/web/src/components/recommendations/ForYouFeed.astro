@@ -1,0 +1,353 @@
+---
+/**
+ * For You Feed Component
+ * Displays personalized recommendations for logged-in users
+ */
+
+interface Props {
+  limit?: number;
+}
+
+const { limit = 10 } = Astro.props;
+---
+
+<div class="for-you-feed" id="for-you-feed" data-limit={limit}>
+  <div class="feed-header">
+    <h2 class="feed-title">For You</h2>
+    <p class="feed-subtitle">Personalized recommendations based on your reading history</p>
+  </div>
+  
+  <div class="feed-loading" id="feed-loading">
+    <div class="spinner"></div>
+    <p>Loading recommendations...</p>
+  </div>
+  
+  <div class="feed-content" id="feed-content" style="display: none;">
+    <!-- Recommendations will be loaded here -->
+  </div>
+  
+  <div class="feed-empty" id="feed-empty" style="display: none;">
+    <p>Start reading articles to get personalized recommendations!</p>
+    <a href="/articles" class="browse-link">Browse Articles</a>
+  </div>
+  
+  <div class="feed-error" id="feed-error" style="display: none;">
+    <p>Failed to load recommendations. Please try again later.</p>
+    <button class="retry-button" id="retry-button">Retry</button>
+  </div>
+  
+  <button class="load-more-button" id="load-more-button" style="display: none;">
+    Load More
+  </button>
+</div>
+
+<style>
+  .for-you-feed {
+    margin: 2rem 0;
+  }
+  
+  .feed-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .feed-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .feed-subtitle {
+    color: var(--text-secondary, #666);
+    font-size: 0.95rem;
+  }
+  
+  .feed-loading,
+  .feed-empty,
+  .feed-error {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  
+  .spinner {
+    border: 3px solid var(--border-color, #e1e1e1);
+    border-top: 3px solid var(--primary-color, #0066cc);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .article-card {
+    border: 1px solid var(--border-color, #e1e1e1);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+  
+  .article-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+  
+  .article-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary, #1a1a1a);
+    text-decoration: none;
+  }
+  
+  .article-title:hover {
+    color: var(--primary-color, #0066cc);
+  }
+  
+  .article-excerpt {
+    color: var(--text-secondary, #666);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+  
+  .article-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-tertiary, #999);
+    align-items: center;
+  }
+  
+  .recommendation-reason {
+    font-size: 0.8rem;
+    color: var(--primary-color, #0066cc);
+    font-style: italic;
+    margin-top: 0.5rem;
+  }
+  
+  .article-stats {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+  }
+  
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .browse-link {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--primary-color, #0066cc);
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  
+  .browse-link:hover {
+    background: var(--primary-color-dark, #0052a3);
+  }
+  
+  .retry-button,
+  .load-more-button {
+    padding: 0.5rem 1rem;
+    background: var(--primary-color, #0066cc);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-top: 1rem;
+  }
+  
+  .retry-button:hover,
+  .load-more-button:hover {
+    background: var(--primary-color-dark, #0052a3);
+  }
+  
+  .load-more-button {
+    display: block;
+    width: 100%;
+    max-width: 300px;
+    margin: 1rem auto;
+  }
+</style>
+
+<script>
+  class ForYouFeed {
+    private container: HTMLElement;
+    private contentEl: HTMLElement;
+    private loadingEl: HTMLElement;
+    private emptyEl: HTMLElement;
+    private errorEl: HTMLElement;
+    private loadMoreButton: HTMLElement;
+    private retryButton: HTMLElement;
+    private limit: number;
+    private offset: number = 0;
+    private hasMore: boolean = true;
+  
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.contentEl = container.querySelector('#feed-content')!;
+      this.loadingEl = container.querySelector('#feed-loading')!;
+      this.emptyEl = container.querySelector('#feed-empty')!;
+      this.errorEl = container.querySelector('#feed-error')!;
+      this.loadMoreButton = container.querySelector('#load-more-button')!;
+      this.retryButton = container.querySelector('#retry-button')!;
+      this.limit = parseInt(container.dataset.limit || '10');
+      
+      this.init();
+    }
+    
+    private async init() {
+      this.retryButton.addEventListener('click', () => this.load());
+      this.loadMoreButton.addEventListener('click', () => this.loadMore());
+      await this.load();
+    }
+    
+    private async load() {
+      this.offset = 0;
+      this.hasMore = true;
+      this.contentEl.innerHTML = '';
+      
+      await this.fetchRecommendations();
+    }
+    
+    private async loadMore() {
+      if (!this.hasMore) return;
+      await this.fetchRecommendations();
+    }
+    
+    private async fetchRecommendations() {
+      try {
+        this.loadingEl.style.display = 'block';
+        this.errorEl.style.display = 'none';
+        
+        const response = await fetch(`/api/v1/recommendations/for-you?limit=${this.limit}&offset=${this.offset}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch recommendations');
+        }
+        
+        const data = await response.json();
+        
+        this.loadingEl.style.display = 'none';
+        
+        if (data.recommendations.length === 0 && this.offset === 0) {
+          this.emptyEl.style.display = 'block';
+          this.contentEl.style.display = 'none';
+          return;
+        }
+        
+        this.emptyEl.style.display = 'none';
+        this.contentEl.style.display = 'block';
+        
+        // Render recommendations
+        data.recommendations.forEach((rec: any) => {
+          const card = this.createArticleCard(rec);
+          this.contentEl.appendChild(card);
+        });
+        
+        // Update pagination
+        this.offset += this.limit;
+        this.hasMore = data.recommendations.length === this.limit;
+        this.loadMoreButton.style.display = this.hasMore ? 'block' : 'none';
+        
+      } catch (error) {
+        console.error('Error loading recommendations:', error);
+        this.loadingEl.style.display = 'none';
+        this.errorEl.style.display = 'block';
+      }
+    }
+    
+    private createArticleCard(rec: any): HTMLElement {
+      const card = document.createElement('div');
+      card.className = 'article-card';
+      
+      const link = document.createElement('a');
+      link.href = `/articles/${rec.article.slug}`;
+      link.className = 'article-title';
+      link.textContent = rec.article.title;
+      
+      const excerpt = document.createElement('p');
+      excerpt.className = 'article-excerpt';
+      excerpt.textContent = rec.article.excerpt || '';
+      
+      const meta = document.createElement('div');
+      meta.className = 'article-meta';
+      
+      if (rec.article.readingTime) {
+        const readingTime = document.createElement('span');
+        readingTime.textContent = `${rec.article.readingTime} min read`;
+        meta.appendChild(readingTime);
+      }
+      
+      if (rec.article.viewCount) {
+        const views = document.createElement('span');
+        views.textContent = `${this.formatNumber(rec.article.viewCount)} views`;
+        meta.appendChild(views);
+      }
+      
+      const reason = document.createElement('p');
+      reason.className = 'recommendation-reason';
+      reason.textContent = rec.reason;
+      
+      card.appendChild(link);
+      card.appendChild(excerpt);
+      card.appendChild(meta);
+      card.appendChild(reason);
+      
+      // Track click
+      card.addEventListener('click', () => {
+        this.trackInteraction(rec.article.id, 'view');
+      });
+      
+      return card;
+    }
+    
+    private async trackInteraction(articleId: number, type: string) {
+      try {
+        await fetch('/api/v1/recommendations/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articleId,
+            interactionType: type,
+            source: 'feed',
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to track interaction:', error);
+      }
+    }
+    
+    private formatNumber(num: number): string {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      }
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+      }
+      return num.toString();
+    }
+  }
+  
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('for-you-feed');
+    if (container) {
+      new ForYouFeed(container);
+    }
+  });
+</script>
