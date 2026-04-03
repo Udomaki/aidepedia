@@ -1,7 +1,7 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb } from 'drizzle-orm/pg-core';
 import { users } from './index';
 
-// Organizations table for multi-tenant white-labeling
+// Organizations table for multi-tenant white-labeling and SSO
 export const organizations = pgTable('organizations', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
@@ -18,12 +18,48 @@ export const organizations = pgTable('organizations', {
   // White-label feature flag
   whiteLabelEnabled: boolean('white_label_enabled').default(false),
   
+  // SSO Configuration
+  domain: varchar('domain', { length: 255 }).unique(),
+  ssoEnabled: boolean('sso_enabled').default(false),
+  ssoRequired: boolean('sso_required').default(false), // If true, users MUST use SSO
+  ssoProvider: varchar('sso_provider', { 
+    enum: ['saml', 'oidc', 'both'],
+    length: 10 
+  }),
+  
+  // SAML Configuration
+  samlMetadataUrl: text('saml_metadata_url'),
+  samlMetadataXml: text('saml_metadata_xml'), // Raw XML metadata
+  samlEntryPoint: text('saml_entry_point'),
+  samlCertificate: text('saml_certificate'),
+  samlIssuer: varchar('saml_issuer', { length: 255 }),
+  
+  // OIDC Configuration
+  oidcClientId: varchar('oidc_client_id', { length: 255 }),
+  oidcClientSecret: varchar('oidc_client_secret', { length: 500 }),
+  oidcDiscoveryUrl: text('oidc_discovery_url'),
+  oidcIssuer: varchar('oidc_issuer', { length: 255 }),
+  oidcAuthorizationEndpoint: text('oidc_authorization_endpoint'),
+  oidcTokenEndpoint: text('oidc_token_endpoint'),
+  oidcUserInfoEndpoint: text('oidc_user_info_endpoint'),
+  oidcJwksUri: text('oidc_jwks_uri'),
+  
+  // SCIM Configuration
+  scimEnabled: boolean('scim_enabled').default(false),
+  scimBearerToken: varchar('scim_bearer_token', { length: 255 }),
+  
+  // Branding
+  logoUrl: varchar('logo_url', { length: 1000 }),
+  primaryColor: varchar('primary_color', { length: 7 }), // Hex color
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   slugIdx: index('organization_slug_idx').on(table.slug),
   ownerIdx: index('organization_owner_idx').on(table.ownerId),
   planIdx: index('organization_plan_idx').on(table.plan),
+  domainIdx: index('org_domain_idx').on(table.domain),
+  ssoEnabledIdx: index('org_sso_enabled_idx').on(table.ssoEnabled),
 }));
 
 // Organization members
@@ -36,12 +72,17 @@ export const organization_members = pgTable('organization_members', {
     length: 20
   }).notNull().default('member'),
   
+  // SCIM metadata
+  scimExternalId: varchar('scim_external_id', { length: 255 }),
+  scimSyncedAt: timestamp('scim_synced_at'),
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   organizationIdx: index('member_organization_idx').on(table.organizationId),
   userIdx: index('member_user_idx').on(table.userId),
   orgUserIdx: index('member_org_user_idx').on(table.organizationId, table.userId),
+  scimExternalIdIdx: index('org_member_scim_id_idx').on(table.scimExternalId),
 }));
 
 // Organization branding settings

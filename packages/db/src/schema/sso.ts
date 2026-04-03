@@ -1,76 +1,9 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, jsonb, index } from 'drizzle-orm/pg-core';
 import { users } from './index';
+import { organizations } from './branding';
 
-// Organizations for enterprise SSO
-export const organizations = pgTable('organizations', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  slug: varchar('slug', { length: 100 }).notNull().unique(),
-  domain: varchar('domain', { length: 255 }).notNull().unique(),
-  
-  // SSO Configuration
-  ssoEnabled: boolean('sso_enabled').default(false),
-  ssoRequired: boolean('sso_required').default(false), // If true, users MUST use SSO
-  ssoProvider: varchar('sso_provider', { 
-    enum: ['saml', 'oidc', 'both'],
-    length: 10 
-  }),
-  
-  // SAML Configuration
-  samlMetadataUrl: text('saml_metadata_url'),
-  samlMetadataXml: text('saml_metadata_xml'), // Raw XML metadata
-  samlEntryPoint: text('saml_entry_point'),
-  samlCertificate: text('saml_certificate'),
-  samlIssuer: varchar('saml_issuer', { length: 255 }),
-  
-  // OIDC Configuration
-  oidcClientId: varchar('oidc_client_id', { length: 255 }),
-  oidcClientSecret: varchar('oidc_client_secret', { length: 500 }),
-  oidcDiscoveryUrl: text('oidc_discovery_url'),
-  oidcIssuer: varchar('oidc_issuer', { length: 255 }),
-  oidcAuthorizationEndpoint: text('oidc_authorization_endpoint'),
-  oidcTokenEndpoint: text('oidc_token_endpoint'),
-  oidcUserInfoEndpoint: text('oidc_user_info_endpoint'),
-  oidcJwksUri: text('oidc_jwks_uri'),
-  
-  // SCIM Configuration
-  scimEnabled: boolean('scim_enabled').default(false),
-  scimBearerToken: varchar('scim_bearer_token', { length: 255 }),
-  
-  // Branding
-  logoUrl: varchar('logo_url', { length: 500 }),
-  primaryColor: varchar('primary_color', { length: 7 }), // Hex color
-  
-  // Metadata
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-}, (table) => ({
-  slugIdx: index('org_slug_idx').on(table.slug),
-  domainIdx: index('org_domain_idx').on(table.domain),
-  ssoEnabledIdx: index('org_sso_enabled_idx').on(table.ssoEnabled),
-}));
-
-// Organization membership
-export const organizationMembers = pgTable('organization_members', {
-  id: serial('id').primaryKey(),
-  organizationId: integer('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  role: varchar('role', { 
-    enum: ['member', 'admin', 'owner'],
-    length: 20 
-  }).default('member'),
-  
-  // SCIM metadata
-  scimExternalId: varchar('scim_external_id', { length: 255 }),
-  scimSyncedAt: timestamp('scim_synced_at'),
-  
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-}, (table) => ({
-  orgUserIdx: index('org_member_org_user_idx').on(table.organizationId, table.userId),
-  userIdx: index('org_member_user_idx').on(table.userId),
-  scimExternalIdIdx: index('org_member_scim_id_idx').on(table.scimExternalId),
-}));
+// Re-export organizations from branding for SSO use
+export { organizations };
 
 // SSO Sessions for tracking
 export const ssoSessions = pgTable('sso_sessions', {
