@@ -1,12 +1,12 @@
 import type { APIRoute } from 'astro';
-import { getSession } from '../../../../../../lib/auth';
+import { getSession } from '../../../../../lib/auth';
 import {
   addWidget,
   updateWidget,
   removeWidget,
   getWidgetTemplates,
-} from '../../../../../../lib/analytics/dashboard-service';
-import { successResponse, errorResponse } from '../../../../../../lib/api-utils';
+} from '../../../../../lib/analytics/dashboard-service';
+import { successResponse, errorResponse } from '../../../../../lib/api-utils';
 
 /**
  * GET /api/v1/analytics/dashboards/widgets

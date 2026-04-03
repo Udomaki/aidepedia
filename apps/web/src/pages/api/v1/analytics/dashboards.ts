@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getSession } from '../../../../../lib/auth';
+import { getSession } from '../../../../lib/auth';
 import {
   createDashboard,
   getUserDashboards,
@@ -8,8 +8,8 @@ import {
   deleteDashboard,
   setDefaultDashboard,
   getDefaultDashboard,
-} from '../../../../../lib/analytics/dashboard-service';
-import { successResponse, errorResponse } from '../../../../../lib/api-utils';
+} from '../../../../lib/analytics/dashboard-service';
+import { successResponse, errorResponse } from '../../../../lib/api-utils';
 
 /**
  * GET /api/v1/analytics/dashboards
