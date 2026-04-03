@@ -1,0 +1,229 @@
+---
+/**
+ * CollaborationPresence Component
+ * Shows online users and their status
+ */
+import type { CollabUser } from '../lib/collab/types';
+
+interface Props {
+  users: CollabUser[];
+  localUser?: CollabUser;
+}
+
+const { users, localUser } = Astro.props;
+
+// Helper functions
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+}
+
+function formatStatus(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+---
+
+<div class="collab-presence">
+  <div class="presence-header">
+    <span class="presence-icon">👥</span>
+    <span class="presence-title">Who's Online</span>
+    <span class="presence-count">{users.length + (localUser ? 1 : 0)}</span>
+  </div>
+  
+  <div class="presence-list">
+    {localUser && (
+      <div class="presence-item local-user">
+        <div class="user-avatar" style={`background-color: ${localUser.color}`}>
+          {localUser.avatar ? (
+            <img src={localUser.avatar} alt={localUser.name} />
+          ) : (
+            <span class="avatar-initials">{getInitials(localUser.name)}</span>
+          )}
+        </div>
+        <div class="user-info">
+          <span class="user-name">{localUser.name} (you)</span>
+          <span class="user-status editing">Editing</span>
+        </div>
+      </div>
+    )}
+    
+    {users.map((user) => (
+      <div class="presence-item" data-user-id={user.id}>
+        <div class="user-avatar" style={`background-color: ${user.color}`}>
+          {user.avatar ? (
+            <img src={user.avatar} alt={user.name} />
+          ) : (
+            <span class="avatar-initials">{getInitials(user.name)}</span>
+          )}
+        </div>
+        <div class="user-info">
+          <span class="user-name">{user.name}</span>
+          <span class={`user-status ${user.status}`}>{formatStatus(user.status)}</span>
+        </div>
+        <button
+          class="follow-btn"
+          data-user-id={user.id}
+          title={`Jump to ${user.name}'s cursor`}
+        >
+          →
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
+
+<style>
+  .collab-presence {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .presence-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .presence-icon {
+    font-size: 1.25rem;
+  }
+
+  .presence-title {
+    font-weight: 600;
+    color: #374151;
+    flex: 1;
+  }
+
+  .presence-count {
+    background: #3b82f6;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .presence-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .presence-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: background-color 0.15s;
+  }
+
+  .presence-item:hover {
+    background-color: #f9fafb;
+  }
+
+  .presence-item.local-user {
+    background-color: #eff6ff;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .avatar-initials {
+    text-transform: uppercase;
+  }
+
+  .user-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-status {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .user-status.editing {
+    color: #059669;
+  }
+
+  .user-status.viewing {
+    color: #0891b2;
+  }
+
+  .user-status.idle {
+    color: #9ca3af;
+  }
+
+  .follow-btn {
+    padding: 0.25rem 0.5rem;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.15s;
+  }
+
+  .follow-btn:hover {
+    background: #e5e7eb;
+    border-color: #d1d5db;
+  }
+</style>
+
+<script>
+  // Handle follow button clicks
+  document.querySelectorAll('.follow-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const userId = (e.currentTarget as HTMLElement).dataset.userId;
+      if (userId) {
+        // Dispatch custom event for editor to handle
+        document.dispatchEvent(
+          new CustomEvent('collab:follow-user', {
+            detail: { userId },
+          })
+        );
+      }
+    });
+  });
+</script>

@@ -9,3 +9,12 @@ directory = "./dist"
 
 [observability]
 enabled = true
+
+# Durable Objects for real-time collaboration
+[[durable_objects.bindings]]
+name = "COLLAB_SESSION"
+class_name = "CollabSession"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["CollabSession"]
