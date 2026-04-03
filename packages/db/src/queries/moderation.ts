@@ -19,18 +19,18 @@ export async function getModerationQueue(params: {
   offset?: number;
 }): Promise<{ items: any[]; total: number }> {
   const { status, queueType, limit = 20, offset = 0 } = params;
-  
-  const conditions: any[] = [];
-  
+
+  const conditions = [];
+
   if (status && status !== 'all') {
-    conditions.push(eq(moderation_queue.status, status));
-  }
-  
-  if (queueType) {
-    conditions.push(eq(moderation_queue.queueType, queueType));
+    conditions.push(eq(moderation_queue.status, status as any));
   }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  if (queueType) {
+    conditions.push(eq(moderation_queue.queueType, queueType as any));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions as any) : undefined;
 
   const items = await db
     .select({
@@ -98,8 +98,16 @@ export async function createModerationAction(data: {
 }) {
   const [action] = await db
     .insert(moderation_actions)
-    .values(data)
+    .values({
+      queueItemId: data.queueItemId,
+      articleId: data.articleId,
+      action: data.action as any,
+      performedBy: data.performedBy,
+      reason: data.reason,
+      previousStatus: data.previousStatus,
+      newStatus: data.newStatus,
+    })
     .returning();
-  
+
   return action;
 }

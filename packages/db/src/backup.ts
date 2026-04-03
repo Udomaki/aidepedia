@@ -27,12 +27,12 @@ interface BackupMetadata {
   filename: string;
   size: number;
   status: string;
-  storageKey?: string;
-  storageUrl?: string;
-  error?: string;
-  createdBy?: number;
-  completedAt?: Date;
-  createdAt: Date;
+  storageKey: string | null;
+  storageUrl: string | null;
+  error: string | null;
+  createdBy: number | null;
+  completedAt: Date | null;
+  createdAt: Date | null;
 }
 
 /**

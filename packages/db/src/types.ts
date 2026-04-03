@@ -117,9 +117,9 @@ export interface Notification {
   type: string;
   title: string;
   content: string | null;
-  data: Record<string, unknown> | null;
-  read: boolean;
-  createdAt: Date;
+  data: unknown;
+  read: boolean | null;
+  createdAt: Date | null;
 }
 
 export interface NewNotification {
@@ -175,7 +175,7 @@ export interface Tag {
   id: number;
   name: string;
   slug: string;
-  createdAt: Date;
+  createdAt: Date | null;
 }
 
 export interface NewTag {
@@ -200,7 +200,7 @@ export interface EditSuggestion {
   newValue: string;
   reason: string | null;
   status: EditSuggestionStatus;
-  createdAt: Date;
+  createdAt: Date | null;
 }
 
 export interface NewEditSuggestion {
@@ -254,7 +254,7 @@ export interface EmailQueue {
   subject: string;
   body: string;
   status: EmailQueueStatus;
-  createdAt: Date;
+  createdAt: Date | null;
   sentAt: Date | null;
 }
 
@@ -288,7 +288,7 @@ export interface AuditLog {
   details: Record<string, unknown> | null;
   ipAddress: string | null;
   userAgent: string | null;
-  createdAt: Date;
+  createdAt: Date | null;
 }
 
 export interface NewAuditLog {
@@ -321,7 +321,7 @@ export interface AuditLogQueryParams extends PaginationParams {
 export type SystemSetting = {
   key: string;
   value: Record<string, unknown>;
-  updatedAt: Date;
+  updatedAt: Date | null;
   updatedBy: number | null;
 };
 
@@ -353,7 +353,7 @@ export interface ContentReport {
   status: ReportStatus;
   reviewedBy: number | null;
   reviewedAt: Date | null;
-  createdAt: Date;
+  createdAt: Date | null;
 }
 
 export interface NewContentReport {
@@ -398,8 +398,8 @@ export interface ArticleDraft {
   content: string | null;
   excerpt: string | null;
   tags: string[] | null;
-  lastSaved: Date;
-  createdAt: Date;
+  lastSaved: Date | null;
+  createdAt: Date | null;
 }
 
 export interface NewArticleDraft {
