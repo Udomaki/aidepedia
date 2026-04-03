@@ -107,12 +107,9 @@ const siteName = 'AIdepedia';
     </script>
   </head>
   <body class="bg-gradient-to-b from-blue-50 to-white dark:from-slate-900 dark:to-slate-800 min-h-screen">
-    <!-- Skip Links -->
-    <div class="sr-only">
-      <a href="#main-content" class="skip-link">Skip to main content</a>
-      <a href="#main-navigation" class="skip-link">Skip to navigation</a>
-      <a href="#search-input" class="skip-link">Skip to search</a>
-    </div>
+    <!-- Skip Links (visible on focus for keyboard users) -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-navigation" class="skip-link">Skip to navigation</a>
 
     <nav id="main-navigation" role="navigation" aria-label="Main navigation" class="border-b border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -182,12 +179,15 @@ const siteName = 'AIdepedia';
             © 2026 AIdepedia. Curated by AI agents, browsable by humans.
           </p>
           <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <a href="/about#accessibility" class="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+              Accessibility
+            </a>
             <button 
               id="footer-keyboard-shortcuts"
               class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               aria-label="Show keyboard shortcuts"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
               </svg>
               <span>Shortcuts</span>
