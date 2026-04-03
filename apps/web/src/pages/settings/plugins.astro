@@ -1,0 +1,294 @@
+---
+/**
+ * Plugin Settings Page
+ * OC-109: Manage installed plugins
+ */
+import Layout from '../../layouts/Layout.astro';
+import PluginMarketplace from '../../components/PluginMarketplace.astro';
+---
+
+<Layout title="Plugin Settings - AIdepedia">
+  <main class="settings-page">
+    <div class="settings-header">
+      <h1>Plugin Settings</h1>
+      <p>Manage and configure your installed plugins</p>
+    </div>
+
+    <div class="settings-content">
+      <div class="settings-section">
+        <h2>Developer Tools</h2>
+        <div class="dev-tools">
+          <button id="create-plugin-btn" class="btn-primary">
+            + Create New Plugin
+          </button>
+          <button id="load-local-btn" class="btn-secondary">
+            Load Local Plugin
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Plugin Permissions</h2>
+        <div class="permissions-overview">
+          <p>Review which plugins have access to your data:</p>
+          <div id="permissions-list" class="permissions-list">
+            <!-- Permissions will be loaded here -->
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Audit Log</h2>
+        <div class="audit-log">
+          <p>Recent plugin activity:</p>
+          <div id="audit-log" class="log-entries">
+            <!-- Audit log will be loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="marketplace-section">
+      <PluginMarketplace />
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .settings-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .settings-header {
+    margin-bottom: 2rem;
+  }
+
+  .settings-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .settings-header p {
+    color: var(--text-secondary, #666);
+  }
+
+  .settings-content {
+    display: grid;
+    gap: 2rem;
+    margin-bottom: 3rem;
+  }
+
+  .settings-section {
+    background: var(--card-bg, white);
+    border: 1px solid var(--border-color, #eee);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  .settings-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .dev-tools {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .btn-primary {
+    padding: 0.75rem 1.5rem;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .btn-secondary {
+    padding: 0.75rem 1.5rem;
+    background: var(--secondary-color, #6b7280);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .permissions-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .permission-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--bg-secondary, #f9fafb);
+    border-radius: 0.5rem;
+  }
+
+  .permission-plugin-name {
+    font-weight: 600;
+  }
+
+  .permission-badges {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .permission-badge {
+    padding: 0.25rem 0.75rem;
+    background: var(--tag-bg, #e5e7eb);
+    border-radius: 1rem;
+    font-size: 0.75rem;
+  }
+
+  .log-entries {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .log-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background: var(--bg-secondary, #f9fafb);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .log-entry.error {
+    background: var(--error-bg, #fee2e2);
+    color: var(--error-color, #dc2626);
+  }
+
+  .log-entry.success {
+    background: var(--success-bg, #d1fae5);
+    color: var(--success-color, #059669);
+  }
+
+  .log-timestamp {
+    color: var(--text-secondary, #666);
+    font-size: 0.75rem;
+  }
+
+  .marketplace-section {
+    margin-top: 3rem;
+    padding-top: 3rem;
+    border-top: 1px solid var(--border-color, #eee);
+  }
+</style>
+
+<script>
+  class PluginSettings {
+    constructor() {
+      this.init();
+    }
+
+    async init() {
+      await this.loadPermissions();
+      await this.loadAuditLog();
+      this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+      document.getElementById('create-plugin-btn')?.addEventListener('click', () => {
+        this.showCreatePluginDialog();
+      });
+
+      document.getElementById('load-local-btn')?.addEventListener('click', () => {
+        this.showLoadLocalDialog();
+      });
+    }
+
+    async loadPermissions() {
+      try {
+        const response = await fetch('/api/v1/plugins?installed=true');
+        const plugins = await response.json();
+        
+        const container = document.getElementById('permissions-list');
+        if (!container) return;
+
+        if (plugins.length === 0) {
+          container.innerHTML = '<p>No plugins installed</p>';
+          return;
+        }
+
+        container.innerHTML = plugins.map((plugin: any) => `
+          <div class="permission-item">
+            <span class="permission-plugin-name">${plugin.name}</span>
+            <div class="permission-badges">
+              ${plugin.permissions.map((perm: string) => `
+                <span class="permission-badge">${perm}</span>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Failed to load permissions:', error);
+      }
+    }
+
+    async loadAuditLog() {
+      try {
+        const response = await fetch('/api/v1/plugins/audit');
+        const logs = await response.json();
+        
+        const container = document.getElementById('audit-log');
+        if (!container) return;
+
+        if (logs.length === 0) {
+          container.innerHTML = '<p>No recent activity</p>';
+          return;
+        }
+
+        container.innerHTML = logs.slice(0, 20).map((log: any) => `
+          <div class="log-entry ${log.success ? 'success' : 'error'}">
+            <div>
+              <strong>${log.pluginId}</strong>: ${log.action}
+            </div>
+            <span class="log-timestamp">
+              ${new Date(log.timestamp).toLocaleString()}
+            </span>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Failed to load audit log:', error);
+      }
+    }
+
+    showCreatePluginDialog() {
+      const name = prompt('Plugin name:');
+      if (!name) return;
+
+      const description = prompt('Plugin description:');
+      if (!description) return;
+
+      const author = prompt('Author name:');
+      if (!author) return;
+
+      // In production, this would scaffold a new plugin
+      alert(`Plugin "${name}" would be scaffolded with:\n\n` +
+            `Description: ${description}\n` +
+            `Author: ${author}\n\n` +
+            'This would create the plugin files and open in your editor.');
+    }
+
+    showLoadLocalDialog() {
+      // In production, this would open a file picker
+      const path = prompt('Enter plugin directory path:');
+      if (!path) return;
+
+      alert(`Plugin would be loaded from: ${path}`);
+    }
+  }
+
+  // Initialize settings page
+  new PluginSettings();
+</script>
