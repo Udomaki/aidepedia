@@ -3030,6 +3030,158 @@ export async function removeTagFromArticle(articleId: number, tagId: number): Pr
 }
 
 /**
+ * Update a tag
+ */
+export async function updateTag(id: number, data: Partial<NewTag>): Promise<Tag> {
+  try {
+    const [tag] = await db
+      .update(tags)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(tags.id, id))
+      .returning();
+
+    if (!tag) {
+      throw new NotFoundError('Tag', `id:${id}`);
+    }
+
+    return tag;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to update tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a tag
+ */
+export async function deleteTag(id: number): Promise<void> {
+  try {
+    const [deleted] = await db
+      .delete(tags)
+      .where(eq(tags.id, id))
+      .returning();
+
+    if (!deleted) {
+      throw new NotFoundError('Tag', `id:${id}`);
+    }
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to delete tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get tags with usage analytics
+ */
+export async function getTagsWithAnalytics(): Promise<Array<Tag & { articleCount: number }>> {
+  try {
+    const result = await db
+      .select({
+        id: tags.id,
+        name: tags.name,
+        slug: tags.slug,
+        description: tags.description,
+        usageCount: tags.usageCount,
+        parentId: tags.parentId,
+        createdAt: tags.createdAt,
+        updatedAt: tags.updatedAt,
+        articleCount: count(article_tags.articleId),
+      })
+      .from(tags)
+      .leftJoin(article_tags, eq(tags.id, article_tags.tagId))
+      .groupBy(tags.id)
+      .orderBy(desc(count(article_tags.articleId)));
+
+    return result;
+  } catch (error) {
+    throw new DatabaseError(`Failed to fetch tags with analytics: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Merge tags - moves all associations from source to target tag
+ */
+export async function mergeTags(sourceId: number, targetId: number): Promise<{ articlesUpdated: number }> {
+  if (sourceId === targetId) {
+    throw new ValidationError('Cannot merge a tag with itself');
+  }
+
+  try {
+    // Get all articles with the source tag
+    const sourceTagArticles = await db
+      .select({ articleId: article_tags.articleId })
+      .from(article_tags)
+      .where(eq(article_tags.tagId, sourceId));
+
+    const articlesUpdated = sourceTagArticles.length;
+
+    // For each article, ensure it has the target tag
+    for (const { articleId } of sourceTagArticles) {
+      // Check if article already has target tag
+      const [existing] = await db
+        .select()
+        .from(article_tags)
+        .where(
+          and(
+            eq(article_tags.articleId, articleId),
+            eq(article_tags.tagId, targetId)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        // Add target tag
+        await db.insert(article_tags).values({
+          articleId,
+          tagId: targetId,
+        });
+      }
+
+      // Remove source tag from this article
+      await db
+        .delete(article_tags)
+        .where(
+          and(
+            eq(article_tags.articleId, articleId),
+            eq(article_tags.tagId, sourceId)
+          )
+        );
+    }
+
+    // Update usage counts
+    await db
+      .update(tags)
+      .set({ usageCount: 0, updatedAt: new Date() })
+      .where(eq(tags.id, sourceId));
+
+    // Recalculate target tag usage count
+    const [targetCount] = await db
+      .select({ count: count() })
+      .from(article_tags)
+      .where(eq(article_tags.tagId, targetId));
+
+    await db
+      .update(tags)
+      .set({ usageCount: targetCount.count, updatedAt: new Date() })
+      .where(eq(tags.id, targetId));
+
+    return { articlesUpdated };
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to merge tags: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Get articles by tag slug with pagination
  */
 export async function getArticlesByTag(

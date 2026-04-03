@@ -1,0 +1,384 @@
+---
+interface Props {
+  articleSlug: string;
+  articleId: number;
+  existingTags?: Array<{ id: number; name: string; slug: string }>;
+}
+
+const { articleSlug, articleId, existingTags = [] } = Astro.props;
+---
+
+<div class="tag-manager" data-article-slug={articleSlug}>
+  <div class="tag-manager__header">
+    <h3 class="tag-manager__title">Tags</h3>
+    <button 
+      type="button" 
+      class="tag-manager__suggest-btn"
+      id="suggest-tags-btn"
+      data-article-slug={articleSlug}
+    >
+      ✨ Suggest Tags
+    </button>
+  </div>
+
+  <div class="tag-manager__current" id="current-tags">
+    {existingTags.map(tag => (
+      <span class="tag-manager__tag">
+        {tag.name}
+        <button 
+          type="button" 
+          class="tag-manager__tag-remove"
+          data-tag-slug={tag.slug}
+          data-article-slug={articleSlug}
+          aria-label="Remove tag"
+        >
+          ×
+        </button>
+      </span>
+    ))}
+  </div>
+
+  <div class="tag-manager__suggestions" id="tag-suggestions" style="display: none;">
+    <h4 class="tag-manager__suggestions-title">AI Suggestions</h4>
+    <div class="tag-manager__suggestions-list" id="suggestions-list"></div>
+  </div>
+
+  <div class="tag-manager__add">
+    <input 
+      type="text" 
+      class="tag-manager__input" 
+      id="tag-search"
+      placeholder="Search or add new tag..."
+      autocomplete="off"
+    />
+    <div class="tag-manager__search-results" id="tag-search-results" style="display: none;"></div>
+  </div>
+</div>
+
+<style>
+  .tag-manager {
+    background: var(--bg-secondary, #f9fafb);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+
+  .tag-manager__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .tag-manager__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .tag-manager__suggest-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tag-manager__suggest-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  .tag-manager__suggest-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .tag-manager__current {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tag-manager__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-primary, white);
+    border: 1px solid var(--border-color, #e5e7eb);
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+  }
+
+  .tag-manager__tag:hover {
+    border-color: var(--primary-color, #667eea);
+  }
+
+  .tag-manager__tag-remove {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #6b7280);
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0;
+    width: 1rem;
+    height: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+  }
+
+  .tag-manager__tag-remove:hover {
+    color: var(--error-color, #ef4444);
+  }
+
+  .tag-manager__suggestions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .tag-manager__suggestions-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: var(--text-secondary, #6b7280);
+  }
+
+  .tag-manager__suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .tag-manager__suggestion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-primary, white);
+    border: 2px solid var(--primary-color, #667eea);
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tag-manager__suggestion:hover {
+    background: var(--primary-color, #667eea);
+    color: white;
+  }
+
+  .tag-manager__suggestion-confidence {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    font-weight: 500;
+  }
+
+  .tag-manager__suggestion:hover .tag-manager__suggestion-confidence {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .tag-manager__suggestion--new {
+    border-color: var(--success-color, #10b981);
+  }
+
+  .tag-manager__suggestion--new:hover {
+    background: var(--success-color, #10b981);
+  }
+
+  .tag-manager__add {
+    position: relative;
+    margin-top: 1rem;
+  }
+
+  .tag-manager__input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+  }
+
+  .tag-manager__input:focus {
+    outline: none;
+    border-color: var(--primary-color, #667eea);
+  }
+
+  .tag-manager__search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-primary, white);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10;
+    margin-top: 0.25rem;
+  }
+
+  .tag-manager__search-result {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .tag-manager__search-result:hover {
+    background: var(--bg-secondary, #f9fafb);
+  }
+</style>
+
+<script>
+  const suggestBtn = document.getElementById('suggest-tags-btn');
+  const suggestionsDiv = document.getElementById('tag-suggestions');
+  const suggestionsList = document.getElementById('suggestions-list');
+  const tagSearchInput = document.getElementById('tag-search') as HTMLInputElement;
+  const searchResults = document.getElementById('tag-search-results');
+  const currentTagsDiv = document.getElementById('current-tags');
+
+  if (suggestBtn) {
+    suggestBtn.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const articleSlug = btn.dataset.articleSlug;
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ Loading...';
+
+      try {
+        const response = await fetch(`/api/v1/articles/${articleSlug}/tags/suggest`, {
+          method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (data.success && suggestionsDiv && suggestionsList) {
+          suggestionsList.innerHTML = data.data.tags.map((tag: any) => `
+            <button 
+              type="button"
+              class="tag-manager__suggestion ${tag.isNew ? 'tag-manager__suggestion--new' : ''}"
+              data-tag-name="${tag.tag}"
+              data-confidence="${tag.confidence}"
+              data-article-slug="${articleSlug}"
+            >
+              ${tag.tag}
+              <span class="tag-manager__suggestion-confidence">${tag.confidence}%</span>
+            </button>
+          `).join('');
+
+          suggestionsDiv.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error suggesting tags:', error);
+        alert('Failed to generate tag suggestions');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Suggest Tags';
+      }
+    });
+  }
+
+  // Handle suggestion clicks
+  if (suggestionsList) {
+    suggestionsList.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('.tag-manager__suggestion') as HTMLButtonElement;
+      
+      if (btn) {
+        const tagName = btn.dataset.tagName;
+        const articleSlug = btn.dataset.articleSlug;
+
+        try {
+          const response = await fetch(`/api/v1/articles/${articleSlug}/tags`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tagSlug: tagName }),
+          });
+
+          if (response.ok) {
+            btn.remove();
+            location.reload(); // Simple refresh for now
+          }
+        } catch (error) {
+          console.error('Error adding tag:', error);
+        }
+      }
+    });
+  }
+
+  // Handle tag removal
+  if (currentTagsDiv) {
+    currentTagsDiv.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('.tag-manager__tag-remove') as HTMLButtonElement;
+      
+      if (btn) {
+        const tagSlug = btn.dataset.tagSlug;
+        const articleSlug = btn.dataset.articleSlug;
+
+        try {
+          const response = await fetch(`/api/v1/articles/${articleSlug}/tags`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tagSlug }),
+          });
+
+          if (response.ok) {
+            btn.closest('.tag-manager__tag')?.remove();
+          }
+        } catch (error) {
+          console.error('Error removing tag:', error);
+        }
+      }
+    });
+  }
+
+  // Handle tag search
+  if (tagSearchInput && searchResults) {
+    let searchTimeout: number;
+    
+    tagSearchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      
+      searchTimeout = setTimeout(async () => {
+        const query = (e.target as HTMLInputElement).value.trim();
+        
+        if (query.length < 2) {
+          searchResults.style.display = 'none';
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/v1/tags?search=${encodeURIComponent(query)}`);
+          const data = await response.json();
+
+          if (data.success && data.data.length > 0) {
+            searchResults.innerHTML = data.data.slice(0, 5).map((tag: any) => `
+              <div class="tag-manager__search-result" data-tag-slug="${tag.slug}">
+                ${tag.name}
+              </div>
+            `).join('');
+            searchResults.style.display = 'block';
+          } else {
+            searchResults.style.display = 'none';
+          }
+        } catch (error) {
+          console.error('Error searching tags:', error);
+        }
+      }, 300);
+    });
+  }
+</script>

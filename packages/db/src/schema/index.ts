@@ -68,6 +68,8 @@ export const articles = pgTable('articles', {
   content: text('content').notNull(),
   excerpt: text('excerpt'),
   categoryId: integer('category_id').references(() => categories.id),
+  categoryConfidence: integer('category_confidence'), // AI confidence score 0-100
+  categoryManuallySet: boolean('category_manually_set').default(false), // Manual override flag
   tags: text('tags').array().default([]),
   
   status: varchar('status', { 
@@ -296,10 +298,31 @@ export const tags = pgTable('tags', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull().unique(),
   slug: varchar('slug', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  usageCount: integer('usage_count').default(0),
+  parentId: integer('parent_id').references((): any => tags.id),
   createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   slugIdx: index('tag_slug_idx').on(table.slug),
   nameIdx: index('tag_name_idx').on(table.name),
+  parentIdx: index('tag_parent_idx').on(table.parentId),
+}));
+
+export const tag_relationships = pgTable('tag_relationships', {
+  id: serial('id').primaryKey(),
+  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  relatedTagId: integer('related_tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  relationshipType: varchar('relationship_type', {
+    enum: ['synonym', 'parent', 'child', 'related'],
+    length: 20
+  }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  tagIdx: index('tag_rel_tag_idx').on(table.tagId),
+  relatedTagIdx: index('tag_rel_related_idx').on(table.relatedTagId),
+  typeIdx: index('tag_rel_type_idx').on(table.relationshipType),
+  uniqueRel: index('tag_rel_unique_idx').on(table.tagId, table.relatedTagId, table.relationshipType),
 }));
 
 export const article_tags = pgTable('article_tags', {
