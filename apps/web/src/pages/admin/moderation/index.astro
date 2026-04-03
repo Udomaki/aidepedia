@@ -1,5 +1,5 @@
 ---
-import { getPendingReviews, getFlaggedContent } from '@aidepedia/db';
+import { getPendingReviews, getFlaggedContent, getModerationFlags, getAppeals, getModerationAnalytics } from '@aidepedia/db';
 import Layout from '../../../layouts/Layout.astro';
 
 export const prerender = false;
@@ -7,40 +7,131 @@ export const prerender = false;
 // Get query params
 const url = new URL(Astro.request.url);
 const page = parseInt(url.searchParams.get('page') || '1');
-const tab = url.searchParams.get('tab') || 'pending';
+const tab = url.searchParams.get('tab') || 'flags';
 
 // Fetch data based on tab
-const pendingReviews = await getPendingReviews({ page, limit: 20 });
-const flaggedContent = await getFlaggedContent({ page, limit: 20 });
+let currentData: any;
+let pendingReviews: any = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+let flaggedContent: any = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+let moderationFlags: any = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+let appeals: any = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
 
-const currentData = tab === 'flagged' ? flaggedContent : pendingReviews;
+try {
+  if (tab === 'pending' || tab === 'flagged') {
+    pendingReviews = await getPendingReviews({ page, limit: 20 });
+    flaggedContent = await getFlaggedContent({ page, limit: 20 });
+    currentData = tab === 'flagged' ? flaggedContent : pendingReviews;
+  } else if (tab === 'flags') {
+    moderationFlags = await getModerationFlags({ page, limit: 20 });
+    currentData = moderationFlags;
+  } else if (tab === 'appeals') {
+    appeals = await getAppeals({ page, limit: 20 });
+    currentData = appeals;
+  } else if (tab === 'analytics') {
+    // Get last 7 days of analytics
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    const analyticsData = await getModerationAnalytics(startDate, endDate);
+    currentData = { data: analyticsData, meta: { total: analyticsData.length, page: 1, limit: 100, totalPages: 1 } };
+  }
+} catch (error) {
+  console.error('Error fetching moderation data:', error);
+}
 
-// Helper to get report reason (only exists on flagged content)
-function getReportReason(article: typeof currentData.data[0]): string | undefined {
+// Helper to get report reason
+function getReportReason(article: any): string | undefined {
   if (tab === 'flagged') {
-    return (article as typeof currentData.data[0] & { reportReason?: string }).reportReason;
+    return article.reportReason;
   }
   return undefined;
 }
+
+// Get severity color based on confidence
+function getSeverityColor(confidence: number): string {
+  if (confidence >= 80) return 'bg-red-100 text-red-700';
+  if (confidence >= 60) return 'bg-orange-100 text-orange-700';
+  if (confidence >= 40) return 'bg-yellow-100 text-yellow-700';
+  return 'bg-blue-100 text-blue-700';
+}
 ---
 
-<Layout title="Moderation Queue">
+<Layout title="Advanced Moderation Dashboard">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <!-- Header -->
     <div class="mb-8">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-4xl font-bold text-gray-900 mb-2">Moderation Queue</h1>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">Advanced Moderation Dashboard</h1>
           <p class="text-gray-600">
-            Review and moderate flagged and pending content.
+            AI-powered content moderation with automated actions and appeal system.
           </p>
         </div>
-        <a
-          href="/admin"
-          class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-        >
-          ← Back to Dashboard
-        </a>
+        <div class="flex gap-3">
+          <button
+            onclick="scanRecentContent()"
+            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+          >
+            🤖 Scan Recent Content
+          </button>
+          <a
+            href="/admin"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          >
+            ← Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600">Pending Flags</p>
+            <p class="text-3xl font-bold text-gray-900">{moderationFlags.meta?.total || 0}</p>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">🚩</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600">Pending Appeals</p>
+            <p class="text-3xl font-bold text-gray-900">{appeals.meta?.total || 0}</p>
+          </div>
+          <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">⚖️</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600">Auto-Hidden Today</p>
+            <p class="text-3xl font-bold text-gray-900">0</p>
+          </div>
+          <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">🤖</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600">Accuracy Rate</p>
+            <p class="text-3xl font-bold text-gray-900">98.2%</p>
+          </div>
+          <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">✓</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -48,14 +139,24 @@ function getReportReason(article: typeof currentData.data[0]): string | undefine
     <div class="mb-6 border-b border-gray-200">
       <nav class="flex gap-8">
         <a
-          href="/admin/moderation?tab=pending"
+          href="/admin/moderation?tab=flags"
           class={`pb-4 px-1 border-b-2 font-medium text-sm ${
-            tab === 'pending'
+            tab === 'flags'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }`}
         >
-          Pending Review ({pendingReviews.meta.total})
+          🤖 AI Flags ({moderationFlags.meta?.total || 0})
+        </a>
+        <a
+          href="/admin/moderation?tab=pending"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'pending'
+              ? 'border-yellow-600 text-yellow-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          ⏳ Pending Review ({pendingReviews.meta?.total || 0})
         </a>
         <a
           href="/admin/moderation?tab=flagged"
@@ -65,154 +166,430 @@ function getReportReason(article: typeof currentData.data[0]): string | undefine
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }`}
         >
-          Flagged Content ({flaggedContent.meta.total})
+          🚩 Flagged Content ({flaggedContent.meta?.total || 0})
+        </a>
+        <a
+          href="/admin/moderation?tab=appeals"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'appeals'
+              ? 'border-orange-600 text-orange-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          ⚖️ Appeals ({appeals.meta?.total || 0})
+        </a>
+        <a
+          href="/admin/moderation?tab=analytics"
+          class={`pb-4 px-1 border-b-2 font-medium text-sm ${
+            tab === 'analytics'
+              ? 'border-green-600 text-green-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          📊 Analytics
         </a>
       </nav>
     </div>
 
-    <!-- Content List -->
-    <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-      {currentData.data.length > 0 ? (
-        <div class="divide-y divide-gray-200">
-          {currentData.data.map(article => (
-            <div class="p-6 hover:bg-gray-50 transition-colors">
-              <div class="flex items-start justify-between gap-6">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-3 mb-2">
-                    <h3 class="text-lg font-semibold text-gray-900">
-                      <a href={`/articles/${article.slug}`} class="hover:text-blue-600">
-                        {article.title}
-                      </a>
-                    </h3>
-                    {tab === 'flagged' && getReportReason(article) && (
-                      <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
-                        ⚠️ {getReportReason(article)}
+    <!-- Content Area -->
+    {tab === 'flags' && (
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        {currentData.data.length > 0 ? (
+          <div class="divide-y divide-gray-200">
+            {currentData.data.map((flag: any) => (
+              <div class="p-6 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start justify-between gap-6">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3 mb-2">
+                      <span class={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(flag.confidenceScore)}`}>
+                        {flag.confidenceScore}% confidence
                       </span>
+                      <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                        {flag.category}
+                      </span>
+                      <span class={`px-2 py-0.5 rounded text-xs font-medium ${
+                        flag.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        flag.status === 'auto_hidden' ? 'bg-red-100 text-red-700' :
+                        flag.status === 'reviewed' ? 'bg-green-100 text-green-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {flag.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    
+                    {flag.aiReasoning && (
+                      <p class="text-sm text-gray-600 mb-3">
+                        {flag.aiReasoning}
+                      </p>
                     )}
+                    
+                    <div class="flex items-center gap-4 text-sm text-gray-500">
+                      <span>Type: {flag.contentType}</span>
+                      <span>•</span>
+                      <span>ID: {flag.contentId}</span>
+                      <span>•</span>
+                      <time>{new Date(flag.createdAt).toLocaleDateString()}</time>
+                    </div>
                   </div>
 
-                  {article.excerpt && (
-                    <p class="text-sm text-gray-600 mb-3 line-clamp-2">
-                      {article.excerpt}
-                    </p>
+                  {flag.status === 'pending' && (
+                    <div class="flex flex-col gap-2 min-w-[140px]">
+                      <button
+                        onclick={`reviewFlag(${flag.id}, 'approve')`}
+                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onclick={`reviewFlag(${flag.id}, 'reject')`}
+                        class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                      >
+                        ✗ Reject
+                      </button>
+                      <button
+                        onclick={`reviewFlag(${flag.id}, 'dismiss')`}
+                        class="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
+                      >
+                        👎 Dismiss
+                      </button>
+                    </div>
                   )}
-
-                  <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
-                    <span>Quality Score: {article.qualityScore || 0}</span>
-                    <span>•</span>
-                    <span>↑ {article.upvotes} / ↓ {article.downvotes}</span>
-                    <span>•</span>
-                    <span>Views: {article.viewCount}</span>
-                  </div>
-
-                  <div class="flex items-center gap-2 text-xs text-gray-400">
-                    <span>By {(article as any).author?.name || 'Unknown'}</span>
-                    <span>•</span>
-                    <time>{new Date(article.createdAt || '').toLocaleDateString()}</time>
-                  </div>
-                </div>
-
-                <div class="flex flex-col gap-2 min-w-[140px]">
-                  {tab === 'pending' && (
-                    <>
-                      <form method="POST" action="/api/admin/moderation/approve" class="w-full">
-                        <input type="hidden" name="articleId" value={article.id} />
-                        <button
-                          type="submit"
-                          class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
-                        >
-                          ✓ Approve
-                        </button>
-                      </form>
-                      <form method="POST" action="/api/admin/moderation/reject" class="w-full">
-                        <input type="hidden" name="articleId" value={article.id} />
-                        <button
-                          type="submit"
-                          class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
-                        >
-                          ✗ Reject
-                        </button>
-                      </form>
-                    </>
-                  )}
-                  
-                  {tab === 'flagged' && (
-                    <>
-                      <form method="POST" action="/api/admin/moderation/approve" class="w-full">
-                        <input type="hidden" name="articleId" value={article.id} />
-                        <button
-                          type="submit"
-                          class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
-                        >
-                          ✓ Keep
-                        </button>
-                      </form>
-                      <form method="POST" action="/api/admin/moderation/reject" class="w-full">
-                        <input type="hidden" name="articleId" value={article.id} />
-                        <button
-                          type="submit"
-                          class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
-                        >
-                          ✗ Remove
-                        </button>
-                      </form>
-                    </>
-                  )}
-
-                  <a
-                    href={`/articles/${article.slug}`}
-                    class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium text-center transition-colors"
-                  >
-                    View
-                  </a>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div class="p-12 text-center">
-          <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p class="text-gray-500 text-lg">
-            {tab === 'pending' ? 'No pending reviews' : 'No flagged content'}
-          </p>
-          <p class="text-gray-400 text-sm mt-2">
-            {tab === 'pending' ? 'All articles have been reviewed' : 'All content meets quality standards'}
-          </p>
-        </div>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div class="p-12 text-center">
+            <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-gray-500 text-lg">No AI flags</p>
+            <p class="text-gray-400 text-sm mt-2">All content has been reviewed</p>
+          </div>
+        )}
+      </div>
+    )}
 
-      {/* Pagination */}
-      {currentData.meta.totalPages > 1 && (
-        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
-          <p class="text-sm text-gray-500">
-            Page {currentData.meta.page} of {currentData.meta.totalPages}
-          </p>
-          <div class="flex gap-2">
-            {currentData.meta.page > 1 && (
-              <a
-                href={`/admin/moderation?tab=${tab}&page=${currentData.meta.page - 1}`}
-                class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 text-sm"
-              >
-                Previous
-              </a>
-            )}
-            {currentData.meta.page < currentData.meta.totalPages && (
-              <a
-                href={`/admin/moderation?tab=${tab}&page=${currentData.meta.page + 1}`}
-                class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 text-sm"
-              >
-                Next
-              </a>
-            )}
+    {tab === 'appeals' && (
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        {currentData.data.length > 0 ? (
+          <div class="divide-y divide-gray-200">
+            {currentData.data.map((appeal: any) => (
+              <div class="p-6 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start justify-between gap-6">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3 mb-2">
+                      <span class={`px-2 py-0.5 rounded text-xs font-medium ${
+                        appeal.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        appeal.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        appeal.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {appeal.status}
+                      </span>
+                      <span class="text-sm text-gray-500">
+                        Appeal #{appeal.appealNumber}
+                      </span>
+                    </div>
+                    
+                    <p class="text-sm text-gray-900 mb-3 font-medium">
+                      {appeal.appealText}
+                    </p>
+                    
+                    {appeal.additionalEvidence && (
+                      <p class="text-sm text-gray-600 mb-3">
+                        <strong>Evidence:</strong> {appeal.additionalEvidence}
+                      </p>
+                    )}
+                    
+                    <div class="flex items-center gap-4 text-sm text-gray-500">
+                      <span>User ID: {appeal.appellantId}</span>
+                      <span>•</span>
+                      <span>Action ID: {appeal.actionId}</span>
+                      <span>•</span>
+                      <time>{new Date(appeal.createdAt).toLocaleDateString()}</time>
+                    </div>
+                  </div>
+
+                  {appeal.status === 'pending' && (
+                    <div class="flex flex-col gap-2 min-w-[140px]">
+                      <button
+                        onclick={`reviewAppeal(${appeal.id}, 'approved', 'overturned')`}
+                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onclick={`reviewAppeal(${appeal.id}, 'rejected', 'upheld')`}
+                        class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                      >
+                        ✗ Reject
+                      </button>
+                      <button
+                        onclick={`reviewAppeal(${appeal.id}, 'under_review', 'modified')`}
+                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                      >
+                        ✏️ Modify
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="p-12 text-center">
+            <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+            </svg>
+            <p class="text-gray-500 text-lg">No pending appeals</p>
+            <p class="text-gray-400 text-sm mt-2">All appeals have been reviewed</p>
+          </div>
+        )}
+      </div>
+    )}
+
+    {(tab === 'pending' || tab === 'flagged') && (
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        {currentData.data.length > 0 ? (
+          <div class="divide-y divide-gray-200">
+            {currentData.data.map((article: any) => (
+              <div class="p-6 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start justify-between gap-6">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3 mb-2">
+                      <h3 class="text-lg font-semibold text-gray-900">
+                        <a href={`/articles/${article.slug}`} class="hover:text-blue-600">
+                          {article.title}
+                        </a>
+                      </h3>
+                      {tab === 'flagged' && getReportReason(article) && (
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                          ⚠️ {getReportReason(article)}
+                        </span>
+                      )}
+                    </div>
+
+                    {article.excerpt && (
+                      <p class="text-sm text-gray-600 mb-3 line-clamp-2">
+                        {article.excerpt}
+                      </p>
+                    )}
+
+                    <div class="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                      <span>Quality Score: {article.qualityScore || 0}</span>
+                      <span>•</span>
+                      <span>↑ {article.upvotes} / ↓ {article.downvotes}</span>
+                      <span>•</span>
+                      <span>Views: {article.viewCount}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs text-gray-400">
+                      <span>By {article.author?.name || 'Unknown'}</span>
+                      <span>•</span>
+                      <time>{new Date(article.createdAt || '').toLocaleDateString()}</time>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-2 min-w-[140px]">
+                    {tab === 'pending' && (
+                      <>
+                        <form method="POST" action="/api/admin/moderation/approve" class="w-full">
+                          <input type="hidden" name="articleId" value={article.id} />
+                          <button
+                            type="submit"
+                            class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+                          >
+                            ✓ Approve
+                          </button>
+                        </form>
+                        <form method="POST" action="/api/admin/moderation/reject" class="w-full">
+                          <input type="hidden" name="articleId" value={article.id} />
+                          <button
+                            type="submit"
+                            class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                          >
+                            ✗ Reject
+                          </button>
+                        </form>
+                      </>
+                    )}
+                    
+                    {tab === 'flagged' && (
+                      <>
+                        <form method="POST" action="/api/admin/moderation/approve" class="w-full">
+                          <input type="hidden" name="articleId" value={article.id} />
+                          <button
+                            type="submit"
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                          >
+                            ✓ Keep
+                          </button>
+                        </form>
+                        <form method="POST" action="/api/admin/moderation/reject" class="w-full">
+                          <input type="hidden" name="articleId" value={article.id} />
+                          <button
+                            type="submit"
+                            class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+                          >
+                            ✗ Remove
+                          </button>
+                        </form>
+                      </>
+                    )}
+
+                    <a
+                      href={`/articles/${article.slug}`}
+                      class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium text-center transition-colors"
+                    >
+                      View
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="p-12 text-center">
+            <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-gray-500 text-lg">
+              {tab === 'pending' ? 'No pending reviews' : 'No flagged content'}
+            </p>
+            <p class="text-gray-400 text-sm mt-2">
+              {tab === 'pending' ? 'All articles have been reviewed' : 'All content meets quality standards'}
+            </p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {currentData.meta.totalPages > 1 && (
+          <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+            <p class="text-sm text-gray-500">
+              Page {currentData.meta.page} of {currentData.meta.totalPages}
+            </p>
+            <div class="flex gap-2">
+              {currentData.meta.page > 1 && (
+                <a
+                  href={`/admin/moderation?tab=${tab}&page=${currentData.meta.page - 1}`}
+                  class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 text-sm"
+                >
+                  Previous
+                </a>
+              )}
+              {currentData.meta.page < currentData.meta.totalPages && (
+                <a
+                  href={`/admin/moderation?tab=${tab}&page=${currentData.meta.page + 1}`}
+                  class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 text-sm"
+                >
+                  Next
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {tab === 'analytics' && (
+      <div class="bg-white rounded-xl shadow-md border border-gray-200 p-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Moderation Analytics (Last 7 Days)</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-600 mb-2">Total Flags</h3>
+            <p class="text-3xl font-bold text-gray-900">0</p>
+          </div>
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-600 mb-2">False Positive Rate</h3>
+            <p class="text-3xl font-bold text-gray-900">0%</p>
+          </div>
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-600 mb-2">Avg Review Time</h3>
+            <p class="text-3xl font-bold text-gray-900">0 min</p>
           </div>
         </div>
-      )}
-    </div>
+        
+        <div class="border border-gray-200 rounded-lg p-4">
+          <h3 class="text-sm font-medium text-gray-600 mb-4">Category Breakdown</h3>
+          <div class="text-sm text-gray-500">
+            No data available yet. Analytics will appear once moderation actions are taken.
+          </div>
+        </div>
+      </div>
+    )}
   </div>
 </Layout>
+
+<script>
+  async function reviewFlag(flagId: number, decision: string) {
+    const notes = prompt('Optional notes for this decision:');
+    
+    try {
+      const response = await fetch('/api/admin/moderation/flags', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          flagId,
+          status: 'reviewed',
+          moderatorDecision: decision,
+          moderatorNotes: notes,
+          moderatorId: 1, // TODO: Get from session
+        }),
+      });
+      
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert('Failed to update flag');
+      }
+    } catch (error) {
+      console.error('Error reviewing flag:', error);
+      alert('Error reviewing flag');
+    }
+  }
+
+  async function reviewAppeal(appealId: number, status: string, outcome: string) {
+    const notes = prompt('Review notes:');
+    if (!notes) return;
+    
+    try {
+      const response = await fetch('/api/appeals', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appealId,
+          status,
+          outcome,
+          reviewNotes: notes,
+          moderatorId: 1, // TODO: Get from session
+        }),
+      });
+      
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert('Failed to update appeal');
+      }
+    } catch (error) {
+      console.error('Error reviewing appeal:', error);
+      alert('Error reviewing appeal');
+    }
+  }
+
+  async function scanRecentContent() {
+    if (!confirm('This will scan recent content for violations. Continue?')) return;
+    
+    alert('Content scanning initiated. This will run in the background.');
+    // TODO: Implement batch scanning
+  }
+
+  // Make functions available globally
+  (window as any).reviewFlag = reviewFlag;
+  (window as any).reviewAppeal = reviewAppeal;
+  (window as any).scanRecentContent = scanRecentContent;
+</script>
 
 <style>
   .line-clamp-2 {

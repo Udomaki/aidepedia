@@ -1,6 +1,6 @@
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte, between, not } from 'drizzle-orm';
 import { db } from './index';
-import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes } from './schema/index';
+import { articles, articleRevisions, categories, editors, reputationEvents, articleUserVotes, revisionUserVotes, comments, notifications, tags, article_tags, edit_suggestions, email_digests, email_queue, page_views, system_settings, content_reports, users, article_reactions, experiments, experiment_assignments, article_drafts, articleVotes, moderation_flags, moderation_actions, user_appeals, user_reputation, moderation_analytics_daily, moderation_rules } from './schema/index';
 import type {
   Article,
   NewArticle,
@@ -5798,4 +5798,484 @@ function selectVariant(
 
   // Fallback to first variant
   return variants[0].name;
+}
+
+// ============================================
+// MODERATION QUERIES
+// ============================================
+
+/**
+ * Create a moderation flag
+ */
+export async function createModerationFlag(data: {
+  contentType: 'article' | 'comment' | 'user_profile';
+  contentId: number;
+  category: 'hate' | 'harassment' | 'self-harm' | 'sexual' | 'violence' | 'spam' | 'misinformation';
+  confidenceScore: number;
+  aiReasoning?: string;
+  status?: 'pending' | 'auto_hidden' | 'reviewed' | 'dismissed';
+}) {
+  const [flag] = await db
+    .insert(moderation_flags)
+    .values({
+      contentType: data.contentType,
+      contentId: data.contentId,
+      category: data.category,
+      confidenceScore: data.confidenceScore,
+      aiReasoning: data.aiReasoning,
+      status: data.status || 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+  
+  return flag;
+}
+
+/**
+ * Get moderation flags with filtering
+ */
+export async function getModerationFlags(params: {
+  status?: 'pending' | 'auto_hidden' | 'reviewed' | 'dismissed';
+  category?: 'hate' | 'harassment' | 'self-harm' | 'sexual' | 'violence' | 'spam' | 'misinformation';
+  contentType?: 'article' | 'comment' | 'user_profile';
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<any>> {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (params.status) {
+    conditions.push(eq(moderation_flags.status, params.status));
+  }
+  if (params.category) {
+    conditions.push(eq(moderation_flags.category, params.category));
+  }
+  if (params.contentType) {
+    conditions.push(eq(moderation_flags.contentType, params.contentType));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [data, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(moderation_flags)
+      .where(whereClause)
+      .orderBy(desc(moderation_flags.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(moderation_flags)
+      .where(whereClause),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.ceil(Number(total) / limit),
+    },
+  };
+}
+
+/**
+ * Update moderation flag
+ */
+export async function updateModerationFlag(
+  flagId: number,
+  data: {
+    status?: 'pending' | 'auto_hidden' | 'reviewed' | 'dismissed';
+    reviewedBy?: number;
+    moderatorDecision?: 'approve' | 'reject' | 'escalate';
+    moderatorNotes?: string;
+    isFalsePositive?: boolean;
+  }
+) {
+  const [flag] = await db
+    .update(moderation_flags)
+    .set({
+      ...data,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(moderation_flags.id, flagId))
+    .returning();
+  
+  return flag;
+}
+
+/**
+ * Create a moderation action
+ */
+export async function createModerationAction(data: {
+  actionType: 'warn' | 'temp_ban' | 'permaban' | 'content_removed' | 'content_restored' | 'rate_limited';
+  targetType: 'user' | 'article' | 'comment';
+  targetUserId?: number;
+  targetContentId?: number;
+  reason: string;
+  relatedFlagId?: number;
+  duration?: number;
+  isAutomated?: boolean;
+  automationRule?: string;
+  moderatorId?: number;
+}) {
+  const [action] = await db
+    .insert(moderation_actions)
+    .values({
+      actionType: data.actionType,
+      targetType: data.targetType,
+      targetUserId: data.targetUserId,
+      targetContentId: data.targetContentId,
+      reason: data.reason,
+      relatedFlagId: data.relatedFlagId,
+      duration: data.duration,
+      isAutomated: data.isAutomated || false,
+      automationRule: data.automationRule,
+      moderatorId: data.moderatorId,
+      createdAt: new Date(),
+    })
+    .returning();
+  
+  return action;
+}
+
+/**
+ * Get moderation actions for a user
+ */
+export async function getUserModerationActions(userId: number) {
+  const actions = await db
+    .select()
+    .from(moderation_actions)
+    .where(eq(moderation_actions.targetUserId, userId))
+    .orderBy(desc(moderation_actions.createdAt));
+  
+  return actions;
+}
+
+/**
+ * Create a user appeal
+ */
+export async function createUserAppeal(data: {
+  actionId: number;
+  appellantId: number;
+  appealText: string;
+  additionalEvidence?: string;
+}) {
+  const [appeal] = await db
+    .insert(user_appeals)
+    .values({
+      actionId: data.actionId,
+      appellantId: data.appellantId,
+      appealText: data.appealText,
+      additionalEvidence: data.additionalEvidence,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+  
+  return appeal;
+}
+
+/**
+ * Get appeals with filtering
+ */
+export async function getAppeals(params: {
+  status?: string;
+  appellantId?: number;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<any>> {
+  const page = Math.max(1, params.page || 1);
+  const limit = Math.min(100, Math.max(1, params.limit || 20));
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (params.status) {
+    conditions.push(eq(user_appeals.status, params.status as any));
+  }
+  if (params.appellantId) {
+    conditions.push(eq(user_appeals.appellantId, params.appellantId));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [data, [{ total }]] = await Promise.all([
+    db
+      .select()
+      .from(user_appeals)
+      .where(whereClause)
+      .orderBy(desc(user_appeals.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(user_appeals)
+      .where(whereClause),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: Number(total),
+      page,
+      limit,
+      totalPages: Math.ceil(Number(total) / limit),
+    },
+  };
+}
+
+/**
+ * Update appeal status
+ */
+export async function updateAppeal(
+  appealId: number,
+  data: {
+    status?: 'pending' | 'under_review' | 'approved' | 'rejected' | 'escalated';
+    reviewedBy?: number;
+    reviewNotes?: string;
+    outcome?: 'upheld' | 'overturned' | 'modified';
+    modificationDetails?: string;
+  }
+) {
+  const [appeal] = await db
+    .update(user_appeals)
+    .set({
+      ...data,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(user_appeals.id, appealId))
+    .returning();
+  
+  return appeal;
+}
+
+/**
+ * Get or create user reputation
+ */
+export async function getOrCreateUserReputation(userId: number) {
+  let [reputation] = await db
+    .select()
+    .from(user_reputation)
+    .where(eq(user_reputation.userId, userId))
+    .limit(1);
+
+  if (!reputation) {
+    [reputation] = await db
+      .insert(user_reputation)
+      .values({
+        userId,
+        score: 100,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+  }
+
+  return reputation;
+}
+
+/**
+ * Update user reputation
+ */
+export async function updateUserReputation(
+  userId: number,
+  data: {
+    score?: number;
+    totalFlags?: number;
+    upheldFlags?: number;
+    dismissedFlags?: number;
+    warnings?: number;
+    tempBans?: number;
+    isRateLimited?: boolean;
+    rateLimitExpires?: Date;
+    trustLevel?: 'low' | 'medium' | 'high' | 'trusted';
+    lastFlagAt?: Date;
+    lastActionAt?: Date;
+  }
+) {
+  const [reputation] = await db
+    .update(user_reputation)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(user_reputation.userId, userId))
+    .returning();
+  
+  return reputation;
+}
+
+/**
+ * Get moderation analytics for a date range
+ */
+export async function getModerationAnalytics(startDate: Date, endDate: Date) {
+  const analytics = await db
+    .select()
+    .from(moderation_analytics_daily)
+    .where(
+      and(
+        gte(moderation_analytics_daily.date, startDate),
+        lte(moderation_analytics_daily.date, endDate)
+      )
+    )
+    .orderBy(moderation_analytics_daily.date);
+  
+  return analytics;
+}
+
+/**
+ * Create or update daily moderation analytics
+ */
+export async function upsertModerationAnalytics(
+  date: Date,
+  data: {
+    totalFlags?: number;
+    autoHiddenFlags?: number;
+    reviewedFlags?: number;
+    dismissedFlags?: number;
+    flagsByCategory?: Record<string, number>;
+    falsePositives?: number;
+    falseNegatives?: number;
+    warnings?: number;
+    tempBans?: number;
+    permabans?: number;
+    contentRemoved?: number;
+    appealsSubmitted?: number;
+    appealsApproved?: number;
+    appealsRejected?: number;
+    avgReviewTime?: number;
+  }
+) {
+  // Check if analytics already exist for this date
+  const [existing] = await db
+    .select()
+    .from(moderation_analytics_daily)
+    .where(eq(moderation_analytics_daily.date, date))
+    .limit(1);
+
+  if (existing) {
+    const [updated] = await db
+      .update(moderation_analytics_daily)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(moderation_analytics_daily.id, existing.id))
+      .returning();
+    
+    return updated;
+  } else {
+    const [created] = await db
+      .insert(moderation_analytics_daily)
+      .values({
+        date,
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    
+    return created;
+  }
+}
+
+/**
+ * Get active moderation rules
+ */
+export async function getActiveModerationRules() {
+  const rules = await db
+    .select()
+    .from(moderation_rules)
+    .where(eq(moderation_rules.enabled, true))
+    .orderBy(desc(moderation_rules.priority));
+  
+  return rules;
+}
+
+/**
+ * Create moderation rule
+ */
+export async function createModerationRule(data: {
+  name: string;
+  description?: string;
+  category: string;
+  minConfidence: number;
+  action: string;
+  actionDuration?: number;
+  minUserReputation?: number;
+  maxUserReputation?: number;
+  enabled?: boolean;
+  priority?: number;
+}) {
+  const [rule] = await db
+    .insert(moderation_rules)
+    .values({
+      name: data.name,
+      description: data.description,
+      category: data.category as any,
+      minConfidence: data.minConfidence,
+      action: data.action as any,
+      actionDuration: data.actionDuration,
+      minUserReputation: data.minUserReputation,
+      maxUserReputation: data.maxUserReputation,
+      enabled: data.enabled ?? true,
+      priority: data.priority ?? 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+  
+  return rule;
+}
+
+/**
+ * Update moderation rule
+ */
+export async function updateModerationRule(
+  ruleId: number,
+  data: {
+    name?: string;
+    description?: string;
+    category?: 'hate' | 'harassment' | 'self-harm' | 'sexual' | 'violence' | 'spam' | 'misinformation';
+    minConfidence?: number;
+    action?: 'auto_hide' | 'auto_approve' | 'warn' | 'temp_ban' | 'flag_for_review';
+    actionDuration?: number;
+    minUserReputation?: number;
+    maxUserReputation?: number;
+    enabled?: boolean;
+    priority?: number;
+  }
+) {
+  const [rule] = await db
+    .update(moderation_rules)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(moderation_rules.id, ruleId))
+    .returning();
+  
+  return rule;
+}
+
+/**
+ * Increment rule trigger count
+ */
+export async function incrementRuleTriggerCount(ruleId: number) {
+  await db
+    .update(moderation_rules)
+    .set({
+      timesTriggered: sql`${moderation_rules.timesTriggered} + 1`,
+      lastTriggeredAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(moderation_rules.id, ruleId));
 }

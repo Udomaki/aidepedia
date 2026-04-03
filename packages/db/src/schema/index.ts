@@ -621,3 +621,251 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
+
+// AI-powered moderation flags
+export const moderation_flags = pgTable('moderation_flags', {
+  id: serial('id').primaryKey(),
+  contentType: varchar('content_type', {
+    enum: ['article', 'comment', 'user_profile'],
+    length: 20
+  }).notNull(),
+  contentId: integer('content_id').notNull(),
+  
+  // AI analysis results
+  category: varchar('category', {
+    enum: ['hate', 'harassment', 'self-harm', 'sexual', 'violence', 'spam', 'misinformation'],
+    length: 20
+  }).notNull(),
+  confidenceScore: integer('confidence_score').notNull(), // 0-100
+  aiReasoning: text('ai_reasoning'),
+  
+  // Flag status
+  status: varchar('status', {
+    enum: ['pending', 'auto_hidden', 'reviewed', 'dismissed'],
+    length: 20
+  }).notNull().default('pending'),
+  
+  // Moderation details
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  moderatorDecision: varchar('moderator_decision', {
+    enum: ['approve', 'reject', 'escalate'],
+    length: 20
+  }),
+  moderatorNotes: text('moderator_notes'),
+  
+  // False positive tracking
+  isFalsePositive: boolean('is_false_positive').default(false),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  contentTypeIdx: index('flag_content_type_idx').on(table.contentType),
+  contentIdIdx: index('flag_content_id_idx').on(table.contentId),
+  statusIdx: index('flag_status_idx').on(table.status),
+  categoryIdx: index('flag_category_idx').on(table.category),
+  createdAtIdx: index('flag_created_at_idx').on(table.createdAt),
+}));
+
+// Moderation actions taken on content or users
+export const moderation_actions = pgTable('moderation_actions', {
+  id: serial('id').primaryKey(),
+  
+  // Action details
+  actionType: varchar('action_type', {
+    enum: ['warn', 'temp_ban', 'permaban', 'content_removed', 'content_restored', 'rate_limited'],
+    length: 20
+  }).notNull(),
+  
+  // Target
+  targetType: varchar('target_type', {
+    enum: ['user', 'article', 'comment'],
+    length: 20
+  }).notNull(),
+  targetUserId: integer('target_user_id').references(() => users.id, { onDelete: 'cascade' }),
+  targetContentId: integer('target_content_id'),
+  
+  // Reason
+  reason: text('reason').notNull(),
+  relatedFlagId: integer('related_flag_id').references(() => moderation_flags.id, { onDelete: 'set null' }),
+  
+  // Action metadata
+  duration: integer('duration'), // Duration in hours for temp bans
+  isAutomated: boolean('is_automated').default(false),
+  automationRule: varchar('automation_rule', { length: 100 }),
+  
+  // Moderator info
+  moderatorId: integer('moderator_id').references(() => users.id, { onDelete: 'set null' }),
+  
+  // Reversal tracking
+  reversedAt: timestamp('reversed_at'),
+  reversedBy: integer('reversed_by').references(() => users.id, { onDelete: 'set null' }),
+  reversalReason: text('reversal_reason'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  actionTypeIdx: index('action_type_idx').on(table.actionType),
+  targetUserIdx: index('action_target_user_idx').on(table.targetUserId),
+  targetContentIdx: index('action_target_content_idx').on(table.targetContentId),
+  moderatorIdx: index('action_moderator_idx').on(table.moderatorId),
+  createdAtIdx: index('action_created_at_idx').on(table.createdAt),
+}));
+
+// User appeals for moderation actions
+export const user_appeals = pgTable('user_appeals', {
+  id: serial('id').primaryKey(),
+  
+  // Appeal details
+  actionId: integer('action_id').notNull().references(() => moderation_actions.id, { onDelete: 'cascade' }),
+  appellantId: integer('appellant_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Appeal content
+  appealText: text('appeal_text').notNull(),
+  additionalEvidence: text('additional_evidence'), // URLs or descriptions of evidence
+  
+  // Appeal status
+  status: varchar('status', {
+    enum: ['pending', 'under_review', 'approved', 'rejected', 'escalated'],
+    length: 20
+  }).notNull().default('pending'),
+  
+  // Review details
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewNotes: text('review_notes'),
+  
+  // Appeal outcome
+  outcome: varchar('outcome', {
+    enum: ['upheld', 'overturned', 'modified'],
+    length: 20
+  }),
+  modificationDetails: text('modification_details'),
+  
+  // Tracking
+  appealNumber: integer('appeal_number').default(1), // Track multiple appeals per user
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  actionIdx: index('appeal_action_idx').on(table.actionId),
+  appellantIdx: index('appeal_appellant_idx').on(table.appellantId),
+  statusIdx: index('appeal_status_idx').on(table.status),
+  createdAtIdx: index('appeal_created_at_idx').on(table.createdAt),
+}));
+
+// User reputation tracking for moderation
+export const user_reputation = pgTable('user_reputation', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  
+  // Reputation score
+  score: integer('score').notNull().default(100), // Base score is 100
+  
+  // Moderation history counts
+  totalFlags: integer('total_flags').default(0),
+  upheldFlags: integer('upheld_flags').default(0),
+  dismissedFlags: integer('dismissed_flags').default(0),
+  
+  // Action counts
+  warnings: integer('warnings').default(0),
+  tempBans: integer('temp_bans').default(0),
+  
+  // Rate limiting
+  isRateLimited: boolean('is_rate_limited').default(false),
+  rateLimitExpires: timestamp('rate_limit_expires'),
+  
+  // Trust level
+  trustLevel: varchar('trust_level', {
+    enum: ['low', 'medium', 'high', 'trusted'],
+    length: 10
+  }).default('medium'),
+  
+  // Timestamps
+  lastFlagAt: timestamp('last_flag_at'),
+  lastActionAt: timestamp('last_action_at'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('reputation_user_idx').on(table.userId),
+  scoreIdx: index('reputation_score_idx').on(table.score),
+  trustLevelIdx: index('reputation_trust_level_idx').on(table.trustLevel),
+}));
+
+// Moderation analytics - daily stats
+export const moderation_analytics_daily = pgTable('moderation_analytics_daily', {
+  id: serial('id').primaryKey(),
+  date: timestamp('date').notNull(),
+  
+  // Flag counts
+  totalFlags: integer('total_flags').default(0),
+  autoHiddenFlags: integer('auto_hidden_flags').default(0),
+  reviewedFlags: integer('reviewed_flags').default(0),
+  dismissedFlags: integer('dismissed_flags').default(0),
+  
+  // By category
+  flagsByCategory: jsonb('flags_by_category').$type<Record<string, number>>(),
+  
+  // False positive tracking
+  falsePositives: integer('false_positives').default(0),
+  falseNegatives: integer('false_negatives').default(0),
+  
+  // Actions taken
+  warnings: integer('warnings').default(0),
+  tempBans: integer('temp_bans').default(0),
+  permabans: integer('permabans').default(0),
+  contentRemoved: integer('content_removed').default(0),
+  
+  // Appeals
+  appealsSubmitted: integer('appeals_submitted').default(0),
+  appealsApproved: integer('appeals_approved').default(0),
+  appealsRejected: integer('appeals_rejected').default(0),
+  
+  // Moderator performance
+  avgReviewTime: integer('avg_review_time'), // Average time in minutes
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  dateIdx: index('mod_analytics_date_idx').on(table.date),
+}));
+
+// Moderation automation rules
+export const moderation_rules = pgTable('moderation_rules', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  
+  // Rule conditions
+  category: varchar('category', {
+    enum: ['hate', 'harassment', 'self-harm', 'sexual', 'violence', 'spam', 'misinformation'],
+    length: 20
+  }).notNull(),
+  minConfidence: integer('min_confidence').notNull(), // Minimum confidence to trigger
+  
+  // Action to take
+  action: varchar('action', {
+    enum: ['auto_hide', 'auto_approve', 'warn', 'temp_ban', 'flag_for_review'],
+    length: 20
+  }).notNull(),
+  actionDuration: integer('action_duration'), // Duration in hours for temp bans
+  
+  // User reputation thresholds
+  minUserReputation: integer('min_user_reputation'),
+  maxUserReputation: integer('max_user_reputation'),
+  
+  // Rule status
+  enabled: boolean('enabled').default(true),
+  priority: integer('priority').default(0), // Higher priority rules execute first
+  
+  // Tracking
+  timesTriggered: integer('times_triggered').default(0),
+  lastTriggeredAt: timestamp('last_triggered_at'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  categoryIdx: index('rule_category_idx').on(table.category),
+  enabledIdx: index('rule_enabled_idx').on(table.enabled),
+  priorityIdx: index('rule_priority_idx').on(table.priority),
+}));
