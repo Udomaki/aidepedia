@@ -1,8 +1,5 @@
 import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
-// Quality scoring tables
-export * from './quality';
-
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -71,8 +68,6 @@ export const articles = pgTable('articles', {
   content: text('content').notNull(),
   excerpt: text('excerpt'),
   categoryId: integer('category_id').references(() => categories.id),
-  categoryConfidence: integer('category_confidence'), // AI confidence score 0-100
-  categoryManuallySet: boolean('category_manually_set').default(false), // Manual override flag
   tags: text('tags').array().default([]),
   
   status: varchar('status', { 
@@ -301,31 +296,10 @@ export const tags = pgTable('tags', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull().unique(),
   slug: varchar('slug', { length: 100 }).notNull().unique(),
-  description: text('description'),
-  usageCount: integer('usage_count').default(0),
-  parentId: integer('parent_id').references((): any => tags.id),
   createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   slugIdx: index('tag_slug_idx').on(table.slug),
   nameIdx: index('tag_name_idx').on(table.name),
-  parentIdx: index('tag_parent_idx').on(table.parentId),
-}));
-
-export const tag_relationships = pgTable('tag_relationships', {
-  id: serial('id').primaryKey(),
-  tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
-  relatedTagId: integer('related_tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
-  relationshipType: varchar('relationship_type', {
-    enum: ['synonym', 'parent', 'child', 'related'],
-    length: 20
-  }).notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-}, (table) => ({
-  tagIdx: index('tag_rel_tag_idx').on(table.tagId),
-  relatedTagIdx: index('tag_rel_related_idx').on(table.relatedTagId),
-  typeIdx: index('tag_rel_type_idx').on(table.relationshipType),
-  uniqueRel: index('tag_rel_unique_idx').on(table.tagId, table.relatedTagId, table.relationshipType),
 }));
 
 export const article_tags = pgTable('article_tags', {
@@ -648,36 +622,5 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   convertedIdx: index('assignment_converted_idx').on(table.converted),
 }));
 
-// AI Article Summaries
-export const article_summaries = pgTable('article_summaries', {
-  id: serial('id').primaryKey(),
-  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
-
-  // Summary content
-  summary: text('summary').notNull(),
-  keyPoints: text('key_points').array().notNull(),
-
-  // Summary style/metadata
-  style: varchar('style', {
-    enum: ['brief', 'detailed', 'bullets'],
-    length: 20
-  }).notNull().default('detailed'),
-
-  // Generation metadata
-  model: varchar('model', { length: 100 }).notNull(), // e.g., 'claude-sonnet-4-6'
-  generatedAt: timestamp('generated_at').defaultNow(),
-  articleHash: varchar('article_hash', { length: 64 }).notNull(), // Hash of article content for cache invalidation
-
-  // Statistics
-  wordCount: integer('word_count').notNull(),
-
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-}, (table) => ({
-  articleIdx: index('summary_article_idx').on(table.articleId),
-  articleHashIdx: index('summary_article_hash_idx').on(table.articleHash),
-  styleIdx: index('summary_style_idx').on(table.style),
-}));
-
-// Recommendation system tables
-export * from './recommendations';
+// Export moderation tables
+export * from './moderation';
