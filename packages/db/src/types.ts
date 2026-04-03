@@ -10,7 +10,6 @@ import type {
   comments,
   article_reactions,
   feature_flags,
-  article_summaries,
 } from './schema/index';
 
 // Category types
@@ -176,19 +175,12 @@ export interface Tag {
   id: number;
   name: string;
   slug: string;
-  description: string | null;
-  usageCount: number | null;
-  parentId: number | null;
-  createdAt: Date | null;
-  updatedAt: Date | null;
+  createdAt: Date;
 }
 
 export interface NewTag {
   name: string;
   slug: string;
-  description?: string | null;
-  usageCount?: number;
-  parentId?: number | null;
 }
 
 export interface ArticleTag {
@@ -429,15 +421,94 @@ export interface ArticleDraftWithArticle extends ArticleDraft {
   } | null;
 }
 
-// Article summary types
-export type ArticleSummary = typeof article_summaries.$inferSelect;
-export type NewArticleSummary = typeof article_summaries.$inferInsert;
-export type SummaryStyle = 'brief' | 'detailed' | 'bullets';
+// Quality score types
+export type BadgeType = 'featured' | 'verified' | 'comprehensive' | 'trending' | 'needs_improvement';
 
-export interface ArticleSummaryWithArticle extends ArticleSummary {
-  article?: {
-    id: number;
-    slug: string;
-    title: string;
-  } | null;
+export interface QualityScoreBreakdown {
+  completeness: {
+    score: number;
+    hasTitle: boolean;
+    hasSummary: boolean;
+    hasContent: boolean;
+    hasTags: boolean;
+    hasCategory: boolean;
+    tagCount: number;
+    wordCount: number;
+  };
+  readability: {
+    score: number;
+    fleschKincaid: number;
+    avgSentenceLength: number;
+    avgParagraphLength: number;
+    sentenceCount: number;
+    paragraphCount: number;
+  };
+  engagement: {
+    score: number;
+    viewCount: number;
+    upvoteCount: number;
+    commentCount: number;
+    bookmarkCount: number;
+    viewsPerDay: number;
+    upvoteRate: number;
+  };
+  freshness: {
+    score: number;
+    daysSinceUpdate: number;
+    isRecentlyUpdated: boolean;
+    updateFrequency: number;
+  };
+  accuracy: {
+    score: number;
+    hasReferences: boolean;
+    referenceCount: number;
+    isVerified: boolean;
+    citationScore: number;
+  };
+}
+
+export interface QualityScore {
+  overallScore: number;
+  completenessScore: number;
+  readabilityScore: number;
+  engagementScore: number;
+  freshnessScore: number;
+  accuracyScore: number;
+  breakdown: QualityScoreBreakdown;
+  badges: BadgeType[];
+}
+
+export interface QualityAnalytics {
+  scoreDistribution: {
+    '0-19': number;
+    '20-39': number;
+    '40-59': number;
+    '60-79': number;
+    '80-89': number;
+    '90-100': number;
+  };
+  tierCounts: {
+    featured: number;
+    verified: number;
+    good: number;
+    average: number;
+    needsImprovement: number;
+  };
+  badgeCounts: {
+    featured: number;
+    verified: number;
+    comprehensive: number;
+    trending: number;
+    needsImprovement: number;
+  };
+  avgScores: {
+    overall: number;
+    completeness: number;
+    readability: number;
+    engagement: number;
+    freshness: number;
+    accuracy: number;
+  };
+  topArticles: Array<{ articleId: number; title: string; score: number }>;
+  lowestArticles: Array<{ articleId: number; title: string; score: number; issues: string[] }>;
 }
