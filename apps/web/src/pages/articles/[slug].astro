@@ -374,6 +374,19 @@ const totalComments = countAllComments(comments);
       </div>
     </div>
 
+    <!-- Related Articles Section -->
+    <section id="related-articles-section" class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h2 class="text-2xl font-bold text-gray-900">
+          📚 Related Articles
+        </h2>
+        <p class="text-sm text-gray-600 mt-1">Discover similar content based on AI-powered semantic analysis</p>
+      </div>
+      <div id="related-articles-container" class="p-6">
+        <!-- Related articles will be loaded here -->
+      </div>
+    </section>
+
     <!-- Comments Section -->
     <section class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div class="p-6 border-b border-gray-200">
@@ -654,6 +667,52 @@ const totalComments = countAllComments(comments);
 
   // Initialize
   checkAuth();
+  loadRelatedArticles();
+
+  // Load related articles using semantic search
+  async function loadRelatedArticles() {
+    try {
+      const response = await fetch(`/api/v1/articles/${article.slug}/related?limit=5`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.data.related && data.data.related.length > 0) {
+          const relatedSection = document.getElementById('related-articles-section');
+          const relatedContainer = document.getElementById('related-articles-container');
+          
+          if (relatedSection && relatedContainer) {
+            relatedContainer.innerHTML = `
+              <div class="grid gap-4">
+                ${data.data.related.map((related: any) => `
+                  <a 
+                    href="/articles/${related.slug}" 
+                    class="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all"
+                  >
+                    <div class="flex justify-between items-start">
+                      <div class="flex-1">
+                        <h3 class="font-semibold text-gray-900 mb-1">${related.title}</h3>
+                        ${related.excerpt ? `
+                          <p class="text-sm text-gray-600 line-clamp-2">${related.excerpt}</p>
+                        ` : ''}
+                      </div>
+                      <div class="ml-4 text-xs text-gray-400">
+                        ${(related.similarity * 100).toFixed(0)}% match
+                      </div>
+                    </div>
+                  </a>
+                `).join('')}
+              </div>
+            `;
+            relatedSection.classList.remove('hidden');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading related articles:', error);
+      // Fail silently - related articles are a nice-to-have feature
+    }
+  }
 
   // Handle bookmark toggle
   const bookmarkBtn = document.getElementById('bookmark-btn');

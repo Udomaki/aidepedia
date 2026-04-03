@@ -56,6 +56,23 @@ const categories = await getCategories();
 
     <!-- Filters and Sort Row -->
     <div class="flex flex-wrap gap-4 mb-8" role="group" aria-label="Search filters">
+      <!-- Search Mode Toggle -->
+      <div class="flex-1 min-w-[200px]">
+        <label for="search-mode" class="block text-sm font-medium text-gray-700 mb-2">Search Mode</label>
+        <select
+          id="search-mode"
+          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          aria-describedby="mode-help"
+        >
+          <option value="hybrid">🧠 Hybrid (Semantic + Keyword)</option>
+          <option value="semantic">🤖 Semantic (AI-Powered)</option>
+          <option value="keyword">🔍 Keyword (Traditional)</option>
+        </select>
+        <p id="mode-help" class="text-xs text-gray-500 mt-1">
+          Semantic search understands meaning and context
+        </p>
+      </div>
+
       <!-- Category Filter -->
       <div class="flex-1 min-w-[200px]">
         <label for="category-filter" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
@@ -170,6 +187,7 @@ const categories = await getCategories();
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const searchLoading = document.getElementById('search-loading');
   const suggestionsDiv = document.getElementById('suggestions');
+  const searchModeFilter = document.getElementById('search-mode') as HTMLSelectElement;
   const categoryFilter = document.getElementById('category-filter') as HTMLSelectElement;
   const dateFilter = document.getElementById('date-filter') as HTMLSelectElement;
   const sortFilter = document.getElementById('sort-filter') as HTMLSelectElement;
@@ -187,11 +205,13 @@ const categories = await getCategories();
     const query = params.get('q') || '';
     const category = params.get('category') || '';
     const sort = params.get('sort') || 'relevance';
+    const mode = params.get('mode') || 'hybrid';
     const page = params.get('page') || '1';
 
     searchInput.value = query;
     categoryFilter.value = category;
     sortFilter.value = sort;
+    searchModeFilter.value = mode;
     currentPage = parseInt(page, 10);
 
     if (query) {
@@ -208,6 +228,7 @@ const categories = await getCategories();
     if (currentQuery) params.set('q', currentQuery);
     if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (sortFilter.value !== 'relevance') params.set('sort', sortFilter.value);
+    if (searchModeFilter.value !== 'hybrid') params.set('mode', searchModeFilter.value);
     if (currentPage > 1) params.set('page', currentPage.toString());
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -252,6 +273,7 @@ const categories = await getCategories();
       // Build search URL
       const params = new URLSearchParams();
       params.set('q', query);
+      params.set('mode', searchModeFilter.value);
       params.set('page', currentPage.toString());
       if (categoryFilter.value) params.set('category', categoryFilter.value);
 
@@ -604,11 +626,18 @@ const categories = await getCategories();
     updateUrl();
   });
 
+  searchModeFilter.addEventListener('change', () => {
+    currentPage = 1;
+    if (currentQuery) performSearch();
+    updateUrl();
+  });
+
   clearFiltersBtn!.addEventListener('click', () => {
     searchInput.value = '';
     categoryFilter.value = '';
     dateFilter.value = '';
     sortFilter.value = 'relevance';
+    searchModeFilter.value = 'hybrid';
     currentQuery = '';
     currentPage = 1;
     resultsContainer!.innerHTML = '';
