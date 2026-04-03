@@ -3,9 +3,18 @@ main = "./apps/web/dist/_worker.js/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 
+# Node.js polyfills for edge runtime
+# This enables Node.js built-in modules in Cloudflare Workers
+[node_compat]
+compat = true
+
 [assets]
 binding = "ASSETS"
 directory = "./apps/web/dist"
 
 [observability]
 enabled = true
+
+# Environment variables (set these in Cloudflare dashboard)
+# [vars]
+# DATABASE_URL = ""

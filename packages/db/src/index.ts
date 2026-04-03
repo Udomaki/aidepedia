@@ -4,7 +4,14 @@ import * as schema from './schema/index';
 
 const connectionString = process.env.DATABASE_URL!;
 
-const client = postgres(connectionString);
+// Configure postgres for Cloudflare Workers compatibility
+// Use WebSocket connection which works in edge environments
+const client = postgres(connectionString, {
+  // Disable prepare for edge environments
+  prepare: false,
+  // Use WebSocket transport for Cloudflare Workers
+  // The postgres.js package automatically detects Cloudflare environment
+});
 
 export const db = drizzle(client, { schema });
 

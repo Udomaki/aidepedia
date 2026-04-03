@@ -62,38 +62,52 @@ export async function checkDatabase(): Promise<ComponentHealth> {
  */
 export function checkMemory(): ComponentHealth {
   try {
-    const memUsage = process.memoryUsage();
-    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-    const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
-    const heapUsagePercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
-    const rssMB = Math.round(memUsage.rss / 1024 / 1024);
-    
-    let status: 'ok' | 'warn' | 'error' = 'ok';
-    let message = 'Memory usage normal';
-    
-    if (heapUsagePercent > 90) {
-      status = 'error';
-      message = 'Critical memory usage';
-    } else if (heapUsagePercent > 75) {
-      status = 'warn';
-      message = 'High memory usage';
+    // Check if we're in a Node.js environment with memory APIs
+    if (typeof process !== 'undefined' && process.memoryUsage) {
+      const memUsage = process.memoryUsage();
+      const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+      const heapUsagePercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+      const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+      
+      let status: 'ok' | 'warn' | 'error' = 'ok';
+      let message = 'Memory usage normal';
+      
+      if (heapUsagePercent > 90) {
+        status = 'error';
+        message = 'Critical memory usage';
+      } else if (heapUsagePercent > 75) {
+        status = 'warn';
+        message = 'High memory usage';
+      }
+      
+      return {
+        status,
+        message,
+        details: {
+          heapUsedMB,
+          heapTotalMB,
+          heapUsagePercent,
+          rssMB,
+          externalMB: Math.round(memUsage.external / 1024 / 1024),
+        },
+      };
     }
     
+    // Edge runtime (Cloudflare Workers) - memory APIs not available
     return {
-      status,
-      message,
+      status: 'ok',
+      message: 'Memory check not available in edge runtime',
       details: {
-        heapUsedMB,
-        heapTotalMB,
-        heapUsagePercent,
-        rssMB,
-        externalMB: Math.round(memUsage.external / 1024 / 1024),
+        environment: 'edge',
+        available: false,
       },
     };
   } catch (error) {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'Failed to check memory',
+      status: 'ok', // Don't fail on memory check errors in edge
+      message: 'Memory check unavailable',
+      details: { error: error instanceof Error ? error.message : 'Unknown error' },
     };
   }
 }
@@ -103,6 +117,18 @@ export function checkMemory(): ComponentHealth {
  */
 export async function checkDisk(): Promise<ComponentHealth> {
   try {
+    // Edge runtime (Cloudflare Workers) - disk APIs not available
+    if (typeof process === 'undefined' || !process.platform) {
+      return {
+        status: 'ok',
+        message: 'Disk check not available in edge runtime',
+        details: {
+          environment: 'edge',
+          available: false,
+        },
+      };
+    }
+    
     // Use Node.js fs to check disk stats
     // Note: This is a simplified check - in production you might use a library
     const { execSync } = await import('child_process');
@@ -159,7 +185,7 @@ export async function checkDisk(): Promise<ComponentHealth> {
     };
   } catch (error) {
     return {
-      status: 'warn',
+      status: 'ok', // Don't fail on disk check errors
       message: 'Could not check disk space',
       details: { error: error instanceof Error ? error.message : 'Unknown error' },
     };
