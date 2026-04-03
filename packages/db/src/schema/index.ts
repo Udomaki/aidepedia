@@ -3,6 +3,9 @@ import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jso
 // Branding tables for white-label functionality
 export * from './branding';
 
+// Export SSO schema
+export * from './sso';
+
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
