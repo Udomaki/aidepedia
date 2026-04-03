@@ -3,6 +3,18 @@ import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jso
 // Branding tables for white-label functionality
 export * from './branding';
 
+// Export organization_members with alias for backward compatibility
+export { organization_members as organizationMembers } from './branding';
+
+// Export SSO-specific schema (organizations is already exported from branding)
+export { 
+  ssoSessions,
+  scimGroups,
+  scimGroupMembers,
+  ssoAuditLog,
+  ssoIdentityProviders
+} from './sso';
+
 // Auth tables for @auth/core
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -293,6 +305,36 @@ export const article_reactions = pgTable('article_reactions', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
   articleUserEmojiIdx: index('article_reaction_user_emoji_idx').on(table.articleId, table.userId, table.emoji),
+}));
+
+export const article_summaries = pgTable('article_summaries', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+
+  // Summary content
+  summary: text('summary').notNull(),
+  keyPoints: text('key_points').array().notNull(),
+
+  // Summary style/metadata
+  style: varchar('style', {
+    enum: ['brief', 'detailed', 'bullets'],
+    length: 20
+  }).notNull().default('detailed'),
+
+  // Generation metadata
+  model: varchar('model', { length: 100 }).notNull(), // e.g., 'claude-sonnet-4-6'
+  generatedAt: timestamp('generated_at').defaultNow(),
+  articleHash: varchar('article_hash', { length: 64 }).notNull(), // Hash of article content for cache invalidation
+
+  // Statistics
+  wordCount: integer('word_count').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('summary_article_idx').on(table.articleId),
+  articleHashIdx: index('summary_article_hash_idx').on(table.articleHash),
+  styleIdx: index('summary_style_idx').on(table.style),
 }));
 
 export const tags = pgTable('tags', {
@@ -627,3 +669,9 @@ export const experiment_assignments = pgTable('experiment_assignments', {
 
 // Export moderation tables
 export * from './moderation';
+
+// Export quality tables
+export * from './quality';
+
+// Export recommendations tables
+export * from './recommendations';

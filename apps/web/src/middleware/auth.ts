@@ -134,6 +134,41 @@ const authMiddleware = defineMiddleware(async (context, next) => {
   // Get session for all requests
   const session = await getSession(context.request);
   
+  // Check SSO enforcement for login/signup routes
+  if ((pathname === '/login' || pathname === '/signup') && session?.user?.email) {
+    const { checkSSORequired } = await import('./saml');
+    const ssoCheck = await checkSSORequired(session.user.email as string);
+    
+    if (ssoCheck.required && ssoCheck.idp) {
+      // Redirect to SSO login
+      const callbackUrl = context.url.searchParams.get('callbackUrl') || '/dashboard';
+      
+      if (ssoCheck.idp.type === 'saml') {
+        const { getSAMLLoginUrl } = await import('./saml');
+        const result = await getSAMLLoginUrl(ssoCheck.organization!.id, callbackUrl);
+        
+        if (result.url) {
+          return context.redirect(result.url);
+        }
+      } else if (ssoCheck.idp.type === 'oidc') {
+        const { getOIDCAuthorizationUrl, generatePKCE } = await import('./oidc');
+        const { verifier, challenge } = generatePKCE();
+        const state = Buffer.from(JSON.stringify({
+          organizationId: ssoCheck.organization!.id,
+          callbackUrl,
+          codeVerifier: verifier,
+          timestamp: Date.now(),
+        })).toString('base64');
+        
+        const result = await getOIDCAuthorizationUrl(ssoCheck.organization!.id, state, challenge);
+        
+        if (result.url) {
+          return context.redirect(result.url);
+        }
+      }
+    }
+  }
+  
   // Skip auth for public paths
   if (publicPaths.some(path => pathname.startsWith(path))) {
     // But still attach session to locals for use in pages
