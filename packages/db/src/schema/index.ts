@@ -791,3 +791,31 @@ export const article_reviews = pgTable('article_reviews', {
   statusIdx: index('review_status_idx').on(table.status),
   createdAtIdx: index('review_created_at_idx').on(table.createdAt),
 }));
+
+// API Quota tracking for rate limiting
+export const api_quotas = pgTable('api_quotas', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  // For anonymous users, track by IP hash
+  ipHash: varchar('ip_hash', { length: 64 }),
+  // Quota tier: free, pro, enterprise
+  tier: varchar('tier', {
+    enum: ['free', 'pro', 'enterprise'],
+    length: 20
+  }).notNull().default('free'),
+  // Request tracking
+  requestCount: integer('request_count').notNull().default(0),
+  // Time window tracking (hourly)
+  windowStart: timestamp('window_start').notNull().defaultNow(),
+  // Monthly quota tracking
+  monthlyRequestCount: integer('monthly_request_count').notNull().default(0),
+  monthStart: timestamp('month_start').notNull().defaultNow(),
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdx: index('api_quota_user_idx').on(table.userId),
+  ipHashIdx: index('api_quota_ip_hash_idx').on(table.ipHash),
+  tierIdx: index('api_quota_tier_idx').on(table.tier),
+  windowIdx: index('api_quota_window_idx').on(table.windowStart),
+}));
