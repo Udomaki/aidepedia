@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, index, jsonb, primaryKey, vector } from 'drizzle-orm/pg-core';
 
 // Auth tables for @auth/core
 export const users = pgTable('users', {
@@ -290,6 +290,26 @@ export const article_reactions = pgTable('article_reactions', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => ({
   articleUserEmojiIdx: index('article_reaction_user_emoji_idx').on(table.articleId, table.userId, table.emoji),
+}));
+
+// Article embeddings for semantic search
+export const article_embeddings = pgTable('article_embeddings', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }).unique(),
+  
+  // OpenAI embedding vector (1536 dimensions for text-embedding-3-small)
+  embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+  
+  // Metadata about the embedding
+  model: varchar('model', { length: 100 }).notNull().default('text-embedding-3-small'),
+  tokensUsed: integer('tokens_used'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  articleIdx: index('embedding_article_idx').on(table.articleId),
+  // Vector index for similarity search (using HNSW)
+  embeddingIdx: index('embedding_vector_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
 }));
 
 export const tags = pgTable('tags', {
@@ -620,4 +640,39 @@ export const experiment_assignments = pgTable('experiment_assignments', {
   userIdx: index('assignment_user_idx').on(table.userId),
   experimentUserIdx: index('assignment_experiment_user_idx').on(table.experimentId, table.userId),
   convertedIdx: index('assignment_converted_idx').on(table.converted),
+}));
+
+// Search analytics for tracking search queries and performance
+export const search_analytics = pgTable('search_analytics', {
+  id: serial('id').primaryKey(),
+  query: varchar('query', { length: 500 }).notNull(),
+  searchType: varchar('search_type', {
+    enum: ['keyword', 'semantic', 'hybrid'],
+    length: 20
+  }).notNull().default('keyword'),
+  
+  // Results metadata
+  resultsCount: integer('results_count').notNull().default(0),
+  hasResults: boolean('has_results').notNull().default(false),
+  
+  // Filters applied
+  filters: jsonb('filters').$type<{
+    category?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }>(),
+  
+  // Performance tracking
+  responseTimeMs: integer('response_time_ms'),
+  
+  // User context (optional)
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  sessionId: varchar('session_id', { length: 255 }),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  queryIdx: index('search_analytics_query_idx').on(table.query),
+  searchTypeIdx: index('search_analytics_type_idx').on(table.searchType),
+  hasResultsIdx: index('search_analytics_has_results_idx').on(table.hasResults),
+  createdAtIdx: index('search_analytics_created_at_idx').on(table.createdAt),
 }));
